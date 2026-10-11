@@ -49,7 +49,8 @@ builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(dataDir, "keys")));
 
 builder.Services.AddDbContextFactory<KkDbContext>(options => options
-    .UseNpgsql(config.ConnectionString(), npgsql => npgsql.EnableRetryOnFailure(3))
+    // No automatic retries: issuing a document works in one transaction that must not run twice (a number is never given out twice, never skipped).
+    .UseNpgsql(config.ConnectionString())
     // Soft-deleted customers and projects are refused by the services before anything refers to them, so the warning about filtered required ends is noise.
     .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning)));
 builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<KkDbContext>>().CreateDbContext());

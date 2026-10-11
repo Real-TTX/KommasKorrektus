@@ -101,7 +101,7 @@
                 <button type="submit" asp-page-handler="Suggest" formnovalidate class="mat-btn mat-btn--ghost" data-tip="Preis und Umfang des Projekts als Positionen">@Ui.Icon("sparkles")<span>Aus Projekt</span></button>
                 @if (!Model.IsOffer)
                 {
-                    <button type="submit" asp-page-handler="AddTime" formnovalidate class="mat-btn mat-btn--ghost" data-tip="Noch nicht abgerechnete Arbeitszeit des Projekts">@Ui.Icon("clock")<span>Aufwand@(Model.TimeHours > 0 ? $" ({Model.TimeHours:0.##} h)" : "")</span></button>
+                    <button type="submit" asp-page-handler="AddTime" formnovalidate class="mat-btn mat-btn--ghost" data-tip="Noch nicht abgerechnete Arbeitszeit des Projekts">@Ui.Icon("clock")<span>Aufwand@(Model.TimeHours > 0 ? $" ({Fmt.Number(Model.TimeHours, 2)} h)" : "")</span></button>
                 }
             </div>
 

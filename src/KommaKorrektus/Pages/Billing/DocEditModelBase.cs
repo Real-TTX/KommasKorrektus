@@ -247,7 +247,7 @@ public abstract class DocEditModelBase(KkDbContext db, BillingService billing, C
             BillingService.Recalculate(invoice);
             await db.SaveChangesAsync();
             await billing.LinkTimeAsync(result.EntryIds, result.Line);
-            Flash($"Die Arbeitszeit ist als Position übernommen ({result.Line.Quantity:0.##} Stunden).");
+            Flash($"Die Arbeitszeit ist als Position übernommen ({Fmt.Number(result.Line.Quantity, 2)} Stunden).");
         }
         else
         {

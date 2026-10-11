@@ -289,12 +289,12 @@ public sealed class BillingService(KkDbContext db, ConfigStore config, NumberSer
             case PricingModel.PerNormPage when project.Rate is { } rate:
                 lines.Add(new InvoiceLine
                 {
-                    Title = title, Description = $"{TextMetrics.NormPages(chars, company.NormPageCharacters):0.##} Normseiten ({company.NormPageCharacters} Zeichen inkl. Leerzeichen)",
+                    Title = title, Description = $"{Fmt.Number(TextMetrics.NormPages(chars, company.NormPageCharacters), 2)} Normseiten ({company.NormPageCharacters} Zeichen inkl. Leerzeichen)",
                     Quantity = Math.Max(TextMetrics.NormPages(chars, company.NormPageCharacters), 0.01m), Unit = "Normseite", UnitPrice = rate, VatRate = vat,
                 });
                 break;
             case PricingModel.PerWord when project.Rate is { } rate:
-                lines.Add(new InvoiceLine { Title = title, Description = $"{words:N0} Wörter", Quantity = Math.Max(words, 1), Unit = "Wort", UnitPrice = rate, VatRate = vat });
+                lines.Add(new InvoiceLine { Title = title, Description = $"{Fmt.Integer(words)} Wörter", Quantity = Math.Max(words, 1), Unit = "Wort", UnitPrice = rate, VatRate = vat });
                 break;
             case PricingModel.Hourly when project.Rate is { } rate:
                 var seconds = await db.TimeEntry.AsNoTracking().Where(t => t.ProjectId == project.Id && t.InvoiceLineId == null && t.IsBillable && !t.IsRunning).SumAsync(t => (int?)t.Seconds, ct) ?? 0;
