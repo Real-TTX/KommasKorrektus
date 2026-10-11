@@ -1,0 +1,26 @@
+@page
+@model KommaKorrektus.Pages.TaskTemplates.EditModel
+@{
+    var services = Controls.Options.Of<ServiceType>(Labels.Of);
+}
+
+<form class="mat-form" method="post" novalidate>
+    <input type="hidden" name="Id" value="@Model.Id" />
+    <kk-summary />
+    <kk-card title="Vorlage" icon="template">
+        <div class="mat-form__grid">
+            <kk-input for="Input.Name" label="Name" required="true" />
+            <kk-select for="Input.ServiceType" label="Passt zur Leistung" items="services" empty="(keine bestimmte)" />
+            <kk-input for="Input.Description" label="Beschreibung" full="true" />
+            <kk-textarea for="Input.Items" label="Aufgaben" rows="12" full="true" hint="Eine Aufgabe pro Zeile: Titel; geplante Minuten; Fälligkeit in Tagen nach Beginn. Die Zahlen sind optional." />
+        </div>
+    </kk-card>
+    @if (Model.Id is not null)
+    {
+        <kk-buttons back-href="/TaskTemplates" delete-url="@Url.Page("/TaskTemplates/Edit", "Delete", new { id = Model.Id })" delete-confirm="Diese Vorlage löschen? Bereits angelegte Aufgaben bleiben erhalten." />
+    }
+    else
+    {
+        <kk-buttons back-href="/TaskTemplates" />
+    }
+</form>

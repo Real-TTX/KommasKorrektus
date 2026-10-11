@@ -1,0 +1,30 @@
+@page
+@model KommaKorrektus.Pages.Projects.TaskModel
+@{
+    var states = Controls.Options.Of<TaskState>(Labels.Of);
+    var back = $"/Projects/Details?id={Model.ProjectId}&tab=tasks";
+}
+
+<form class="mat-form" method="post" novalidate>
+    <input type="hidden" name="ProjectId" value="@Model.ProjectId" />
+    <input type="hidden" name="Id" value="@Model.Id" />
+    <kk-summary />
+    <kk-card title="@Model.Project.Title" icon="check-square">
+        <div class="mat-form__grid">
+            <kk-input for="Input.Title" label="Aufgabe" full="true" required="true" />
+            <kk-textarea for="Input.Description" label="Beschreibung" rows="3" full="true" />
+            <kk-select for="Input.State" label="Status" items="states" />
+            <kk-input for="Input.DueDate" label="Fällig am" type="date" />
+            <kk-select for="Input.AssignedUserId" label="Zuständig" items="Model.Users" empty="(niemand)" />
+            <kk-input for="Input.EstimatedMinutes" label="Geplante Minuten" type="number" min="0" />
+        </div>
+    </kk-card>
+    @if (Model.Id is not null)
+    {
+        <kk-buttons back-href="@back" delete-url="@Url.Page("/Projects/Task", "Delete", new { projectId = Model.ProjectId, id = Model.Id })" delete-confirm="Diese Aufgabe löschen?" />
+    }
+    else
+    {
+        <kk-buttons back-href="@back" />
+    }
+</form>

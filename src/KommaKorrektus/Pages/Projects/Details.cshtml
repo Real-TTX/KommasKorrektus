@@ -1,0 +1,254 @@
+@page
+@model KommaKorrektus.Pages.Projects.DetailsModel
+@{
+    var p = Model.Project;
+    var statuses = Controls.Options.Of<ProjectStatus>(Labels.Of);
+    var now = DateTime.UtcNow;
+    var taskDone = Model.Tasks.Count(t => t.State == TaskState.Done);
+}
+
+<div class="mat-grid mat-grid--4">
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Status</span><span class="mat-stat__value kk-stat-pill">@Labels.Pill(p.Status)</span><span class="mat-stat__delta">@(p.DueDate is null ? "ohne Frist" : "Frist " + Fmt.Date(p.DueDate))</span></div></div>
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Umfang</span><span class="mat-stat__value">@Model.NormPages.ToString("N1", Fmt.Culture)</span><span class="mat-stat__delta">Normseiten · @Fmt.Integer(Model.TotalWords) Wörter</span></div></div>
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Gearbeitet</span><span class="mat-stat__value">@Fmt.Duration(Model.TotalSeconds)</span><span class="mat-stat__delta">@(p.EstimatedHours is { } est ? $"von geschätzt {Fmt.Number(est, 1)} h" : $"{Fmt.Integer(Model.WordsDone)} Wörter bearbeitet")</span></div></div>
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Aufgaben</span><span class="mat-stat__value">@taskDone/@Model.Tasks.Count</span><span class="mat-stat__delta">erledigt</span></div></div>
+</div>
+
+<kk-tabs id="project" label="Projekt" selected="@Model.Tab">
+    <kk-tab id="overview" title="Übersicht" icon="home">
+        <div class="mat-grid mat-grid--2">
+            <kk-card title="Projekt" icon="folder">
+                <dl class="mat-kv">
+                    <dt>Kunde</dt><dd><a href="/Customers/Details?id=@Model.Customer.Id">@Model.Customer.DisplayName</a></dd>
+                    <dt>Leistung</dt><dd>@Labels.Of(p.ServiceType)</dd>
+                    @if (!string.IsNullOrWhiteSpace(p.Genre)) { <dt>Genre</dt><dd>@p.Genre</dd> }
+                    <dt>Priorität</dt><dd>@Labels.Of(p.Priority)</dd>
+                    <dt>Beginn</dt><dd>@(p.StartDate is null ? "–" : Fmt.Date(p.StartDate))</dd>
+                    <dt>Frist</dt><dd>@(p.DueDate is null ? "–" : Fmt.Date(p.DueDate))@(p.DoneDate is not null ? $", abgeschlossen am {Fmt.Date(p.DoneDate)}" : "")</dd>
+                </dl>
+                @if (!string.IsNullOrWhiteSpace(p.Description)) { <p class="kk-prewrap">@p.Description</p> }
+            </kk-card>
+            <kk-card title="Abrechnung" icon="dollar">
+                <dl class="mat-kv">
+                    <dt>Abrechnung</dt><dd>@Labels.Of(p.PricingModel)</dd>
+                    @if (p.PricingModel == PricingModel.Flat) { <dt>Pauschale</dt><dd>@(p.FlatPrice is { } flat ? Fmt.Money(flat) : "–")</dd> }
+                    else { <dt>Preis</dt><dd>@(p.Rate is { } rate ? Fmt.Money(rate) : "–") @(p.PricingModel switch { PricingModel.PerNormPage => "je Normseite", PricingModel.PerWord => "je Wort", _ => "je Stunde" })</dd> }
+                    @if (Model.Estimate is { } estimate) { <dt>Voraussichtlich (netto)</dt><dd><strong>@Fmt.Money(estimate)</strong></dd> }
+                    <dt>Zeit abgerechnet</dt><dd>@Fmt.Duration(Model.BilledSeconds) von @Fmt.Duration(Model.TotalSeconds)</dd>
+                </dl>
+            </kk-card>
+        </div>
+        <form class="mat-form" method="post" asp-page-handler="Status" asp-route-id="@p.Id">
+            <kk-card title="Status ändern" icon="route">
+                <div class="mat-row">
+                    <div class="mat-field"><label class="mat-label" for="NewStatus">Neuer Status</label>
+                        <select class="mat-select" id="NewStatus" name="NewStatus">
+                            @foreach (var s in statuses) { <option value="@s.Value" selected="@(s.Value == p.Status.ToString())">@s.Text</option> }
+                        </select></div>
+                    <button type="submit" class="mat-btn mat-btn--secondary">@Ui.Icon("check")<span>Übernehmen</span></button>
+                </div>
+            </kk-card>
+        </form>
+        @if (!string.IsNullOrWhiteSpace(p.Notes))
+        {
+            <kk-card title="Notizen" icon="edit"><p class="kk-prewrap">@p.Notes</p></kk-card>
+        }
+    </kk-tab>
+
+    <kk-tab id="documents" title="Dokumente" icon="file-text" count="@Model.Documents.Count">
+        @if (Model.Documents.Count == 0)
+        {
+            <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("file-text")</span><div class="mat-empty__title">Noch keine Dokumente</div><p>Lade das Manuskript als Word- oder PDF-Datei hoch. Jede Änderung wird als Fassung gespeichert.</p></div>
+        }
+        else
+        {
+            <div class="mat-table-wrap">
+                <table class="mat-table" id="project-documents">
+                    <caption class="mat-sr-only">Dokumente des Projekts</caption>
+                    <thead><tr><th scope="col">Dokument</th><th scope="col" class="mat-hide-sm">Art</th><th scope="col" class="mat-num">Fassung</th><th scope="col" class="mat-num mat-hide-sm">Wörter</th><th scope="col" class="mat-hide-sm">Geändert</th><th scope="col"><span class="mat-sr-only">Aktionen</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var d in Model.Documents)
+                        {
+                            <tr>
+                                <td data-label="Dokument"><div class="mat-table__name kk-name"><span><a href="/Documents/Details?id=@d.Document.Id">@d.Document.Title</a></span><small class="mat-muted kk-sub">@d.Document.FileName</small></div></td>
+                                <td data-label="Art" class="mat-hide-sm">@Labels.Of(d.Document.Kind)</td>
+                                <td data-label="Fassung" class="mat-num">@d.Document.CurrentVersionNo <small class="mat-muted">(@d.Versions)</small></td>
+                                <td data-label="Wörter" class="mat-num mat-hide-sm">@Fmt.Integer(d.Words)</td>
+                                <td data-label="Geändert" class="mat-hide-sm">@Fmt.Moment(d.Changed)</td>
+                                <td class="mat-table__cell-actions"><div class="mat-table__actions">
+                                    <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Documents/Editor?id=@d.Document.Id" aria-label="Bearbeiten" data-tip="Bearbeiten">@Ui.Icon("pen")</a>
+                                    <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Documents/Details?id=@d.Document.Id" aria-label="Öffnen" data-tip="Öffnen">@Ui.Icon("eye")</a>
+                                </div></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="mat-actions">
+            <a class="mat-btn mat-btn--primary" href="/Documents/Upload?projectId=@p.Id">@Ui.Icon("upload")<span>Dokument hochladen</span></a>
+        </div>
+    </kk-tab>
+
+    <kk-tab id="tasks" title="Aufgaben" icon="check-square" count="@Model.Tasks.Count">
+        @if (Model.Tasks.Count == 0)
+        {
+            <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("check-square")</span><div class="mat-empty__title">Noch keine Aufgaben</div><p>Lege Aufgaben an oder übernimm eine Aufgabenvorlage.</p></div>
+        }
+        else
+        {
+            <div class="mat-table-wrap">
+                <table class="mat-table" id="project-tasks">
+                    <caption class="mat-sr-only">Aufgaben des Projekts</caption>
+                    <thead><tr><th scope="col">Aufgabe</th><th scope="col">Status</th><th scope="col" class="mat-hide-sm">Fällig</th><th scope="col" class="mat-num mat-hide-sm">Geplant</th><th scope="col"><span class="mat-sr-only">Aktionen</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var t in Model.Tasks)
+                        {
+                            <tr>
+                                <td data-label="Aufgabe"><div class="mat-table__name kk-name"><span class="@(t.State == TaskState.Done ? "kk-done" : "")"><a href="/Projects/Task?projectId=@p.Id&id=@t.Id">@t.Title</a></span>@if (t.AssignedUser is not null) { <small class="mat-muted kk-sub">@t.AssignedUser.DisplayName</small> }</div></td>
+                                <td data-label="Status">@Labels.Pill(t.State)</td>
+                                <td data-label="Fällig" class="mat-hide-sm">@if (t.DueDate is not null && t.State != TaskState.Done && t.DueDate < Model.Today) { <span class="mat-pill mat-pill--error">@Fmt.Date(t.DueDate)</span> } else { @Fmt.Date(t.DueDate) }</td>
+                                <td data-label="Geplant" class="mat-num mat-hide-sm">@(t.EstimatedMinutes is { } m ? Fmt.Duration(m * 60) : "")</td>
+                                <td class="mat-table__cell-actions">
+                                    <form method="post" asp-page-handler="Task" asp-route-id="@p.Id" asp-route-taskId="@t.Id" asp-route-state="@(t.State == TaskState.Done ? TaskState.Open : TaskState.Done)" class="mat-table__actions">
+                                        <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="@(t.State == TaskState.Done ? "Wieder öffnen" : "Als erledigt markieren")" data-tip="@(t.State == TaskState.Done ? "Wieder öffnen" : "Erledigt")">@Ui.Icon(t.State == TaskState.Done ? "refresh" : "check")</button>
+                                        <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Projects/Task?projectId=@p.Id&id=@t.Id" aria-label="Bearbeiten" data-tip="Bearbeiten">@Ui.Icon("edit")</a>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="mat-actions">
+            <a class="mat-btn mat-btn--primary" href="/Projects/Task?projectId=@p.Id">@Ui.Icon("plus")<span>Neue Aufgabe</span></a>
+            <a class="mat-btn mat-btn--secondary" href="/Projects/ApplyTemplate?projectId=@p.Id">@Ui.Icon("template")<span>Aus Vorlage</span></a>
+        </div>
+    </kk-tab>
+
+    <kk-tab id="time" title="Zeiten" icon="clock" count="@Model.Times.Count">
+        @if (Model.Times.Count == 0)
+        {
+            <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("clock")</span><div class="mat-empty__title">Noch keine Zeiten</div><p>Die Zeit läuft automatisch mit, solange du in einem Dokument arbeitest. Du kannst sie auch von Hand eintragen.</p></div>
+        }
+        else
+        {
+            <div class="mat-table-wrap">
+                <table class="mat-table" id="project-times">
+                    <caption class="mat-sr-only">Arbeitszeiten des Projekts</caption>
+                    <thead><tr><th scope="col">Beginn</th><th scope="col" class="mat-num">Dauer</th><th scope="col" class="mat-hide-sm">Wer</th><th scope="col" class="mat-hide-sm">Dokument / Notiz</th><th scope="col"><span class="mat-sr-only">Aktionen</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var t in Model.Times)
+                        {
+                            <tr>
+                                <td data-label="Beginn">@Fmt.Moment(t.Entry.StartDate) @if (t.Entry.IsRunning) { <span class="mat-pill mat-pill--busy">läuft</span> } else if (t.Entry.InvoiceLineId is not null) { <span class="mat-pill mat-pill--ok">abgerechnet</span> }</td>
+                                <td data-label="Dauer" class="mat-num">@Fmt.Duration(t.Entry.Seconds)</td>
+                                <td data-label="Wer" class="mat-hide-sm">@t.UserName</td>
+                                <td data-label="Dokument / Notiz" class="mat-hide-sm">@(t.DocumentTitle ?? t.Entry.Note)</td>
+                                <td class="mat-table__cell-actions"><div class="mat-table__actions"><a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Time/Edit?id=@t.Entry.Id" aria-label="Bearbeiten" data-tip="Bearbeiten">@Ui.Icon("edit")</a></div></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="mat-actions">
+            <a class="mat-btn mat-btn--primary" href="/Time/Edit?projectId=@p.Id">@Ui.Icon("plus")<span>Zeit eintragen</span></a>
+            <a class="mat-btn mat-btn--secondary" href="/Time?project=@p.Id">@Ui.Icon("bar-chart")<span>Auswertung</span></a>
+        </div>
+    </kk-tab>
+
+    <kk-tab id="style" title="Stilblatt" icon="book" count="@Model.Styles.Count">
+        <p class="mat-muted">Namen, Schreibweisen und Regeln dieses Manuskripts: Damit bleibt der Text einheitlich, auch nach Wochen.</p>
+        @if (Model.Styles.Count > 0)
+        {
+            <div class="mat-table-wrap">
+                <table class="mat-table" id="project-style">
+                    <caption class="mat-sr-only">Stilblatt des Projekts</caption>
+                    <thead><tr><th scope="col">Eintrag</th><th scope="col">Art</th><th scope="col">Entscheidung</th><th scope="col"><span class="mat-sr-only">Aktionen</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var s in Model.Styles)
+                        {
+                            <tr>
+                                <td data-label="Eintrag"><strong>@s.Term</strong></td>
+                                <td data-label="Art">@Labels.Of(s.Category)</td>
+                                <td data-label="Entscheidung">@s.Decision @if (!string.IsNullOrWhiteSpace(s.Note)) { <small class="mat-muted kk-sub">@s.Note</small> }</td>
+                                <td class="mat-table__cell-actions"><div class="mat-table__actions"><a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Projects/Style?projectId=@p.Id&id=@s.Id" aria-label="Bearbeiten" data-tip="Bearbeiten">@Ui.Icon("edit")</a></div></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="mat-actions">
+            <a class="mat-btn mat-btn--primary" href="/Projects/Style?projectId=@p.Id">@Ui.Icon("plus")<span>Neuer Eintrag</span></a>
+        </div>
+    </kk-tab>
+
+    <kk-tab id="shares" title="Freigaben" icon="share" count="@Model.Shares.Count">
+        <p class="mat-muted">Ein Link ohne Anmeldung, begrenzt gültig: So stellst du der Auftraggeberin oder dem Auftraggeber das Projekt oder eine Fassung zu.</p>
+        @if (Model.Shares.Count > 0)
+        {
+            <div class="mat-table-wrap">
+                <table class="mat-table" id="project-shares">
+                    <caption class="mat-sr-only">Freigabe-Links des Projekts</caption>
+                    <thead><tr><th scope="col">Link</th><th scope="col">Status</th><th scope="col" class="mat-hide-sm">Gültig bis</th><th scope="col" class="mat-num mat-hide-sm">Aufrufe</th><th scope="col"><span class="mat-sr-only">Aktionen</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var s in Model.Shares)
+                        {
+                            var active = s.IsActive(now);
+                            <tr>
+                                <td data-label="Link">@s.Title @if (s.ApprovedDate is not null) { <span class="mat-pill mat-pill--ok">freigegeben</span> }</td>
+                                <td data-label="Status">@if (s.RevokedDate is not null) { <span class="mat-pill mat-pill--plain">zurückgezogen</span> } else if (active) { <span class="mat-pill mat-pill--ok">gültig</span> } else { <span class="mat-pill mat-pill--warn">abgelaufen</span> }</td>
+                                <td data-label="Gültig bis" class="mat-hide-sm">@Fmt.Moment(s.ExpiresDate)</td>
+                                <td data-label="Aufrufe" class="mat-num mat-hide-sm">@s.ViewCount</td>
+                                <td class="mat-table__cell-actions"><div class="mat-table__actions"><a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Projects/Share?projectId=@p.Id&id=@s.Id" aria-label="Öffnen" data-tip="Öffnen">@Ui.Icon("eye")</a></div></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="mat-actions">
+            <a class="mat-btn mat-btn--primary" href="/Projects/Share?projectId=@p.Id">@Ui.Icon("share")<span>Neuer Link</span></a>
+        </div>
+    </kk-tab>
+
+    <kk-tab id="invoices" title="Rechnungen" icon="dollar" count="@Model.Invoices.Count">
+        @if (Model.Invoices.Count == 0)
+        {
+            <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("dollar")</span><div class="mat-empty__title">Noch keine Angebote oder Rechnungen</div><p>Erstelle ein Angebot oder eine Rechnung zu diesem Projekt: Die Positionen werden vorgeschlagen.</p></div>
+        }
+        else
+        {
+            <div class="mat-table-wrap">
+                <table class="mat-table" id="project-invoices">
+                    <caption class="mat-sr-only">Angebote und Rechnungen des Projekts</caption>
+                    <thead><tr><th scope="col">Nummer</th><th scope="col" class="mat-hide-sm">Art</th><th scope="col" class="mat-hide-sm">Datum</th><th scope="col" class="mat-num">Betrag</th><th scope="col">Status</th></tr></thead>
+                    <tbody>
+                        @foreach (var i in Model.Invoices)
+                        {
+                            <tr>
+                                <td data-label="Nummer" class="mat-mono"><a href="/Invoices/Details?id=@i.Id">@(i.Number ?? "Entwurf")</a></td>
+                                <td data-label="Art" class="mat-hide-sm">@Labels.Of(i.Type)</td>
+                                <td data-label="Datum" class="mat-hide-sm">@Fmt.Date(i.IssueDate)</td>
+                                <td data-label="Betrag" class="mat-num">@Fmt.Money(i.GrossTotal, i.Currency)</td>
+                                <td data-label="Status">@Labels.Pill(i.Status, i.Type)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="mat-actions">
+            <a class="mat-btn mat-btn--primary" href="/Offers/Edit?customerId=@Model.Customer.Id&projectId=@p.Id">@Ui.Icon("plus")<span>Neues Angebot</span></a>
+            <a class="mat-btn mat-btn--secondary" href="/Invoices/Edit?customerId=@Model.Customer.Id&projectId=@p.Id">@Ui.Icon("plus")<span>Neue Rechnung</span></a>
+        </div>
+    </kk-tab>
+</kk-tabs>
+
+<div class="mat-actions">
+    <a class="mat-btn mat-btn--primary" href="/Projects/Edit?id=@p.Id">@Ui.Icon("edit")<span>Bearbeiten</span></a>
+    <a class="mat-btn mat-btn--secondary" href="/Projects">@Ui.Icon("back")<span>Zurück</span></a>
+</div>

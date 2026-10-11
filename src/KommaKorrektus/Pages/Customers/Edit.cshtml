@@ -1,0 +1,74 @@
+@page
+@using Microsoft.AspNetCore.Mvc.Rendering
+@model KommaKorrektus.Pages.Customers.EditModel
+@{
+    var kinds = new List<SelectListItem> { new("Privatperson", nameof(CustomerKind.Person)), new("Firma / Verlag", nameof(CustomerKind.Company)) };
+    var salutations = Salutations();
+    var countries = new List<SelectListItem>
+    {
+        new("Deutschland", "DE"), new("Österreich", "AT"), new("Schweiz", "CH"), new("Luxemburg", "LU"), new("Niederlande", "NL"), new("Belgien", "BE"),
+        new("Frankreich", "FR"), new("Italien", "IT"), new("Spanien", "ES"), new("Polen", "PL"), new("Vereinigtes Königreich", "GB"), new("USA", "US"),
+    };
+    var back = Model.Id is { } id ? $"/Customers/Details?id={id}" : "/Customers";
+
+    List<SelectListItem> Salutations() => [new("(keine)", ""), new("Frau", "Frau"), new("Herr", "Herr"), new("Divers", "Divers")];
+}
+
+<form class="mat-form" method="post" novalidate>
+    <input type="hidden" name="Id" value="@Model.Id" />
+    <kk-summary />
+    <kk-card title="Kunde" icon="user" sub="@Model.Number">
+        <div class="mat-form__grid">
+            <kk-radios for="Input.Kind" label="Art" items="kinds" full="true" />
+            <kk-input for="Input.Company" label="Firma / Verlag" full="true" show-if="Input.Kind" show-value="Company" />
+            <kk-select for="Input.Salutation" label="Anrede" items="salutations" />
+            <kk-input for="Input.PenName" label="Pseudonym" hint="Unter diesem Namen schreibt die Autorin oder der Autor." />
+            <kk-input for="Input.FirstName" label="Vorname" autocomplete="given-name" />
+            <kk-input for="Input.LastName" label="Nachname" autocomplete="family-name" />
+        </div>
+    </kk-card>
+
+    <kk-card title="Kontakt" icon="mail">
+        <div class="mat-form__grid">
+            <kk-input for="Input.Email" label="E-Mail-Adresse" type="email" inputmode="email" autocomplete="email" />
+            <kk-input for="Input.Phone" label="Telefon" type="tel" autocomplete="tel" />
+            <kk-input for="Input.Street" label="Straße und Hausnummer" autocomplete="street-address" full="true" />
+            <kk-input for="Input.PostalCode" label="Postleitzahl" autocomplete="postal-code" />
+            <kk-input for="Input.City" label="Ort" autocomplete="address-level2" />
+            <kk-select for="Input.Country" label="Land" items="countries" />
+        </div>
+    </kk-card>
+
+    <kk-card title="Abrechnung" icon="dollar">
+        <div class="mat-form__grid">
+            <kk-input for="Input.VatId" label="USt-IdNr." hint="Nur bei Firmen im EU-Ausland nötig." show-if="Input.Kind" show-value="Company" />
+            <kk-input for="Input.BuyerReference" label="Leitweg-ID" hint="Für Rechnungen an Behörden (XRechnung)." show-if="Input.Kind" show-value="Company" />
+            <kk-input for="Input.PaymentTermDays" label="Zahlungsziel in Tagen" type="number" min="0" max="365" hint="@($"Leer: Standard von {Model.DefaultPaymentDays} Tagen.")" />
+            <kk-input for="Input.HourlyRate" label="Stundensatz (netto)" type="number" min="0" hint="Leer: Standard aus den Firmendaten." />
+        </div>
+    </kk-card>
+
+    <kk-card title="Notizen" icon="edit">
+        <div class="mat-form__grid">
+            <kk-textarea for="Input.Notes" label="Notizen" rows="4" full="true" hint="Nur für dich sichtbar. Der Verlauf mit Gesprächen steht auf der Seite des Kunden." />
+            @if (Model.Id is not null)
+            {
+                <kk-switch for="Input.IsArchived" label="Kunde archivieren (erscheint nicht mehr in der Auswahl)" full="true" />
+            }
+        </div>
+    </kk-card>
+
+    @if (Model.Id is not null && Model.DeleteBlocker is not null)
+    {
+        <div class="mat-alert mat-alert--info">@Ui.Icon("info")<div class="mat-alert__body">@Model.DeleteBlocker</div></div>
+        <kk-buttons back-href="@back" />
+    }
+    else if (Model.Id is not null)
+    {
+        <kk-buttons back-href="@back" delete-url="@Url.Page("/Customers/Edit", "Delete", new { id = Model.Id })" delete-confirm="Diesen Kunden wirklich löschen?" />
+    }
+    else
+    {
+        <kk-buttons back-href="@back" />
+    }
+</form>

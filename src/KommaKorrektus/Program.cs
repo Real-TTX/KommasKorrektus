@@ -65,6 +65,7 @@ builder.Services.AddScoped<UserService>();
 builder.Services.AddScoped<InvitationService>();
 builder.Services.AddScoped<PublicUrl>();
 builder.Services.AddScoped<NumberService>();
+builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<NavCounts>();
 builder.Services.AddScoped<ShellFactory>();
 

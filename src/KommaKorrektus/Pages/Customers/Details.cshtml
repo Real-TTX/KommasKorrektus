@@ -1,0 +1,177 @@
+@page
+@model KommaKorrektus.Pages.Customers.DetailsModel
+@{
+    var c = Model.Customer;
+}
+
+<div class="mat-grid mat-grid--4">
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Projekte</span><span class="mat-stat__value">@Model.ProjectCount</span></div></div>
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Umsatz (netto)</span><span class="mat-stat__value">@Fmt.Money(Model.Revenue)</span></div></div>
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Offen</span><span class="mat-stat__value">@Fmt.Money(Model.Open)</span></div></div>
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Gearbeitet</span><span class="mat-stat__value">@Fmt.Duration(Model.Seconds)</span><span class="mat-stat__delta">@Fmt.Integer(Model.Words) Wörter bearbeitet</span></div></div>
+</div>
+
+<kk-tabs id="customer" label="Kunde" selected="@Model.Tab">
+    <kk-tab id="overview" title="Übersicht" icon="user">
+        <div class="mat-grid mat-grid--2">
+            <kk-card title="Kontakt" icon="mail">
+                <dl class="mat-kv">
+                    <dt>Art</dt><dd>@Labels.Of(c.Kind)@(c.IsArchived ? " (archiviert)" : "")</dd>
+                    @if (c.Kind == CustomerKind.Company) { <dt>Firma</dt><dd>@c.Company</dd> }
+                    @if (c.PersonName.Length > 0) { <dt>Ansprechperson</dt><dd>@(string.IsNullOrWhiteSpace(c.Salutation) ? "" : c.Salutation + " ")@c.PersonName</dd> }
+                    @if (!string.IsNullOrWhiteSpace(c.PenName)) { <dt>Pseudonym</dt><dd>@c.PenName</dd> }
+                    @if (!string.IsNullOrWhiteSpace(c.Email)) { <dt>E-Mail</dt><dd><a href="mailto:@c.Email">@c.Email</a></dd> }
+                    @if (!string.IsNullOrWhiteSpace(c.Phone)) { <dt>Telefon</dt><dd><a href="tel:@c.Phone">@c.Phone</a></dd> }
+                    @if (Model.Address.Length > 0) { <dt>Anschrift</dt><dd>@Model.Address (@c.Country)</dd> }
+                </dl>
+            </kk-card>
+            <kk-card title="Abrechnung" icon="dollar">
+                <dl class="mat-kv">
+                    <dt>Kundennummer</dt><dd class="mat-mono">@c.Number</dd>
+                    <dt>Zahlungsziel</dt><dd>@(c.PaymentTermDays is { } days ? $"{days} Tage" : "Standard")</dd>
+                    <dt>Stundensatz</dt><dd>@(c.HourlyRate is { } rate ? Fmt.Money(rate) : "Standard")</dd>
+                    @if (!string.IsNullOrWhiteSpace(c.VatId)) { <dt>USt-IdNr.</dt><dd class="mat-mono">@c.VatId</dd> }
+                    @if (!string.IsNullOrWhiteSpace(c.BuyerReference)) { <dt>Leitweg-ID</dt><dd class="mat-mono">@c.BuyerReference</dd> }
+                </dl>
+            </kk-card>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(c.Notes))
+        {
+            <kk-card title="Notizen" icon="edit"><p class="kk-prewrap">@c.Notes</p></kk-card>
+        }
+    </kk-tab>
+
+    <kk-tab id="projects" title="Projekte" icon="folder" count="@Model.ProjectCount">
+        <div class="mat-list">
+            <partial name="_Table" model="Model.Projects" />
+            <div class="mat-actions">
+                <a class="mat-btn mat-btn--primary" href="/Projects/Edit?customerId=@c.Id">@Ui.Icon("plus")<span>Neues Projekt</span></a>
+            </div>
+        </div>
+    </kk-tab>
+
+    <kk-tab id="invoices" title="Rechnungen" icon="dollar" count="@Model.Invoices.Rows.Count">
+        <div class="mat-list">
+            <partial name="_Table" model="Model.Invoices" />
+            <div class="mat-actions">
+                <a class="mat-btn mat-btn--primary" href="/Offers/Edit?customerId=@c.Id">@Ui.Icon("plus")<span>Neues Angebot</span></a>
+                <a class="mat-btn mat-btn--secondary" href="/Invoices/Edit?customerId=@c.Id">@Ui.Icon("plus")<span>Neue Rechnung</span></a>
+            </div>
+        </div>
+    </kk-tab>
+
+    <kk-tab id="history" title="Verlauf" icon="history" count="@Model.History.Count">
+        @if (Model.History.Count == 0)
+        {
+            <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("history")</span><div class="mat-empty__title">Noch kein Verlauf</div><p>Notizen zu Gesprächen und alles, was im Programm passiert, steht hier.</p></div>
+        }
+        else
+        {
+            <ol class="mat-timeline">
+                @foreach (var h in Model.History)
+                {
+                    <li>
+                        <span class="mat-timeline__time">@Fmt.Moment(h.OccurredDate) · @Labels.Of(h.Kind)</span>
+                        <strong>@h.Title</strong>
+                        @if (!string.IsNullOrWhiteSpace(h.Text)) { <span class="kk-prewrap"> @h.Text</span> }
+                        @if (h.Kind != HistoryKind.System) { <a class="kk-inline-action" href="/Customers/Note?customerId=@c.Id&id=@h.Id" aria-label="Notiz bearbeiten">@Ui.Icon("edit")</a> }
+                    </li>
+                }
+            </ol>
+        }
+        <div class="mat-actions">
+            <a class="mat-btn mat-btn--primary" href="/Customers/Note?customerId=@c.Id">@Ui.Icon("plus")<span>Neue Notiz</span></a>
+        </div>
+    </kk-tab>
+
+    <kk-tab id="contacts" title="Kontakte" icon="users" count="@Model.Contacts.Count">
+        @if (Model.Contacts.Count == 0)
+        {
+            <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("users")</span><div class="mat-empty__title">Keine weiteren Kontakte</div><p>Bei Verlagen: Lektoratsleitung, Buchhaltung, Presse ...</p></div>
+        }
+        else
+        {
+            <div class="mat-table-wrap">
+                <table class="mat-table" id="customer-contacts">
+                    <caption class="mat-sr-only">Kontakte</caption>
+                    <thead><tr><th scope="col">Name</th><th scope="col" class="mat-hide-sm">Rolle</th><th scope="col">E-Mail</th><th scope="col" class="mat-hide-sm">Telefon</th><th scope="col"><span class="mat-sr-only">Aktionen</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var k in Model.Contacts)
+                        {
+                            <tr>
+                                <td data-label="Name">@k.Name @if (k.IsPrimary) { <span class="mat-pill mat-pill--accent">Hauptkontakt</span> }</td>
+                                <td data-label="Rolle" class="mat-hide-sm">@k.Role</td>
+                                <td data-label="E-Mail">@if (!string.IsNullOrWhiteSpace(k.Email)) { <a href="mailto:@k.Email">@k.Email</a> }</td>
+                                <td data-label="Telefon" class="mat-hide-sm">@k.Phone</td>
+                                <td class="mat-table__cell-actions"><div class="mat-table__actions"><a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Customers/Contact?customerId=@c.Id&id=@k.Id" aria-label="Kontakt bearbeiten" data-tip="Bearbeiten">@Ui.Icon("edit")</a></div></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="mat-actions">
+            <a class="mat-btn mat-btn--primary" href="/Customers/Contact?customerId=@c.Id">@Ui.Icon("user-plus")<span>Neuer Kontakt</span></a>
+        </div>
+    </kk-tab>
+
+    <kk-tab id="portal" title="Portal-Zugang" icon="key" count="@Model.PortalUsers.Count">
+        <p class="mat-muted">Der Kunde sieht im Portal seine Projekte, die Fassungen mit den Änderungen und seine Rechnungen. Er bekommt eine Einladung mit einem Link, der begrenzt gültig ist.</p>
+        @if (Model.PortalUsers.Count > 0)
+        {
+            <div class="mat-table-wrap">
+                <table class="mat-table" id="portal-users">
+                    <caption class="mat-sr-only">Benutzer mit Zugang</caption>
+                    <thead><tr><th scope="col">Name</th><th scope="col">E-Mail</th><th scope="col" class="mat-hide-sm">Letzte Anmeldung</th><th scope="col"><span class="mat-sr-only">Aktionen</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var u in Model.PortalUsers)
+                        {
+                            <tr>
+                                <td data-label="Name">@u.Name @if (!u.IsActive) { <span class="mat-pill mat-pill--plain">deaktiviert</span> }</td>
+                                <td data-label="E-Mail">@u.Email</td>
+                                <td data-label="Letzte Anmeldung" class="mat-hide-sm">@(u.LastLogin is null ? "noch nie" : Fmt.Moment(u.LastLogin))</td>
+                                <td class="mat-table__cell-actions">
+                                    <form method="post" asp-page-handler="RemoveAccess" asp-route-id="@c.Id" asp-route-userId="@u.UserId" class="mat-table__actions">
+                                        <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="Zugang entziehen" data-tip="Zugang entziehen" data-confirm="Den Zugang von @u.Name zu diesem Kunden entziehen?" data-confirm-ok="Entziehen">@Ui.Icon("x")</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (Model.OpenInvitations.Count > 0)
+        {
+            <h3>Offene Einladungen</h3>
+            <div class="mat-table-wrap">
+                <table class="mat-table" id="portal-invitations">
+                    <caption class="mat-sr-only">Offene Einladungen</caption>
+                    <thead><tr><th scope="col">E-Mail</th><th scope="col" class="mat-hide-sm">Gültig bis</th><th scope="col"><span class="mat-sr-only">Aktionen</span></th></tr></thead>
+                    <tbody>
+                        @foreach (var i in Model.OpenInvitations)
+                        {
+                            <tr>
+                                <td data-label="E-Mail">@i.Email @if (i.SentDate is not null) { <span class="mat-pill mat-pill--ok">gesendet</span> }</td>
+                                <td data-label="Gültig bis" class="mat-hide-sm">@Fmt.Moment(i.ExpiresDate)</td>
+                                <td class="mat-table__cell-actions">
+                                    <form method="post" asp-page-handler="RevokeInvitation" asp-route-id="@c.Id" asp-route-invitationId="@i.Id" class="mat-table__actions">
+                                        <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="Einladung zurückziehen" data-tip="Zurückziehen" data-confirm="Diese Einladung zurückziehen?" data-confirm-ok="Zurückziehen">@Ui.Icon("x")</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        <div class="mat-actions">
+            <a class="mat-btn mat-btn--primary" href="/Customers/Invite?customerId=@c.Id">@Ui.Icon("send")<span>Zugang einladen</span></a>
+        </div>
+    </kk-tab>
+</kk-tabs>
+
+<div class="mat-actions">
+    <a class="mat-btn mat-btn--primary" href="/Customers/Edit?id=@c.Id">@Ui.Icon("edit")<span>Bearbeiten</span></a>
+    <a class="mat-btn mat-btn--secondary" href="/Customers">@Ui.Icon("back")<span>Zurück</span></a>
+</div>

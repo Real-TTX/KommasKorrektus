@@ -153,7 +153,7 @@ public sealed record TableRow(IReadOnlyList<IHtmlContent> Cells, IReadOnlyList<R
 /// The one table control: header, rows, the empty state, the actions at the end of a row. On a phone the rows become cards (each cell carries its
 /// <c>data-label</c>). Several tables can share a page: the id makes the caption and the empty state unique.
 /// </summary>
-public sealed class TableModel
+public sealed record TableModel
 {
     public required string Id { get; init; }
 

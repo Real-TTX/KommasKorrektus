@@ -1,0 +1,29 @@
+@page
+@model KommaKorrektus.Pages.Customers.ContactModel
+@{
+    var back = $"/Customers/Details?id={Model.CustomerId}&tab=contacts";
+}
+
+<form class="mat-form" method="post" novalidate>
+    <input type="hidden" name="CustomerId" value="@Model.CustomerId" />
+    <input type="hidden" name="Id" value="@Model.Id" />
+    <kk-summary />
+    <kk-card title="@Model.Customer.DisplayName" icon="users">
+        <div class="mat-form__grid">
+            <kk-input for="Input.Name" label="Name" autocomplete="name" required="true" />
+            <kk-input for="Input.Role" label="Rolle" hint="Zum Beispiel Lektoratsleitung oder Buchhaltung." />
+            <kk-input for="Input.Email" label="E-Mail-Adresse" type="email" inputmode="email" />
+            <kk-input for="Input.Phone" label="Telefon" type="tel" />
+            <kk-textarea for="Input.Notes" label="Notizen" rows="3" full="true" />
+            <kk-switch for="Input.IsPrimary" label="Hauptkontakt" full="true" />
+        </div>
+    </kk-card>
+    @if (Model.Id is not null)
+    {
+        <kk-buttons back-href="@back" delete-url="@Url.Page("/Customers/Contact", "Delete", new { customerId = Model.CustomerId, id = Model.Id })" delete-confirm="Diesen Kontakt löschen?" />
+    }
+    else
+    {
+        <kk-buttons back-href="@back" />
+    }
+</form>

@@ -29,3 +29,10 @@
 .kk-qr { display: flex; justify-content: center; margin: var(--mat-space-4) 0; }
 .kk-qr svg { width: 200px; height: 200px; background: #fff; padding: var(--mat-space-2); border-radius: var(--mat-radius); }
 .mat-page > * + * { margin-top: var(--mat-space-4); }
+
+/* ---- Text and small actions inside lists and timelines ---- */
+.kk-prewrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.kk-inline-action { margin-left: var(--mat-space-2); color: var(--mat-text-muted); vertical-align: middle; }
+.kk-inline-action:hover { color: var(--mat-accent-text); }
+.kk-done { text-decoration: line-through; color: var(--mat-text-muted); }
+.kk-stat-pill { font-size: var(--mat-fs-md); }

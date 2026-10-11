@@ -1,0 +1,44 @@
+@page
+@model KommaKorrektus.Pages.Customers.InviteModel
+@{
+    var back = $"/Customers/Details?id={Model.CustomerId}&tab=portal";
+}
+
+@if (Model.Result is not null)
+{
+    <kk-card title="Einladung für @Model.Result.Email" icon="send">
+        <p>Die Einladung ist bis <strong>@Fmt.Moment(Model.Result.ExpiresDate)</strong> gültig und funktioniert einmal.@(Model.Result.SentDate is not null ? " Sie wurde per E-Mail gesendet." : "")</p>
+        <div class="mat-field">
+            <label class="mat-label" for="invite-link">Link zum Weitergeben</label>
+            <div class="mat-input-group">
+                <input class="mat-input mat-mono" id="invite-link" readonly value="@Model.Link" />
+                <button type="button" class="mat-btn mat-btn--secondary" data-copy="#invite-link">@Ui.Icon("copy")<span>Kopieren</span></button>
+            </div>
+            @if (Model.Result.SentDate is null)
+            {
+                <span class="mat-hint">@(Model.MailConfigured ? "Die Nachricht wurde nicht gesendet." : "Es ist noch kein E-Mail-Server eingerichtet: Gib den Link selbst weiter, zum Beispiel per Nachricht.")</span>
+            }
+        </div>
+    </kk-card>
+    <div class="mat-actions">
+        <a class="mat-btn mat-btn--primary" href="@back">@Ui.Icon("check")<span>Fertig</span></a>
+        <a class="mat-btn mat-btn--secondary" href="/Customers/Invite?customerId=@Model.CustomerId">@Ui.Icon("plus")<span>Weitere Einladung</span></a>
+    </div>
+}
+else
+{
+    <form class="mat-form" method="post" novalidate>
+        <input type="hidden" name="CustomerId" value="@Model.CustomerId" />
+        <kk-summary />
+        <kk-card title="@Model.Customer.DisplayName" icon="user-plus">
+            <p class="mat-muted">Die eingeladene Person bekommt Zugriff auf die Projekte, Fassungen und Rechnungen dieses Kunden. Sie legt ein Passwort fest oder meldet sich künftig mit einem Code per E-Mail an.</p>
+            <div class="mat-form__grid">
+                <kk-input for="Input.Email" label="E-Mail-Adresse" type="email" inputmode="email" required="true" />
+                <kk-input for="Input.DisplayName" label="Name (optional)" autocomplete="off" />
+                <kk-textarea for="Input.Note" label="Persönliche Nachricht (optional)" rows="3" full="true" />
+                <kk-switch for="Input.Send" label="Einladung gleich per E-Mail senden" full="true" />
+            </div>
+        </kk-card>
+        <kk-buttons save-text="Einladung erstellen" save-icon="send" back-href="@back" />
+    </form>
+}
