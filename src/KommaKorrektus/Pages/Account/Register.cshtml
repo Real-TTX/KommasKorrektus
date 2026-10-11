@@ -61,9 +61,16 @@
                 <input class="mat-input" value="@Model.Check.Invitation!.Email" disabled />
             </div>
             <kk-input for="Input.DisplayName" label="Dein Name" autocomplete="name" autofocus />
-            <kk-radios for="Input.Method" label="So meldest du dich an" items="methods" />
-            <kk-input for="Input.Password" label="Passwort" type="password" autocomplete="new-password" hint="Mindestens 10 Zeichen." show-if="Input.Method" show-value="password" />
-            <kk-input for="Input.PasswordRepeat" label="Passwort wiederholen" type="password" autocomplete="new-password" show-if="Input.Method" show-value="password" />
+            @if (Model.CodeAvailable)
+            {
+                <kk-radios for="Input.Method" label="So meldest du dich an" items="methods" />
+            }
+            else
+            {
+                <input type="hidden" name="Input.Method" value="password" />
+            }
+            <kk-input for="Input.Password" label="Passwort" type="password" autocomplete="new-password" hint="Mindestens 10 Zeichen." show-if="@(Model.CodeAvailable ? "Input.Method" : null)" show-value="password" />
+            <kk-input for="Input.PasswordRepeat" label="Passwort wiederholen" type="password" autocomplete="new-password" show-if="@(Model.CodeAvailable ? "Input.Method" : null)" show-value="password" />
             <div class="mat-btn-row mat-btn-row--plain">
                 <button type="submit" class="mat-btn mat-btn--primary mat-btn--block">@Ui.Icon("user-plus")<span>Registrieren</span></button>
             </div>

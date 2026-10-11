@@ -14,7 +14,7 @@ namespace KommaKorrektus.Pages.Account;
 /// first and then accepts, which only adds the access to the customer.
 /// </summary>
 [AllowAnonymous]
-public sealed class RegisterModel(InvitationService invitations, UserService users, SignInService signIn, KkDbContext db, ICurrentUser current, ActivityLogger log) : PageModelBase
+public sealed class RegisterModel(InvitationService invitations, UserService users, SignInService signIn, KkDbContext db, ICurrentUser current, ActivityLogger log, LoginCodeService codes) : PageModelBase
 {
     public sealed class InputModel
     {
@@ -39,6 +39,9 @@ public sealed class RegisterModel(InvitationService invitations, UserService use
     public InputModel Input { get; set; } = new();
 
     public InvitationCheck Check { get; private set; } = new(InvitationState.Unknown, null);
+
+    /// <summary>Signing in with a code from an e-mail needs a mail server; without one a person without a password could never get in.</summary>
+    public bool CodeAvailable => codes.IsAvailable;
 
     public bool ExistingAccount { get; private set; }
 
@@ -73,7 +76,7 @@ public sealed class RegisterModel(InvitationService invitations, UserService use
             return RedirectToPage(existing.Role == UserRole.Client ? "/Portal/Index" : "/Index");
         }
 
-        var usePassword = Input.Method != "code";
+        var usePassword = Input.Method != "code" || !CodeAvailable;
         if (usePassword)
         {
             if (UserService.CheckPassword(Input.Password, invitation.Email) is { } problem)
