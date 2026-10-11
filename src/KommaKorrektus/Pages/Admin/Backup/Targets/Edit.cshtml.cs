@@ -28,10 +28,6 @@ public sealed class EditModel(KkDbContext db, SecretProtector secrets, BackupSto
         [Display(Name = "Server")]
         public string? Host { get; set; }
 
-        [Range(1, 65535, ErrorMessage = "Der Port liegt zwischen 1 und 65535.")]
-        [Display(Name = "Port")]
-        public int Port { get; set; } = 445;
-
         [Display(Name = "Freigabe")]
         public string? Share { get; set; }
 
@@ -68,7 +64,7 @@ public sealed class EditModel(KkDbContext db, SecretProtector secrets, BackupSto
 
         if (Target is { } t)
         {
-            Input = new InputModel { Name = t.Name, Kind = t.Kind, Path = t.Path, Host = t.Host, Port = t.Port, Share = t.Share, Domain = t.Domain, UserName = t.UserName };
+            Input = new InputModel { Name = t.Name, Kind = t.Kind, Path = t.Path, Host = t.Host, Share = t.Share, Domain = t.Domain, UserName = t.UserName };
         }
         else
         {
@@ -177,7 +173,6 @@ public sealed class EditModel(KkDbContext db, SecretProtector secrets, BackupSto
         }
 
         target.Host = Input.Host?.Trim();
-        target.Port = Input.Port;
         target.Share = Input.Share?.Trim();
         target.Domain = Input.Domain?.Trim();
         target.UserName = Input.UserName?.Trim();

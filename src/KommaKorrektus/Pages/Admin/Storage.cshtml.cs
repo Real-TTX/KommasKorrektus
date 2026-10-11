@@ -20,10 +20,6 @@ public sealed class StorageModel(ConfigStore config, SecretProtector secrets, Fi
         [Display(Name = "Server")]
         public string Host { get; set; } = "";
 
-        [Range(1, 65535, ErrorMessage = "Der Port liegt zwischen 1 und 65535.")]
-        [Display(Name = "Port")]
-        public int Port { get; set; } = 445;
-
         [Display(Name = "Freigabe")]
         public string Share { get; set; } = "";
 
@@ -59,7 +55,7 @@ public sealed class StorageModel(ConfigStore config, SecretProtector secrets, Fi
     {
         await PrepareAsync();
         var s = config.Current.Storage;
-        Input = new InputModel { Mode = s.Mode, Host = s.Host, Port = s.Port, Share = s.Share, Path = s.Path, Domain = s.Domain, UserName = s.UserName };
+        Input = new InputModel { Mode = s.Mode, Host = s.Host, Share = s.Share, Path = s.Path, Domain = s.Domain, UserName = s.UserName };
     }
 
     public async Task<IActionResult> OnPostAsync()
@@ -94,7 +90,6 @@ public sealed class StorageModel(ConfigStore config, SecretProtector secrets, Fi
             }
 
             s.Host = Input.Host.Trim();
-            s.Port = Input.Port;
             s.Share = Input.Share.Trim();
             s.Path = string.IsNullOrWhiteSpace(Input.Path) ? "KommaKorrektus" : Input.Path.Trim().Trim('/', '\\');
             s.Domain = Input.Domain?.Trim() ?? "";

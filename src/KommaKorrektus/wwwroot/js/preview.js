@@ -22,11 +22,13 @@
     show('wird erstellt ...');
     fetch(url, { method: 'POST', body: new FormData(form), credentials: 'same-origin' })
       .then(function (response) {
+        if (response.status === 204) { return null; }
         if (!response.ok) { throw new Error('HTTP ' + response.status); }
         return response.blob();
       })
       .then(function (blob) {
         if (mine !== token) { return; }
+        if (blob === null) { show('Die Vorschau erscheint, sobald die nötigen Angaben da sind (zum Beispiel der Kunde).'); return; }
         var next = URL.createObjectURL(blob);
         frame.src = next + '#toolbar=0&navpanes=0&view=FitH';
         if (link) { link.href = next; }

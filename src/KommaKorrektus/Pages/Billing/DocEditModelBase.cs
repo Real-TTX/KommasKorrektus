@@ -302,7 +302,8 @@ public abstract class DocEditModelBase(KkDbContext db, BillingService billing, C
     {
         if (Input.CustomerId is not { } customerId || await db.Customer.AsNoTracking().FirstOrDefaultAsync(c => c.Id == customerId) is not { } customer)
         {
-            return BadRequest("Bitte wähle zuerst den Kunden.");
+            // 204: nothing to draw yet; the page says so next to the preview (an error status would only fill the console)
+            return StatusCode(StatusCodes.Status204NoContent);
         }
 
         var invoice = new Invoice { Type = Type, CustomerId = customer.Id, Customer = customer, Number = Id is { } id ? await db.Invoice.AsNoTracking().Where(i => i.Id == id).Select(i => i.Number).FirstOrDefaultAsync() : null };
@@ -474,7 +475,7 @@ public abstract class DocEditModelBase(KkDbContext db, BillingService billing, C
 
     private async Task PrepareAsync()
     {
-        var title = Id is null ? $"Neues {(IsOffer ? "Angebot" : Title)}" : $"{Title}sentwurf bearbeiten";
+        var title = Id is null ? (IsOffer ? "Neues Angebot" : "Neue Rechnung") : $"{Title}sentwurf bearbeiten";
         Head(title, null, ("Rechnungen", "/Invoices"), (IsOffer ? "Angebote" : "Rechnungen", Base), (title, null));
         ViewData["Width"] = "wide";
         ViewData["ActiveHref"] = Base;

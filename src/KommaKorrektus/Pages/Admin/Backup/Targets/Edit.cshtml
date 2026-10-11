@@ -20,8 +20,7 @@
         <div class="mat-form__grid">
             <kk-input for="Input.Name" label="Name" required="true" hint="Zum Beispiel „NAS im Büro“." />
             <kk-select for="Input.Kind" label="Art" items="kinds" />
-            <kk-input for="Input.Host" label="Server" hint="Name oder Adresse des NAS, zum Beispiel nas.local" show-if="Input.Kind" show-value="Smb" />
-            <kk-input for="Input.Port" label="Port" type="number" min="1" max="65535" show-if="Input.Kind" show-value="Smb" />
+            <kk-input for="Input.Host" label="Server" hint="Name oder Adresse des NAS, zum Beispiel nas.local (SMB, Port 445)" show-if="Input.Kind" show-value="Smb" />
             <kk-input for="Input.Share" label="Freigabe" hint="Der Name des freigegebenen Ordners, zum Beispiel Sicherungen" show-if="Input.Kind" show-value="Smb" />
             <kk-input for="Input.Path" label="Ordner" full="true" hint="@("Bei einem NAS: ein Ordner in der Freigabe. Bei „Ordner“: ein Pfad, relativ zum Daten-Volume (leer: backups).")" />
             <kk-input for="Input.Domain" label="Domäne (optional)" autocomplete="off" show-if="Input.Kind" show-value="Smb" />
