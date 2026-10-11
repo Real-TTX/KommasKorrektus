@@ -1,0 +1,114 @@
+@page
+@model KommaKorrektus.Pages.Portal.DocumentModel
+@{
+    var doc = Model.Document;
+    var mode = Model.ViewMode;
+}
+
+<div class="mat-row mat-row--between kk-share__bar">
+    <a class="mat-btn mat-btn--ghost" href="/Portal/Project?id=@Model.Project.Id">@Ui.Icon("back")<span>Zum Projekt</span></a>
+    @if (Model.HasChanges)
+    {
+        <div class="mat-seg" role="group" aria-label="Ansicht">
+            <a class="mat-seg__btn" href="/Portal/Document?id=@doc.Id&mode=changes" aria-pressed="@(mode == "changes" ? "true" : "false")">@Ui.Icon("file-text")<span>Mit Änderungen</span></a>
+            <a class="mat-seg__btn" href="/Portal/Document?id=@doc.Id&mode=side" aria-pressed="@(mode == "side" ? "true" : "false")">@Ui.Icon("columns")<span>Alt und neu</span></a>
+            <a class="mat-seg__btn" href="/Portal/Document?id=@doc.Id&mode=text" aria-pressed="@(mode == "text" ? "true" : "false")">@Ui.Icon("eye")<span>Nur der Text</span></a>
+        </div>
+    }
+</div>
+
+@if (mode != "text")
+{
+    <div class="mat-card kk-diff__stats">
+        <div class="mat-card__body mat-row mat-row--between">
+            <div class="mat-row">
+                <span><span class="kk-ins">+@Fmt.Integer(Model.Stats.WordsAdded)</span> Wörter neu</span>
+                <span><span class="kk-del">−@Fmt.Integer(Model.Stats.WordsRemoved)</span> entfernt</span>
+                <span><strong>@Fmt.Integer(Model.Stats.WordsChanged)</strong> ersetzt</span>
+                <span class="mat-muted">in @Fmt.Integer(Model.Stats.ParagraphsChanged) Absätzen</span>
+            </div>
+            <div class="mat-row">
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--sm" data-diff-step="-1">@Ui.Icon("arrow-up")<span>Vorige Änderung</span></button>
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--sm" data-diff-step="1">@Ui.Icon("arrow-down")<span>Nächste Änderung</span></button>
+            </div>
+        </div>
+    </div>
+
+    @if (!Model.Stats.HasChanges)
+    {
+        <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("check-circle")</span><div class="mat-empty__title">Keine Unterschiede</div><p>Der Text ist wie das Original.</p></div>
+    }
+    else
+    {
+        @DiffView.Render(Model.Items, mode == "changes", "Original", $"Fassung {Model.Version.VersionNo}")
+    }
+}
+else
+{
+    <div class="mat-card">
+        <div class="mat-card__body kk-reading">
+            @for (var i = 0; i < Model.PageParagraphs.Length; i++)
+            {
+                var no = Model.FirstParagraph + i + 1;
+                if (Model.PageParagraphs[i].Length == 0) { <p class="kk-reading__gap" id="p@no">&nbsp;</p> }
+                else { <p id="p@no"><span class="kk-reading__no" aria-hidden="true">@no</span>@Html.Raw(KommaKorrektus.Pages.Documents.VersionModel.Html(Model.PageParagraphs[i]))</p> }
+            }
+        </div>
+    </div>
+}
+
+<partial name="_Pager" model="Model.Pager" />
+
+<kk-card title="Herunterladen" icon="download">
+    <div class="mat-actions">
+        @if (Model.HasChanges)
+        {
+            <a class="mat-btn mat-btn--primary" href="/Portal/Download?id=@doc.Id&format=@nameof(ExportFormat.DocxTracked)">@Ui.Icon("download")<span>Word mit Änderungen</span></a>
+            <a class="mat-btn mat-btn--secondary" href="/Portal/Download?id=@doc.Id&format=@nameof(ExportFormat.PdfChanges)">@Ui.Icon("download")<span>PDF mit Änderungen</span></a>
+        }
+        <a class="mat-btn @(Model.HasChanges ? "mat-btn--secondary" : "mat-btn--primary")" href="/Portal/Download?id=@doc.Id&format=@nameof(ExportFormat.DocxClean)">@Ui.Icon("download")<span>Word (sauber)</span></a>
+        <a class="mat-btn mat-btn--secondary" href="/Portal/Download?id=@doc.Id&format=@nameof(ExportFormat.PdfClean)">@Ui.Icon("download")<span>PDF (sauber)</span></a>
+    </div>
+    @if (Model.HasChanges)
+    {
+        <p class="mat-hint">„Word mit Änderungen“ zeigt jede Änderung als Überarbeitung, die du in Word einzeln annehmen oder ablehnen kannst.</p>
+    }
+</kk-card>
+
+<kk-card title="Meine Anmerkungen" icon="message-square" id="comments">
+    @if (Model.Comments.Count == 0)
+    {
+        <p class="mat-muted">Noch keine Anmerkungen. Schreibe, was dir auffällt, dein Lektorat sieht es sofort.</p>
+    }
+    else
+    {
+        <ul class="kk-comments">
+            @foreach (var c in Model.Comments)
+            {
+                <li class="kk-comment">
+                    <div class="kk-comment__head"><strong>@Fmt.Moment(c.CreateDate)@(c.Quote is null ? "" : $" · Absatz {c.ParagraphIndex + 1}")</strong>@if (c.IsResolved) { <span class="mat-pill mat-pill--ok">erledigt</span> }</div>
+                    @if (c.Quote is not null)
+                    {
+                        <blockquote class="kk-comment__quote">@c.Quote</blockquote>
+                    }
+                    <p class="kk-comment__text">@c.Text</p>
+                </li>
+            }
+        </ul>
+    }
+
+    <form class="mat-form" method="post" asp-page="/Portal/Document" asp-page-handler="Comment" asp-route-id="@doc.Id" asp-route-mode="@Model.Mode" novalidate>
+        <kk-summary />
+        <div class="mat-form__grid">
+            <kk-input for="Input.Paragraph" label="Absatz (Nummer, optional)" type="number" min="1" hint="Die Zahl links vom Absatz im Text." />
+            <kk-textarea for="Input.Text" label="Anmerkung" rows="4" full="true" required="true" />
+        </div>
+        <div class="mat-btn-row mat-btn-row--plain">
+            <button type="submit" class="mat-btn mat-btn--primary">@Ui.Icon("send")<span>Anmerkung senden</span></button>
+        </div>
+    </form>
+</kk-card>
+
+@section Scripts {
+    <script src="~/js/diff.js" asp-append-version="true"></script>
+}

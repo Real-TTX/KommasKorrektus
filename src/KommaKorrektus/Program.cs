@@ -149,6 +149,9 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error");
 }
 
+// A page that is not there (or not for you) is an empty 404/403 for the pipeline; the Error page says it in words.
+app.UseStatusCodePagesWithReExecute("/Error", "?code={0}");
+
 app.Use(async (context, next) =>
 {
     var headers = context.Response.Headers;

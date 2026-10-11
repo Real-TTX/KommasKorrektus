@@ -82,6 +82,7 @@ public sealed class ShellFactory(ICurrentUser user, NavCounts counts, IHttpConte
                 Version = $"KommaKorrektus {AppVersion.Current}",
                 Theme = theme,
                 HomeHref = "/Portal",
+                Tagline = "Kundenbereich",
             };
         }
 
