@@ -1,0 +1,35 @@
+using KommaKorrektus.Data;
+using KommaKorrektus.Services;
+using KommaKorrektus.Storage;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace KommaKorrektus.Pages.Documents;
+
+/// <summary>Makes a file of two versions (Word with tracked changes, PDF, text) and sends it. There is no page: the address is the download.</summary>
+public sealed class ExportModel(KkDbContext db, DocumentService documents, ICurrentUser current, ActivityLogger log) : PageModelBase
+{
+    public async Task<IActionResult> OnGetAsync(long id, int from, int to, ExportFormat format)
+    {
+        var document = await db.Document.AsNoTracking().FirstOrDefaultAsync(d => d.Id == id);
+        if (document is null)
+        {
+            return NotFound();
+        }
+
+        if (to <= 0 || to > document.CurrentVersionNo) { to = document.CurrentVersionNo; }
+        if (from <= 0 || from > document.CurrentVersionNo) { from = 1; }
+
+        try
+        {
+            var result = await documents.ExportAsync(document, from, to, format, current.Name ?? "KommaKorrektus", HttpContext.RequestAborted);
+            await log.LogAsync("Dokument exportiert", "Document", document.Id, $"{format}, Fassung {from} → {to}");
+            return File(result.Bytes, result.ContentType, result.FileName);
+        }
+        catch (InvalidOperationException ex)
+        {
+            FlashError(ex.Message);
+            return RedirectToPage("/Documents/Details", new { id });
+        }
+    }
+}

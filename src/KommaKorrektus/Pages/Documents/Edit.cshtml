@@ -1,0 +1,17 @@
+@page
+@model KommaKorrektus.Pages.Documents.EditModel
+@{
+    var back = $"/Documents/Details?id={Model.Id}";
+}
+
+<form class="mat-form" method="post" novalidate>
+    <input type="hidden" name="Id" value="@Model.Id" />
+    <kk-summary />
+    <kk-card title="Dokument" icon="file-text" sub="@Model.Document.FileName">
+        <div class="mat-form__grid">
+            <kk-input for="Input.Title" label="Titel" full="true" required="true" />
+            <kk-textarea for="Input.Notes" label="Notizen" rows="4" full="true" hint="Nur für dich sichtbar." />
+        </div>
+    </kk-card>
+    <kk-buttons back-href="@back" delete-url="@Url.Page("/Documents/Edit", "Delete", new { id = Model.Id })" delete-confirm="Das Dokument mit allen Fassungen löschen? Das kann nicht rückgängig gemacht werden." />
+</form>

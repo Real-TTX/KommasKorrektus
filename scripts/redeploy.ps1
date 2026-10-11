@@ -38,7 +38,7 @@ try {
 
     Write-Host ''
     Write-Host "KommaKorrektus local-$($env:KOMMAKORREKTUS_BUILD_DATE) is running on http://localhost:2930" -ForegroundColor Green
-    Write-Host 'pgAdmin: http://localhost:2931 (admin@kommakorrektus.local / kommakorrektus)' -ForegroundColor DarkGray
+    Write-Host 'pgAdmin: http://localhost:2931 (admin@kommakorrektus.example.com / kommakorrektus)' -ForegroundColor DarkGray
 }
 finally {
     Pop-Location

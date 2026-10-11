@@ -5,6 +5,7 @@ using KommaKorrektus.Data.Entities;
 using KommaKorrektus.Services;
 using KommaKorrektus.Services.Auth;
 using KommaKorrektus.Services.Mail;
+using KommaKorrektus.Storage;
 using KommaKorrektus.UiKit;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
@@ -46,7 +47,10 @@ builder.Services.AddDataProtection()
     .SetApplicationName("KommaKorrektus")
     .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(dataDir, "keys")));
 
-builder.Services.AddDbContextFactory<KkDbContext>(options => options.UseNpgsql(config.ConnectionString(), npgsql => npgsql.EnableRetryOnFailure(3)));
+builder.Services.AddDbContextFactory<KkDbContext>(options => options
+    .UseNpgsql(config.ConnectionString(), npgsql => npgsql.EnableRetryOnFailure(3))
+    // Soft-deleted customers and projects are refused by the services before anything refers to them, so the warning about filtered required ends is noise.
+    .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.CoreEventId.PossibleIncorrectRequiredNavigationWithQueryFilterInteractionWarning)));
 builder.Services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<KkDbContext>>().CreateDbContext());
 
 builder.Services.AddSingleton<ICurrentUser, CurrentUser>();
@@ -66,6 +70,9 @@ builder.Services.AddScoped<InvitationService>();
 builder.Services.AddScoped<PublicUrl>();
 builder.Services.AddScoped<NumberService>();
 builder.Services.AddScoped<ProjectService>();
+builder.Services.AddScoped<FileStoreService>();
+builder.Services.AddScoped<DocumentService>();
+builder.Services.AddScoped<TimeTrackingService>();
 builder.Services.AddScoped<NavCounts>();
 builder.Services.AddScoped<ShellFactory>();
 

@@ -15,3 +15,9 @@
   window.KK = window.KK || {};
   window.KK.applyAccents = applyAccents;
 })();
+
+// A control that applies at once: <input data-submit-on-change> sends its form when it changes.
+document.addEventListener('change', function (event) {
+  var target = event.target;
+  if (target && target.hasAttribute && target.hasAttribute('data-submit-on-change') && target.form) { target.form.submit(); }
+});

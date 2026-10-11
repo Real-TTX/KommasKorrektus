@@ -1,0 +1,21 @@
+@page
+@model KommaKorrektus.Pages.Documents.VersionModel
+@{
+    ViewData["Width"] = "narrow";
+}
+
+<div class="mat-card">
+    <div class="mat-card__body kk-reading">
+        @for (var i = 0; i < Model.Paragraphs.Length; i++)
+        {
+            if (Model.Paragraphs[i].Length == 0) { <p class="kk-reading__gap" id="p@(i + 1)">&nbsp;</p> }
+            else { <p id="p@(i + 1)">@Html.Raw(KommaKorrektus.Pages.Documents.VersionModel.Html(Model.Paragraphs[i]))</p> }
+        }
+    </div>
+</div>
+
+<div class="mat-actions">
+    <a class="mat-btn mat-btn--primary" href="/Documents/Compare?id=@Model.Document.Id&from=@(Math.Max(1, Model.Version.VersionNo - 1))&to=@Model.Version.VersionNo">@Ui.Icon("columns")<span>Mit der Fassung davor vergleichen</span></a>
+    <a class="mat-btn mat-btn--secondary" href="/Documents/Export?id=@Model.Document.Id&from=@Model.Version.VersionNo&to=@Model.Version.VersionNo&format=@nameof(ExportFormat.PdfClean)">@Ui.Icon("download")<span>Als PDF</span></a>
+    <a class="mat-btn mat-btn--secondary" href="/Documents/Details?id=@Model.Document.Id&tab=versions">@Ui.Icon("back")<span>Zurück</span></a>
+</div>

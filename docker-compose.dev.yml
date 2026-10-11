@@ -3,7 +3,7 @@
 #   docker compose -f docker-compose.dev.yml up -d --build
 #
 # Web:      http://localhost:2930
-# pgAdmin:  http://localhost:2931   (admin@kommakorrektus.local / kommakorrektus)
+# pgAdmin:  http://localhost:2931   (admin@kommakorrektus.example.com / kommakorrektus)
 # Postgres: localhost:12930         (for tests and tools)
 name: kommakorrektus-dev
 
@@ -50,7 +50,7 @@ services:
     image: dpage/pgadmin4
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@kommakorrektus.local
+      PGADMIN_DEFAULT_EMAIL: admin@kommakorrektus.example.com
       PGADMIN_DEFAULT_PASSWORD: kommakorrektus
       PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"

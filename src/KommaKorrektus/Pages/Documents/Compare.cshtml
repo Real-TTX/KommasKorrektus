@@ -1,0 +1,125 @@
+@page
+@using KommaKorrektus.Core.Diff
+@using KommaKorrektus.Core.Writing
+@using Microsoft.AspNetCore.Html
+@model KommaKorrektus.Pages.Documents.CompareModel
+@{
+    var d = Model.Document;
+
+    // The words of a paragraph: encoded, deletions in <del>, insertions in <ins>, a line break inside a paragraph as <br>.
+    IHtmlContent Words(ParagraphDiff p, bool oldSide, bool both)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var s in p.Segments)
+        {
+            if (!both && ((oldSide && s.Kind == EditKind.Insert) || (!oldSide && s.Kind == EditKind.Delete)))
+            {
+                continue;
+            }
+
+            var html = System.Net.WebUtility.HtmlEncode(s.Text).Replace(TextMetrics.LineBreak.ToString(), "<br>");
+            sb.Append(s.Kind switch { EditKind.Insert => $"<ins>{html}</ins>", EditKind.Delete => $"<del>{html}</del>", _ => html });
+        }
+
+        return new HtmlString(sb.Length == 0 ? "&nbsp;" : sb.ToString());
+    }
+
+    string RowClass(ParagraphChange c) => c switch { ParagraphChange.Inserted => "kk-diff__row is-inserted kk-change", ParagraphChange.Deleted => "kk-diff__row is-deleted kk-change", ParagraphChange.Modified => "kk-diff__row is-modified kk-change", _ => "kk-diff__row" };
+
+    void Row(ParagraphDiff p)
+    {
+        if (Model.Inline)
+        {
+            <div class="@RowClass(p.Change)" id="p@((p.NewIndex ?? p.OldIndex ?? 0) + 1)">
+                <span class="kk-diff__no">@((p.NewIndex ?? p.OldIndex ?? 0) + 1)</span>
+                <p class="kk-diff__text">@Words(p, false, true)</p>
+            </div>
+        }
+        else
+        {
+            <div class="@RowClass(p.Change)" id="p@((p.NewIndex ?? p.OldIndex ?? 0) + 1)">
+                <div class="kk-diff__cell">
+                    <span class="kk-diff__no">@(p.OldIndex is { } oi ? oi + 1 : "")</span>
+                    @if (p.Change != ParagraphChange.Inserted) { <p class="kk-diff__text">@Words(p, true, false)</p> }
+                </div>
+                <div class="kk-diff__cell">
+                    <span class="kk-diff__no">@(p.NewIndex is { } ni ? ni + 1 : "")</span>
+                    @if (p.Change != ParagraphChange.Deleted) { <p class="kk-diff__text">@Words(p, false, false)</p> }
+                </div>
+            </div>
+        }
+    }
+}
+
+<form class="mat-form kk-diff__bar" method="get" action="/Documents/Compare" id="compare-form">
+    <input type="hidden" name="id" value="@d.Id" />
+    <div class="mat-field"><label class="mat-label" for="from">Alt</label><select class="mat-select" id="from" name="from">@foreach (var o in Model.VersionOptions) { <option value="@o.Value" selected="@(o.Value == Model.From.ToString())">@o.Text</option> }</select></div>
+    <div class="mat-field"><label class="mat-label" for="to">Neu</label><select class="mat-select" id="to" name="to">@foreach (var o in Model.VersionOptions) { <option value="@o.Value" selected="@(o.Value == Model.To.ToString())">@o.Text</option> }</select></div>
+    <div class="mat-field">
+        <span class="mat-label">Ansicht</span>
+        <div class="mat-seg" role="group" aria-label="Ansicht">
+            <button type="submit" name="mode" value="side" class="mat-seg__btn" aria-pressed="@(Model.Inline ? "false" : "true")">@Ui.Icon("columns")<span>Nebeneinander</span></button>
+            <button type="submit" name="mode" value="inline" class="mat-seg__btn" aria-pressed="@(Model.Inline ? "true" : "false")">@Ui.Icon("file-text")<span>Ein Dokument</span></button>
+        </div>
+    </div>
+    <div class="mat-field">
+        <label class="mat-switch"><input type="checkbox" id="changes" name="changes" value="true" checked="@Model.Changes" data-submit-on-change /><span class="mat-switch__track"></span><span>Nur Änderungen</span></label>
+        <input type="hidden" name="changes" value="false" />
+    </div>
+    <button type="submit" class="mat-btn mat-btn--secondary kk-diff__apply">@Ui.Icon("refresh")<span>Anzeigen</span></button>
+</form>
+
+<div class="mat-card kk-diff__stats">
+    <div class="mat-card__body mat-row mat-row--between">
+        <div class="mat-row">
+            <span><span class="kk-ins">+@Fmt.Integer(Model.Stats.WordsAdded)</span> Wörter neu</span>
+            <span><span class="kk-del">−@Fmt.Integer(Model.Stats.WordsRemoved)</span> entfernt</span>
+            <span><strong>@Fmt.Integer(Model.Stats.WordsChanged)</strong> ersetzt</span>
+            <span class="mat-muted">in @Fmt.Integer(Model.Stats.ParagraphsChanged) Absätzen</span>
+        </div>
+        <div class="mat-row">
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--sm" data-diff-step="-1">@Ui.Icon("arrow-up")<span>Vorige Änderung</span></button>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--sm" data-diff-step="1">@Ui.Icon("arrow-down")<span>Nächste Änderung</span></button>
+        </div>
+    </div>
+</div>
+
+@if (!Model.Stats.HasChanges)
+{
+    <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("check-circle")</span><div class="mat-empty__title">Keine Unterschiede</div><p>Die beiden Fassungen haben denselben Text.</p></div>
+}
+else
+{
+    <div class="kk-diff @(Model.Inline ? "kk-diff--inline" : "kk-diff--side")" id="diff" data-diff>
+        @if (!Model.Inline)
+        {
+            <div class="kk-diff__head" aria-hidden="true"><div>Fassung @Model.From</div><div>Fassung @Model.To</div></div>
+        }
+        @foreach (var item in Model.Items)
+        {
+            if (item.Paragraph is { } p)
+            {
+                Row(p);
+            }
+            else
+            {
+                <details class="kk-diff__gap">
+                    <summary>@Ui.Plural(item.Folded!.Count, "unveränderter Absatz", "unveränderte Absätze")</summary>
+                    @foreach (var q in item.Folded) { Row(q); }
+                </details>
+            }
+        }
+    </div>
+}
+
+<partial name="_Pager" model="Model.Pager" />
+
+<div class="mat-actions">
+    <a class="mat-btn mat-btn--primary" href="/Documents/Export?id=@d.Id&from=@Model.From&to=@Model.To&format=@nameof(ExportFormat.DocxTracked)">@Ui.Icon("download")<span>Word mit Änderungen</span></a>
+    <a class="mat-btn mat-btn--secondary" href="/Documents/Export?id=@d.Id&from=@Model.From&to=@Model.To&format=@nameof(ExportFormat.PdfChanges)">@Ui.Icon("download")<span>PDF</span></a>
+    <a class="mat-btn mat-btn--secondary" href="/Documents/Details?id=@d.Id&tab=versions">@Ui.Icon("back")<span>Zurück</span></a>
+</div>
+
+@section Scripts {
+    <script src="~/js/diff.js" asp-append-version="true"></script>
+}
