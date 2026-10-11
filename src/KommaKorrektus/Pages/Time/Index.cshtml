@@ -1,0 +1,77 @@
+@page
+@model KommaKorrektus.Pages.Time.IndexModel
+
+<kk-card title="Stoppuhr" icon="stopwatch">
+    @if (Model.Running is { } running)
+    {
+        <div class="mat-row mat-row--between">
+            <div>
+                <strong>@Model.RunningProject</strong>@(string.IsNullOrWhiteSpace(running.Note) ? "" : " · " + running.Note)
+                <div class="kk-timer" data-timer-start="@running.StartDate.ToString("o")" aria-live="off">@Fmt.Duration((int)(DateTime.UtcNow - running.StartDate).TotalSeconds)</div>
+            </div>
+            <form method="post" asp-page-handler="Stop" asp-route-id="@running.Id">
+                <button type="submit" class="mat-btn mat-btn--danger mat-btn--solid">@Ui.Icon("stop")<span>Stoppen</span></button>
+            </form>
+        </div>
+    }
+    else if (Model.ProjectOptions.Count == 0)
+    {
+        <p class="mat-muted">Lege zuerst ein Projekt an, dann kannst du die Zeit stoppen.</p>
+    }
+    else
+    {
+        <form class="mat-form" method="post" asp-page-handler="Start" novalidate>
+            <div class="mat-row kk-timer-form">
+                <div class="mat-field"><label class="mat-label" for="ProjectId">Projekt</label>
+                    <select class="mat-select" id="ProjectId" name="ProjectId" required data-msg-required="Bitte wähle ein Projekt.">
+                        <option value="">Bitte wählen ...</option>
+                        @foreach (var o in Model.ProjectOptions) { <option value="@o.Value">@o.Text</option> }
+                    </select><span class="mat-error"></span></div>
+                <div class="mat-field"><label class="mat-label" for="Note">Wofür? (optional)</label><input class="mat-input" id="Note" name="Note" autocomplete="off" /></div>
+                <button type="submit" class="mat-btn mat-btn--primary kk-timer-form__go">@Ui.Icon("play")<span>Starten</span></button>
+            </div>
+        </form>
+    }
+</kk-card>
+
+<div class="mat-grid mat-grid--4">
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Gearbeitet</span><span class="mat-stat__value">@Fmt.Duration(Model.TotalSeconds)</span><span class="mat-stat__delta">in der Liste unten</span></div></div>
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Noch nicht abgerechnet</span><span class="mat-stat__value">@Fmt.Hours(Model.OpenSeconds)</span><span class="mat-stat__delta">Stunden</span></div></div>
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Letzte 14 Tage</span><span class="mat-stat__value">@Model.Days</span><span class="mat-stat__delta">Tage mit Arbeit</span></div></div>
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Wörter bearbeitet</span><span class="mat-stat__value">@Fmt.Integer(Model.Words)</span><span class="mat-stat__delta">in den letzten 14 Tagen</span></div></div>
+</div>
+
+<div class="mat-grid mat-grid--2">
+    <kk-card title="Arbeitszeit pro Tag" icon="clock" sub="letzte 14 Tage">@Model.HoursChart</kk-card>
+    <kk-card title="Bearbeitete Wörter pro Tag" icon="pen" sub="letzte 14 Tage">@Model.WordsChart</kk-card>
+</div>
+
+<details class="kk-datatable">
+    <summary>Die Zahlen als Tabelle</summary>
+    <div class="mat-table-wrap">
+        <table class="mat-table" id="time-days">
+            <caption class="mat-sr-only">Arbeitszeit und bearbeitete Wörter pro Tag</caption>
+            <thead><tr><th scope="col">Tag</th><th scope="col" class="mat-num">Arbeitszeit</th><th scope="col" class="mat-num">Wörter bearbeitet</th></tr></thead>
+            <tbody>
+                @foreach (var d in Model.PerDay.AsEnumerable().Reverse())
+                {
+                    <tr><td data-label="Tag">@Fmt.Date(d.Day)</td><td data-label="Arbeitszeit" class="mat-num">@Fmt.Duration(d.Seconds)</td><td data-label="Wörter bearbeitet" class="mat-num">@Fmt.Integer(d.Words)</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</details>
+
+<div class="mat-list">
+    <partial name="_Toolbar" model="Model.Toolbar" />
+    <partial name="_Table" model="Model.Table" />
+    <partial name="_Pager" model="Model.Pager" />
+    <div class="mat-actions">
+        <a class="mat-btn mat-btn--primary" href="/Time/Edit">@Ui.Icon("plus")<span>Zeit eintragen</span></a>
+        <a class="mat-btn mat-btn--secondary" href="@Model.CsvUrl">@Ui.Icon("download")<span>Als CSV</span></a>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/timer.js" asp-append-version="true"></script>
+}

@@ -27,7 +27,7 @@ public static class DocumentPdf
 
     static DocumentPdf()
     {
-        QuestPDF.Settings.License = LicenseType.Community;
+        Billing.PdfEnvironment.Initialize();
     }
 
     public static byte[] Render(PdfHeader header, IReadOnlyList<ParagraphDiff> diff, PdfLayout layout)

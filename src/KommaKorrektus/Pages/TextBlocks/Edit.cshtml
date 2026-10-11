@@ -1,0 +1,37 @@
+@page
+@model KommaKorrektus.Pages.TextBlocks.EditModel
+@{
+    var kinds = Controls.Options.Of<TextBlockKind>(Labels.Of);
+    var types = Controls.Options.Of<DocType>(Labels.Of);
+}
+
+<form class="mat-form" method="post" novalidate>
+    <input type="hidden" name="Id" value="@Model.Id" />
+    <kk-summary />
+    <kk-card title="Textbaustein" icon="type">
+        <div class="mat-form__grid">
+            <kk-input for="Input.Name" label="Name" full="true" required="true" />
+            <kk-select for="Input.Kind" label="Art" items="kinds" />
+            <kk-select for="Input.DocType" label="Für" items="types" empty="(alle Dokumente)" />
+            <kk-textarea for="Input.Text" label="Text" rows="9" full="true" required="true" />
+            <kk-switch for="Input.IsDefault" label="Neue Dokumente beginnen mit diesem Text" full="true" />
+        </div>
+    </kk-card>
+    <kk-card title="Platzhalter" icon="info">
+        <p class="mat-muted">Diese Platzhalter werden beim Ausstellen durch die Werte des Dokuments ersetzt:</p>
+        <dl class="mat-kv">
+            @foreach (var (name, description) in Model.Placeholders)
+            {
+                <dt class="mat-mono">{{@name}}</dt><dd>@description</dd>
+            }
+        </dl>
+    </kk-card>
+    @if (Model.Id is not null)
+    {
+        <kk-buttons back-href="/TextBlocks" delete-url="@Url.Page("/TextBlocks/Edit", "Delete", new { id = Model.Id })" delete-confirm="Diesen Textbaustein löschen?" />
+    }
+    else
+    {
+        <kk-buttons back-href="/TextBlocks" />
+    }
+</form>

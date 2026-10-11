@@ -121,3 +121,54 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .mat-tabpanel > * + * { margin-top: var(--mat-space-4); }
 .mat-tabpanel > .mat-actions { margin-top: var(--mat-space-4); }
 form.mat-form.kk-diff__bar { display: flex; flex-direction: row; flex-wrap: wrap; gap: var(--mat-space-3); align-items: flex-end; }
+
+/* ---- Charts: one series in the accent colour, thin marks standing on a quiet baseline ---- */
+.kk-chart { margin: 0; }
+.kk-chart svg { width: 100%; height: auto; max-height: 11rem; display: block; }
+.kk-chart__base { stroke: var(--mat-border-strong); stroke-width: 1; }
+.kk-chart__mark { fill: var(--mat-accent); }
+.kk-chart__hit { fill: transparent; }
+.kk-chart__bar:hover .kk-chart__mark, .kk-chart__bar:focus .kk-chart__mark { fill: var(--mat-accent-hover); }
+.kk-chart__bar:hover .kk-chart__hit, .kk-chart__bar:focus .kk-chart__hit { fill: var(--mat-accent-soft); }
+.kk-chart__bar:focus { outline: none; }
+.kk-chart__label { fill: var(--mat-text-muted); font-size: 10px; }
+
+/* ---- The stop watch ---- */
+.kk-timer { font-family: var(--mat-mono); font-size: var(--mat-fs-3xl); font-variant-numeric: tabular-nums; }
+.kk-timer-form { align-items: flex-end; }
+.kk-timer-form .mat-field { min-width: 14rem; flex: 1 1 14rem; }
+.kk-timer-form__go { margin-bottom: 1.35rem; }
+.kk-datatable > summary { cursor: pointer; color: var(--mat-text-muted); font-size: var(--mat-fs-sm); padding: var(--mat-space-2) 0; }
+.kk-datatable > summary:hover { color: var(--mat-accent-text); }
+
+/* ---- A form with a live preview next to it ---- */
+.kk-split { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--mat-space-5); align-items: start; }
+@media (min-width: 1100px) { .kk-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .kk-split__preview { position: sticky; top: var(--mat-space-4); } }
+.kk-preview__frame { width: 100%; height: min(72vh, 52rem); border: 1px solid var(--mat-border); border-radius: var(--mat-radius); background: var(--mat-surface-2); }
+.kk-logo-preview { max-height: 5rem; max-width: 16rem; background: var(--mat-surface-2); border: 1px solid var(--mat-border); border-radius: var(--mat-radius); padding: var(--mat-space-2); }
+
+/* ---- The positions of an offer or an invoice ---- */
+.kk-lines { display: grid; gap: var(--mat-space-3); margin-bottom: var(--mat-space-3); }
+.kk-line { display: grid; grid-template-columns: minmax(12rem, 3fr) 5rem 6.5rem 7.5rem 5rem 5rem 7.5rem auto; gap: var(--mat-space-2); align-items: start; padding: var(--mat-space-3); background: var(--mat-surface-2); border: 1px solid var(--mat-border); border-radius: var(--mat-radius); }
+.kk-line__title { display: grid; gap: var(--mat-space-1); }
+.kk-line__desc { min-height: 2.2rem; resize: vertical; }
+.kk-line__f { display: grid; gap: 2px; font-size: var(--mat-fs-xs); color: var(--mat-text-muted); }
+.kk-line__f span { display: none; }
+.kk-line__net { text-align: right; font-variant-numeric: tabular-nums; padding-top: .55rem; font-weight: 600; }
+.kk-line__net-label { display: none; }
+.kk-line__net output { display: block; }
+.kk-lines[data-small="true"] .kk-line { grid-template-columns: minmax(12rem, 3fr) 5rem 6.5rem 7.5rem 5rem 7.5rem auto; }
+@media (max-width: 1250px) {
+  .kk-line { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .kk-line__title { grid-column: 1 / -1; }
+  .kk-line__f span { display: block; }
+  .kk-line__net { grid-column: span 2; text-align: left; padding-top: 0; }
+  .kk-line__net-label { display: block; font-size: var(--mat-fs-xs); color: var(--mat-text-muted); font-weight: 400; }
+  .kk-line__remove { justify-self: end; }
+}
+.kk-lines__tools { align-items: center; gap: var(--mat-space-2); margin-bottom: var(--mat-space-4); }
+.kk-lines__product { min-width: 14rem; flex: 1 1 14rem; max-width: 24rem; }
+.kk-lines__options { margin-bottom: var(--mat-space-4); }
+.kk-totals { margin-left: auto; max-width: 22rem; display: grid; gap: var(--mat-space-1); font-variant-numeric: tabular-nums; }
+.kk-totals__row { display: flex; justify-content: space-between; gap: var(--mat-space-4); }
+.kk-totals__row--gross { font-weight: 700; border-top: 1px solid var(--mat-border-strong); padding-top: var(--mat-space-2); margin-top: var(--mat-space-1); }

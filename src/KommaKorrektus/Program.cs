@@ -70,6 +70,7 @@ builder.Services.AddScoped<InvitationService>();
 builder.Services.AddScoped<PublicUrl>();
 builder.Services.AddScoped<NumberService>();
 builder.Services.AddScoped<ProjectService>();
+builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<FileStoreService>();
 builder.Services.AddScoped<DocumentService>();
 builder.Services.AddScoped<TimeTrackingService>();
@@ -150,7 +151,7 @@ app.Use(async (context, next) =>
     headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()";
     headers["Content-Security-Policy"] =
         "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; " +
-        "frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+        "frame-src 'self' blob:; object-src 'self' blob:; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
     await next();
 });
 

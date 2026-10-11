@@ -36,7 +36,8 @@ public sealed class ListSpec<T>
     public IReadOnlyDictionary<string, string?> Keep { get; init; } = new Dictionary<string, string?>();
 }
 
-public sealed record ListResult<T>(IReadOnlyList<T> Items, ToolbarModel Toolbar, PagerModel Pager);
+/// <summary><see cref="Filtered"/> is the query with search and filters applied, before sorting and paging: for the numbers above a list (totals, charts).</summary>
+public sealed record ListResult<T>(IReadOnlyList<T> Items, ToolbarModel Toolbar, PagerModel Pager, IQueryable<T> Filtered);
 
 public static class ListBuilder
 {
@@ -97,7 +98,7 @@ public static class ListBuilder
             Keep = spec.Keep,
         };
         var pager = new PagerModel { Page = page, PageSize = pageSize, Total = matching, Url = toolbar.UrlWithPage };
-        return new ListResult<T>(items, toolbar, pager);
+        return new ListResult<T>(items, toolbar, pager, query);
     }
 
     /// <summary>The options of a filter from an enum: the value is the name, the label comes from <paramref name="label"/>.</summary>
