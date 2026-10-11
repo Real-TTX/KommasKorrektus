@@ -1,54 +1,7 @@
 @page
-@using KommaKorrektus.Core.Diff
-@using KommaKorrektus.Core.Writing
-@using Microsoft.AspNetCore.Html
 @model KommaKorrektus.Pages.Documents.CompareModel
 @{
     var d = Model.Document;
-
-    // The words of a paragraph: encoded, deletions in <del>, insertions in <ins>, a line break inside a paragraph as <br>.
-    IHtmlContent Words(ParagraphDiff p, bool oldSide, bool both)
-    {
-        var sb = new System.Text.StringBuilder();
-        foreach (var s in p.Segments)
-        {
-            if (!both && ((oldSide && s.Kind == EditKind.Insert) || (!oldSide && s.Kind == EditKind.Delete)))
-            {
-                continue;
-            }
-
-            var html = System.Net.WebUtility.HtmlEncode(s.Text).Replace(TextMetrics.LineBreak.ToString(), "<br>");
-            sb.Append(s.Kind switch { EditKind.Insert => $"<ins>{html}</ins>", EditKind.Delete => $"<del>{html}</del>", _ => html });
-        }
-
-        return new HtmlString(sb.Length == 0 ? "&nbsp;" : sb.ToString());
-    }
-
-    string RowClass(ParagraphChange c) => c switch { ParagraphChange.Inserted => "kk-diff__row is-inserted kk-change", ParagraphChange.Deleted => "kk-diff__row is-deleted kk-change", ParagraphChange.Modified => "kk-diff__row is-modified kk-change", _ => "kk-diff__row" };
-
-    void Row(ParagraphDiff p)
-    {
-        if (Model.Inline)
-        {
-            <div class="@RowClass(p.Change)" id="p@((p.NewIndex ?? p.OldIndex ?? 0) + 1)">
-                <span class="kk-diff__no">@((p.NewIndex ?? p.OldIndex ?? 0) + 1)</span>
-                <p class="kk-diff__text">@Words(p, false, true)</p>
-            </div>
-        }
-        else
-        {
-            <div class="@RowClass(p.Change)" id="p@((p.NewIndex ?? p.OldIndex ?? 0) + 1)">
-                <div class="kk-diff__cell">
-                    <span class="kk-diff__no">@(p.OldIndex is { } oi ? oi + 1 : "")</span>
-                    @if (p.Change != ParagraphChange.Inserted) { <p class="kk-diff__text">@Words(p, true, false)</p> }
-                </div>
-                <div class="kk-diff__cell">
-                    <span class="kk-diff__no">@(p.NewIndex is { } ni ? ni + 1 : "")</span>
-                    @if (p.Change != ParagraphChange.Deleted) { <p class="kk-diff__text">@Words(p, false, false)</p> }
-                </div>
-            </div>
-        }
-    }
 }
 
 <form class="mat-form kk-diff__bar" method="get" action="/Documents/Compare" id="compare-form">
@@ -90,26 +43,7 @@
 }
 else
 {
-    <div class="kk-diff @(Model.Inline ? "kk-diff--inline" : "kk-diff--side")" id="diff" data-diff>
-        @if (!Model.Inline)
-        {
-            <div class="kk-diff__head" aria-hidden="true"><div>Fassung @Model.From</div><div>Fassung @Model.To</div></div>
-        }
-        @foreach (var item in Model.Items)
-        {
-            if (item.Paragraph is { } p)
-            {
-                Row(p);
-            }
-            else
-            {
-                <details class="kk-diff__gap">
-                    <summary>@Ui.Plural(item.Folded!.Count, "unveränderter Absatz", "unveränderte Absätze")</summary>
-                    @foreach (var q in item.Folded) { Row(q); }
-                </details>
-            }
-        }
-    </div>
+    @DiffView.Render(Model.Items, Model.Inline, $"Fassung {Model.From}", $"Fassung {Model.To}")
 }
 
 <partial name="_Pager" model="Model.Pager" />

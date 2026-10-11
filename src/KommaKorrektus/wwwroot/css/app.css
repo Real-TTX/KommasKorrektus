@@ -107,6 +107,22 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-reading { font-size: 1.0625rem; line-height: 1.75; }
 .kk-reading p { margin: 0 0 var(--mat-space-3); overflow-wrap: anywhere; }
 .kk-reading__gap { margin: 0; }
+.kk-reading__no { display: inline-block; min-width: 2rem; margin-right: var(--mat-space-2); color: var(--mat-text-muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.kk-comment__quote { margin: var(--mat-space-1) 0; padding-left: var(--mat-space-3); border-left: 3px solid var(--mat-border); color: var(--mat-text-muted); overflow-wrap: anywhere; }
+
+/* ---- The page behind a share link: a plain page, a head with the sender, a card for what cannot be shown ---- */
+.kk-share__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--mat-space-5); }
+.kk-share__brand { display: flex; align-items: center; gap: var(--mat-space-3); }
+.kk-share__brand small { display: block; }
+.kk-share__card { max-width: 32rem; margin-inline: auto; }
+.kk-share__intro { display: grid; gap: var(--mat-space-2); margin-bottom: var(--mat-space-4); }
+.kk-share__intro h1, .kk-share__card h1 { margin: 0; font-size: 1.5rem; }
+.kk-share__message { margin: 0; padding: var(--mat-space-3); border-left: 3px solid var(--mat-accent); background: var(--mat-surface-2, var(--mat-surface)); border-radius: var(--mat-radius); white-space: pre-line; overflow-wrap: anywhere; }
+.kk-share__intro .mat-badge { justify-self: start; }
+.kk-share__bar { margin-bottom: var(--mat-space-3); flex-wrap: wrap; gap: var(--mat-space-2); }
+.kk-share__bar + .kk-diff__stats, .kk-share__bar + .mat-card { margin-top: 0; }
+.kk-bare > * + * { margin-top: var(--mat-space-4); }
+.kk-bare > .kk-share__head + * { margin-top: 0; }
 @media (max-width: 900px) {
   .kk-editor.has-side .kk-editor__body { grid-template-columns: 1fr; }
   .kk-editor__side { position: static; max-height: none; }

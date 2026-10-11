@@ -1,0 +1,55 @@
+@page "/s/{token:guid}"
+@model KommaKorrektus.Pages.Share.IndexModel
+@{
+    Layout = "_Bare";
+    var link = Model.Link;
+}
+
+<partial name="_Header" model="Model" />
+
+@if (Model.CanShow)
+{
+    <div class="kk-share__intro">
+        <h1>@link.Title</h1>
+        <p class="mat-muted">@link.Project!.Title · gültig bis @Fmt.Date(link.ExpiresDate) (@KommaKorrektus.Pages.Share.ShareModelBase.Remaining(link, DateTime.UtcNow))</p>
+        @if (!string.IsNullOrWhiteSpace(link.Message))
+        {
+            <p class="kk-share__message">@link.Message</p>
+        }
+        @if (link.ApprovedDate is not null)
+        {
+            <p class="mat-badge mat-badge--success">@Ui.Icon("check-circle")<span>Freigegeben von @link.ApprovedByName am @Fmt.Date(link.ApprovedDate)</span></p>
+        }
+    </div>
+
+    @if (Model.Documents.Count == 0)
+    {
+        <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("file-text")</span><div class="mat-empty__title">Noch nichts da</div><p>In diesem Projekt gibt es noch kein Dokument.</p></div>
+    }
+    else
+    {
+        <div class="mat-table-wrap">
+            <table class="mat-table" id="share-documents">
+                <caption class="mat-sr-only">Dokumente</caption>
+                <thead><tr><th scope="col">Dokument</th><th scope="col" class="mat-hide-sm">Fassung</th><th scope="col" class="mat-hide-sm mat-num">Wörter</th><th scope="col" class="mat-hide-sm">Stand</th><th scope="col" class="mat-col-actions"><span class="mat-sr-only">Aktionen</span></th></tr></thead>
+                <tbody>
+                    @foreach (var row in Model.Documents)
+                    {
+                        <tr>
+                            <td data-label="Dokument"><a href="/s/@Model.Token/document/@row.Document.Id">@row.Document.Title</a></td>
+                            <td data-label="Fassung" class="mat-hide-sm">@row.VersionNo</td>
+                            <td data-label="Wörter" class="mat-hide-sm mat-num">@Fmt.Integer(row.Words)</td>
+                            <td data-label="Stand" class="mat-hide-sm">@Fmt.Date(row.Changed)</td>
+                            <td class="mat-col-actions"><a class="mat-btn mat-btn--secondary mat-btn--sm" href="/s/@Model.Token/document/@row.Document.Id">@Ui.Icon("eye")<span>Ansehen</span></a></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (Model.IsStaffPreview)
+    {
+        <p class="mat-hint">Du bist angemeldet: Dein Besuch wird nicht als Aufruf des Gegenübers gezählt.</p>
+    }
+}

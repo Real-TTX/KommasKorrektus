@@ -73,6 +73,7 @@ builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<FileStoreService>();
 builder.Services.AddScoped<DocumentService>();
+builder.Services.AddScoped<ShareService>();
 builder.Services.AddScoped<TimeTrackingService>();
 builder.Services.AddScoped<NavCounts>();
 builder.Services.AddScoped<ShellFactory>();
