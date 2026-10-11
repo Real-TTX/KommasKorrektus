@@ -72,6 +72,16 @@ public static partial class Ui
 
     public static IHtmlContent Mono(string? text) => new HtmlString($"<span class=\"mat-mono\">{WebUtility.HtmlEncode(text ?? string.Empty)}</span>");
 
+    private static readonly Dictionary<string, string> Singulars = new(StringComparer.Ordinal)
+    {
+        ["Einträge"] = "Eintrag", ["Pläne"] = "Plan", ["Ziele"] = "Ziel", ["Einladungen"] = "Einladung", ["Nachrichten"] = "Nachricht", ["Kunden"] = "Kunde",
+        ["Belege"] = "Beleg", ["Produkte"] = "Produkt", ["Projekte"] = "Projekt", ["Aufgaben"] = "Aufgabe", ["Vorlagen"] = "Vorlage", ["Textbausteine"] = "Textbaustein",
+        ["Rechnungen"] = "Rechnung", ["Angebote"] = "Angebot", ["Dokumente"] = "Dokument", ["Fassungen"] = "Fassung",
+    };
+
+    /// <summary>The name of the things in a list for a count: "1 Kunde", "3 Kunden". Names that are not known keep their plural.</summary>
+    public static string CountNoun(long count, string plural) => $"{Services.Fmt.Integer(count)} {(count == 1 && Singulars.TryGetValue(plural, out var one) ? one : plural)}";
+
     /// <summary>A phrase with a count in German: "1 Projekt", "3 Projekte".</summary>
     public static string Plural(int count, string one, string many) => $"{count} {(count == 1 ? one : many)}";
 }

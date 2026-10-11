@@ -8,7 +8,7 @@
     var id = Model.Id;
     var form = id + "-form";
     var hasChips = Model.ActiveFilters > 0;
-    var count = Model.Matching == Model.Total ? $"{Fmt.Integer(Model.Total)} {Model.Noun}" : $"{Fmt.Integer(Model.Matching)} von {Fmt.Integer(Model.Total)} {Model.Noun}";
+    var count = Model.Matching == Model.Total ? Ui.CountNoun(Model.Total, Model.Noun) : $"{Fmt.Integer(Model.Matching)} von {Ui.CountNoun(Model.Total, Model.Noun)}";
 }
 
 <div class="mat-toolbar" role="toolbar" aria-label="@Model.Label: Werkzeuge">

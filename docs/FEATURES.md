@@ -1,0 +1,115 @@
+# Features
+
+Everything KommaKorrektus does, area by area. Names in *italics* are the labels in the (German) interface.
+
+## Texts and versions
+
+| | |
+|---|---|
+| **Import** | DOCX (paragraphs, also in tables), PDF (text PDFs; paragraphs rebuilt from line spacing and font size, hyphenation at line ends joined), plain text and Markdown (UTF-8 with or without mark, Windows-1252 as a fallback). Up to 150 MB. Notes about what the import had to guess are kept with the document |
+| **Editor** | One text field per paragraph, numbered; a paragraph that changed has a dot. Enter splits, Backspace at the start joins, line breaks inside a paragraph are kept. Undo / redo, find and replace (also across paragraphs), word and character count, **Fassung benennen** to label a version. Shortcuts: `Ctrl+S`, `Ctrl+Z`, `Ctrl+Y`, `Ctrl+H` |
+| **Autosave** | After 20 seconds without typing (adjustable, 0 = off) as an autosave version. The next autosave of the same person updates it; a manual save turns it into the saved version. No change, no new version |
+| **Versions** | Numbered per document, with origin (import, saved, autosave, restore), label, author, date, words added / removed / changed against the version before. **Restore** puts an old version back *as a new version*, nothing is overwritten |
+| **Remarks** | Per paragraph, with the quoted words, resolved or open; authors can be staff, clients (portal) or anonymous visitors (share link) |
+| **Style sheet** | Per project: characters, places, spellings, terms and rules, so that the same name is spelled the same everywhere |
+| **Comparison** | Any two versions. Paragraphs are paired (insertions, deletions, modifications, moves recognised by similarity), words diffed with Myers' algorithm. *Nebeneinander* (old / new) or *Ein Dokument* (deleted struck through, new underlined), *Nur Änderungen* folds unchanged paragraphs, `n` / `p` or the buttons jump from change to change. Long texts are paged |
+| **Export** | DOCX **with tracked changes** (`w:ins` / `w:del`, author = your company name, written into the original file so formatting stays), DOCX clean (changes accepted), PDF proof sheet, PDF side by side, PDF clean, plain text. Any two versions can be chosen |
+
+## Working time
+
+| | |
+|---|---|
+| **Automatic** | The editor sends a heartbeat (active seconds, keystrokes, words changed). A block of working time starts with the first keystroke and ends after a pause (*Arbeitszeit*, default 5 minutes). Long pauses are never counted |
+| **Manual** | *Zeiterfassung*: project, day, start, duration (`1:30`, `90 min`, `1,5 Stunden`, `2 h`), note, billable or not. A stopwatch for work outside the editor |
+| **Overview** | Hours per day and words corrected per day for the last 14 days, the list of entries with filters, and the hours not yet billed |
+| **To the invoice** | *Aufwand* on an invoice draft adds the unbilled hours as one position at the customer's (or the company's) hourly rate and marks them as billed; cancelling the invoice frees them again |
+
+## Customers and projects
+
+- **Customers**: person or company (publisher), salutation, pen name, address, contact people, tax / VAT id, Leitweg-ID,
+  individual payment term and hourly rate, notes, archive instead of delete
+- **History** per customer: calls, mails, meetings and notes you write, plus entries the application writes (project
+  created, offer or invoice issued, payment, share link, invitation)
+- **Projects**: customer, title, genre, service (copyediting, proofreading, ...), status (inquiry, sample, offered, commissioned, in progress,
+  review, done, archived, cancelled), priority, start, deadline, responsible person, pricing (per standard page, per word, per hour,
+  flat), estimated hours, notes. Standard page = 1800 characters including spaces (adjustable)
+- **Tasks**: per project or across projects, status, due date, assignee, planned minutes; **task templates** create a
+  standard set of tasks when a project starts
+- **Project page**: status, scope in standard pages, hours worked against estimate, tasks done, with tabs for documents,
+  tasks, times, style sheet, share links and invoices
+- **Start page**: open projects and tasks, open and overdue invoices, work this week, deadlines of the next 7 days, a
+  checklist of first steps while the installation is new
+
+## Offers and invoices
+
+- **Products** (name, unit, net price, VAT rate, service) and **text blocks** (introductions and closings per document
+  type) with placeholders: `{{Anrede}}`, `{{Projekt}}`, `{{Nummer}}`, `{{Tage}}`, `{{Zahlungsziel}}`, ...
+- **Templates**: logo (position and height), accent colour, font and size, the titles of offer / invoice / credit note, which
+  columns show (quantity, unit, VAT, discount), sender line, bank details, payment QR code, page numbers, footer and invoice
+  note, paper size and margins; one template is the default. The **live preview** is the real PDF, redrawn while you type
+- **Positions**: quantity, unit, unit price, VAT rate, discount per position and on everything; products can be
+  inserted, *Aus Projekt* suggests positions from the project's price and size, *Aufwand* adds the working time
+- **Tax**: VAT per rate on the sum of the lines, small-business rule (§ 19 UStG, no VAT shown), reverse charge
+- **Numbers**: configurable (`RE-{YYYY}-{NNNN}`), assigned only when a document is **issued**, in a transaction: no gaps,
+  a failed issue does not use a number, the counter restarts each year when the format contains the year
+- **Issued documents are frozen**: a snapshot of sender, buyer, texts and settings is kept, and the PDF as issued is
+  stored, never redrawn. A correction is a **credit note** (*Stornieren*), which references the invoice
+- **Payments**: partial payments, payment method, reference; status issued → partially paid → paid, **overdue** when the
+  due date has passed
+- **Offers**: valid-until date, accepted / declined, **invoice from an offer** with the same positions
+- **E-invoice**: invoices are issued as **ZUGFeRD** PDFs (PDF/A-3b with the embedded `factur-x.xml`, EN 16931
+  profile) and can be downloaded as **XRechnung** (CII XML). The XML is validated against the EN 16931 schema in the
+  tests; the PDFs pass veraPDF as PDF/A-3b. Missing data (seller, buyer address, tax number) is reported in words
+- **GiroCode**: an EPC QR code with the amount and reference on the invoice
+- **Sending**: by mail with the PDF attached (when a mail server is set up), marked as sent, with the mail in the log
+
+## Sharing with authors
+
+- **Anonymous link** (`/s/<token>`) for a whole project or one document, optionally fixed to one version. Valid for a
+  chosen number of days (default 14), can be taken back, or extended (saving the link restarts the period)
+- **What the visitor may do** is chosen per link: see the changes (old / new) or only the clean text, download Word and
+  PDF, write remarks (name required), approve ("Passt so, freigeben"). Approval records name and date and is shown on
+  the editor's side
+- **Password** (optional): checked once, remembered in a signed cookie for 4 hours; after 10 wrong tries in 15 minutes the
+  link is locked for a while
+- **Log**: views, downloads, remarks, approvals, wrong passwords; visitors are shown as a hash of the address, not the
+  address. A signed-in editor looking at the page is not counted as a visit of the customer
+- A link that has run out or was taken back says so in words and shows nothing about the project
+
+## Accounts and the portal
+
+- **Local sign-in**: e-mail and password (PBKDF2-SHA512, 210,000 rounds), **TOTP** with recovery codes, or an **e-mail code** (no password; code
+  valid for minutes, a few tries). Administrators can be required to set up TOTP. Five wrong passwords lock the account
+  for a while (an administrator can unlock it)
+- **Sessions** are rows in the database (the cookie carries only a token): they survive a container restart, can be
+  listed and ended (one or all) in *Sicherheit* and by an administrator, expire after a number of days
+- **Invitations**: for staff or for a client of a customer; a link that works once, expires, can be taken back, is sent
+  by mail or copied. Somebody who already has an account accepts it after signing in and only gets the new access
+- **Client portal**: *Meine Projekte* (status, deadline), documents with the changes (one text or side by side), Word and
+  PDF downloads, remarks to the editor, *Rechnungen & Angebote* with the PDFs. Strictly limited to the customers the account
+  was given; anything else is "not found"
+
+## Operations
+
+- **NAS**: *Speicher* switches the place for new documents and PDFs between the volume and an SMB share; a file knows
+  where it lives (`local:` / `smb:`), so older files keep working; **move all** over and back. Share names can be listed
+- **Backup**: see the README. Database as binary COPY per table in one consistent snapshot, settings (without the database
+  password) and the key ring, optionally all files with their checksums; written as one zip, optionally encrypted
+  (AES-256-GCM in blocks, PBKDF2 key). Scheduler checks every 30 seconds; failed runs are retried (15, 30, 45 minutes)
+- **Restore**: reads the manifest first, refuses a backup of a newer version, saves a safety copy, restores in one
+  transaction, resets the number sequences, optionally restores files and settings
+- **Maintenance** once a day: ended sessions, used codes, logs older than a year
+- **Administration**: users (role, active, new password, reset two-factor, end sessions, unlock), invitations, mail server
+  with connection test and test mail, storage, security (session days, code login, TOTP for administrators, link
+  periods, public address), company data (address, tax, bank, VAT, numbering formats, standard page, work-time settings),
+  activity log, mail log (with the text: without a mail server an invitation link can be read there), system page
+
+## Interface
+
+- Built on the MatDesign toolkit, purple accent, light / dark / system theme (bottom left in the menu with account and sign-out)
+- One list pattern: toolbar (search, filters, sort) above, table, pager directly below, actions below on the left; delete
+  keeps its distance. One form pattern: field tag helpers, errors at the field and in a summary, dependent fields only
+  appear when needed
+- Phone layout for every page (tables become cards), scrollbars only while scrolling, keyboard shortcuts where they help
+- German, with German number, date and money formats (the culture is fixed, formatting goes through one helper)
+- Strict content security policy: no inline scripts or styles, no external resources
