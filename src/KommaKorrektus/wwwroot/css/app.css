@@ -1,0 +1,31 @@
+/* ==========================================================================
+   KommaKorrektus: the few styles of the app itself. Everything else is MatUi (wwwroot/ui), which is copied from MatDesign and never changed here.
+   Rules of this file: classes start with kk-; only tokens (--mat-*) for colours, no literal colour except the app's own accent below.
+   ========================================================================== */
+
+/* The colour of the app: purple. MatUi derives hover, tints, links, the focus ring and the dark mode from this one value. */
+[data-app="kommakorrektus"] { --mat-app-accent: #a43bd0; }
+
+/* The colours of a correction, as an editor marks them on paper: red for what goes, green for what comes. They follow the status tokens, in both themes. */
+:root {
+  --kk-del-bg: var(--mat-danger-bg);
+  --kk-del-text: var(--mat-danger-text);
+  --kk-ins-bg: var(--mat-success-bg);
+  --kk-ins-text: var(--mat-success-text);
+  --kk-gold: #b8860b;
+}
+
+/* ---- Sign-in and other pages without a menu ---- */
+.kk-auth__alt { text-align: center; margin: var(--mat-space-4) 0 0; font-size: var(--mat-fs-sm); }
+.kk-bare { padding-block: var(--mat-space-8); }
+
+/* ---- Small helpers ---- */
+.kk-warn { color: var(--mat-warning-text); }
+.kk-sub { display: block; }
+.kk-name { display: flex; flex-direction: column; gap: 2px; }
+.kk-codes { list-style: none; padding: 0; margin: var(--mat-space-4) 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: var(--mat-space-2); }
+.kk-codes li { background: var(--mat-surface-3); padding: var(--mat-space-2) var(--mat-space-3); border-radius: var(--mat-radius); text-align: center; letter-spacing: .05em; }
+.kk-steps { padding-left: var(--mat-space-5); margin: 0 0 var(--mat-space-4); display: grid; gap: var(--mat-space-1); }
+.kk-qr { display: flex; justify-content: center; margin: var(--mat-space-4) 0; }
+.kk-qr svg { width: 200px; height: 200px; background: #fff; padding: var(--mat-space-2); border-radius: var(--mat-radius); }
+.mat-page > * + * { margin-top: var(--mat-space-4); }

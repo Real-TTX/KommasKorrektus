@@ -1,0 +1,22 @@
+services:
+  kommakorrektus:
+    image: ghcr.io/real-ttx/kommaskorrektus:latest
+    restart: unless-stopped
+    depends_on:
+      - db
+    ports:
+      - "2930:2930"   # web interface (HTTP: put a reverse proxy with TLS in front)
+    volumes:
+      - kommakorrektus-data:/data
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: kommakorrektus
+    volumes:
+      - kommakorrektus-db:/var/lib/postgresql/data
+
+volumes:
+  kommakorrektus-data:
+  kommakorrektus-db:

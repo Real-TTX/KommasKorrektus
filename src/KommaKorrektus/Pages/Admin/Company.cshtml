@@ -1,0 +1,71 @@
+@page
+@model KommaKorrektus.Pages.Admin.CompanyModel
+@{
+    var countries = new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+    {
+        new("Deutschland", "DE"), new("Österreich", "AT"), new("Schweiz", "CH"), new("Luxemburg", "LU"), new("Niederlande", "NL"), new("Belgien", "BE"),
+    };
+}
+
+<form class="mat-form" method="post" novalidate>
+    <kk-summary />
+    <kk-tabs id="company" label="Firmendaten">
+        <kk-tab id="basics" title="Firma" icon="briefcase">
+            <kk-card>
+                <div class="mat-form__grid">
+                    <kk-input for="Company.Name" label="Firmenname" required="true" hint="Steht im Briefkopf, zum Beispiel „Kommahexe Lektorat“." />
+                    <kk-input for="Company.Owner" label="Inhaberin / Inhaber" autocomplete="name" />
+                    <kk-input for="Company.Street" label="Straße und Hausnummer" autocomplete="street-address" />
+                    <kk-input for="Company.PostalCode" label="Postleitzahl" autocomplete="postal-code" />
+                    <kk-input for="Company.City" label="Ort" autocomplete="address-level2" />
+                    <kk-select for="Company.Country" label="Land" items="countries" />
+                    <kk-input for="Company.Email" label="E-Mail-Adresse" type="email" inputmode="email" />
+                    <kk-input for="Company.Phone" label="Telefon" type="tel" />
+                    <kk-input for="Company.Website" label="Webseite" type="url" full="true" />
+                </div>
+            </kk-card>
+        </kk-tab>
+
+        <kk-tab id="tax" title="Steuer und Bank" icon="dollar">
+            <kk-card>
+                <div class="mat-form__grid">
+                    <kk-switch for="Company.SmallBusiness" label="Kleinunternehmerregelung (§ 19 UStG): keine Umsatzsteuer ausweisen" full="true" />
+                    <kk-input for="Company.TaxNumber" label="Steuernummer" hint="Von deinem Finanzamt." />
+                    <kk-input for="Company.VatId" label="USt-IdNr." hint="Nur wenn vorhanden, zum Beispiel DE123456789." show-if="Company.SmallBusiness" show-value="false" />
+                    <kk-input for="Company.DefaultVatRate" label="Standard-Umsatzsteuer in Prozent" type="number" min="0" max="30" show-if="Company.SmallBusiness" show-value="false" />
+                    <kk-input for="Company.AccountHolder" label="Kontoinhaber" />
+                    <kk-input for="Company.BankName" label="Bank" />
+                    <kk-input for="Company.Iban" label="IBAN" hint="Die Prüfziffer wird kontrolliert." />
+                    <kk-input for="Company.Bic" label="BIC" />
+                </div>
+            </kk-card>
+        </kk-tab>
+
+        <kk-tab id="billing" title="Rechnungsstellung" icon="receipt">
+            <kk-card>
+                <div class="mat-form__grid">
+                    <kk-input for="Company.DefaultPaymentDays" label="Zahlungsziel in Tagen" type="number" min="0" max="365" />
+                    <kk-input for="Company.OfferValidDays" label="Angebote gültig für (Tage)" type="number" min="1" max="365" />
+                    <kk-input for="Company.DefaultHourlyRate" label="Standard-Stundensatz (netto)" type="number" min="0" />
+                    <kk-input for="Company.NormPageCharacters" label="Zeichen pro Normseite" type="number" min="500" max="5000" hint="Üblich sind 1800 Zeichen inklusive Leerzeichen." />
+                    <kk-input for="Company.Currency" label="Währung" maxlength="3" />
+                </div>
+            </kk-card>
+        </kk-tab>
+
+        <kk-tab id="numbers" title="Nummern" icon="list">
+            <kk-card>
+                <p class="mat-muted">Platzhalter: <code>{YYYY}</code> Jahr, <code>{YY}</code> zweistelliges Jahr, <code>{MM}</code> Monat und <code>{NNNN}</code> der Zähler (so viele N wie Stellen). Enthält das Format ein Jahr, beginnt der Zähler jedes Jahr neu.</p>
+                <div class="mat-form__grid">
+                    <kk-input for="Company.CustomerNumberFormat" label="Kundennummer" hint="@("Beispiel: " + Model.Examples["Customer"])" />
+                    <kk-input for="Company.ProjectNumberFormat" label="Projektnummer" hint="@("Beispiel: " + Model.Examples["Project"])" />
+                    <kk-input for="Company.OfferNumberFormat" label="Angebotsnummer" hint="@("Beispiel: " + Model.Examples["Offer"])" />
+                    <kk-input for="Company.InvoiceNumberFormat" label="Rechnungsnummer" hint="@("Beispiel: " + Model.Examples["Invoice"])" />
+                    <kk-input for="Company.CreditNoteNumberFormat" label="Gutschriftsnummer" hint="@("Beispiel: " + Model.Examples["CreditNote"])" />
+                    <kk-input for="Company.ProductNumberFormat" label="Artikelnummer" hint="@("Beispiel: " + Model.Examples["Product"])" />
+                </div>
+            </kk-card>
+        </kk-tab>
+    </kk-tabs>
+    <kk-buttons back-href="/" />
+</form>

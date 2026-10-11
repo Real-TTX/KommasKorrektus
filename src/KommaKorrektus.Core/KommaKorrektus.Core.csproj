@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The part of KommaKorrektus that has no web types: text and diff engine, DOCX/PDF import and export, invoice maths,
+       e-invoice (ZUGFeRD / XRechnung), TOTP, schedules. Everything in here is covered by unit tests without a browser or a database. -->
+
+  <PropertyGroup>
+    <RootNamespace>KommaKorrektus.Core</RootNamespace>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DocumentFormat.OpenXml" Version="3.*" />
+    <PackageReference Include="PdfPig" Version="0.1.*" />
+    <PackageReference Include="QuestPDF" Version="2026.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="KommaKorrektus.Tests" />
+  </ItemGroup>
+
+</Project>
