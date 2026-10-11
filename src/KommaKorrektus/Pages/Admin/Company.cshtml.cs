@@ -11,11 +11,15 @@ public sealed class CompanyModel(ConfigStore config, ActivityLogger log) : PageM
     [BindProperty]
     public CompanyConfig Company { get; set; } = new();
 
+    [BindProperty]
+    public TrackingConfig Tracking { get; set; } = new();
+
     public IReadOnlyDictionary<string, string> Examples { get; private set; } = new Dictionary<string, string>();
 
     public async Task OnGetAsync()
     {
         Company = Clone(config.Current.Company);
+        Tracking = new TrackingConfig { IdleMinutes = config.Current.Tracking.IdleMinutes, AutosaveSeconds = config.Current.Tracking.AutosaveSeconds };
         await PrepareAsync();
     }
 
@@ -33,6 +37,8 @@ public sealed class CompanyModel(ConfigStore config, ActivityLogger log) : PageM
             Company.Iban = Iban.Normalize(Company.Iban);
             Company.Bic = Company.Bic.Replace(" ", string.Empty).ToUpperInvariant();
             c.Company = Company;
+            c.Tracking.IdleMinutes = Tracking.IdleMinutes;
+            c.Tracking.AutosaveSeconds = Tracking.AutosaveSeconds;
         });
         await log.LogAsync("Firmendaten geändert", "Company");
         Flash("Die Firmendaten sind gespeichert.");
@@ -42,6 +48,16 @@ public sealed class CompanyModel(ConfigStore config, ActivityLogger log) : PageM
     private void Validate()
     {
         var c = Company;
+        if (Tracking.IdleMinutes is < 1 or > 60)
+        {
+            ModelState.AddModelError("Tracking.IdleMinutes", "Die Pause liegt zwischen 1 und 60 Minuten.");
+        }
+
+        if (Tracking.AutosaveSeconds is < 0 or > 600)
+        {
+            ModelState.AddModelError("Tracking.AutosaveSeconds", "Das automatische Speichern liegt zwischen 0 und 600 Sekunden.");
+        }
+
         if (string.IsNullOrWhiteSpace(c.Name))
         {
             ModelState.AddModelError("Company.Name", "Bitte gib den Namen deiner Firma oder deinen Namen ein.");

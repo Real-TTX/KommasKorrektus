@@ -1,0 +1,37 @@
+@page
+@model KommaKorrektus.Pages.Admin.SecurityModel
+
+<form class="mat-form" method="post" novalidate>
+    <kk-summary />
+    <kk-tabs id="security" label="Sicherheit">
+        <kk-tab id="signin" title="Anmeldung" icon="shield">
+            <kk-card>
+                <div class="mat-form__grid">
+                    <kk-input for="Input.SessionDays" label="Sitzung bleibt gültig für Tage" type="number" min="1" max="365" hint="Danach muss man sich wieder anmelden. Die Sitzungen sind in der Datenbank gespeichert und überstehen einen Neustart." />
+                    <kk-switch for="Input.AllowEmailCodeLogin" label="Anmelden ohne Passwort mit einem Code per E-Mail erlauben" full="true" />
+                    <kk-input for="Input.LoginCodeMinutes" label="Ein Code per E-Mail gilt für Minuten" type="number" min="3" max="60" show-if="Input.AllowEmailCodeLogin" />
+                    <kk-switch for="Input.RequireTotpForAdmins" label="Administratoren müssen die Zwei-Faktor-Anmeldung einrichten" full="true" />
+                </div>
+            </kk-card>
+        </kk-tab>
+
+        <kk-tab id="links" title="Links" icon="link">
+            <kk-card>
+                <div class="mat-form__grid">
+                    <kk-input for="Input.InvitationDays" label="Einladung gilt für Tage" type="number" min="1" max="90" />
+                    <kk-input for="Input.ShareLinkDays" label="Freigabe-Link gilt für Tage" type="number" min="1" max="365" hint="Der Vorschlag beim Erstellen eines Links. Jeder Link hat sein eigenes Ablaufdatum." />
+                </div>
+            </kk-card>
+        </kk-tab>
+
+        <kk-tab id="address" title="Adresse" icon="globe">
+            <kk-card>
+                <div class="mat-form__grid">
+                    <kk-input for="Input.PublicUrl" label="Öffentliche Adresse" type="url" full="true" hint="@(Model.UrlFromEnvironment ? "Wird gerade von der Umgebungsvariable KOMMAKORREKTUS__Server__PublicUrl bestimmt." : $"Steht in Links in E-Mails, zum Beispiel https://lektorat.example.de. Leer: die Adresse der Anfrage (jetzt {Model.CurrentBase}).")" />
+                    <kk-switch for="Input.ForceSecureCookie" label="Cookie immer als „Secure“ markieren (wenn die Seite über HTTPS erreichbar ist)" full="true" />
+                </div>
+            </kk-card>
+        </kk-tab>
+    </kk-tabs>
+    <kk-buttons back-href="/" />
+</form>

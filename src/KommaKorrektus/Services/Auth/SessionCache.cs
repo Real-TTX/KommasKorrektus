@@ -20,15 +20,20 @@ public sealed class SessionCache(IMemoryCache cache, TimeProvider clock)
 
     private readonly ConcurrentDictionary<long, long> _epochs = new();
 
-    private sealed record Entry(SessionSnapshot? Snapshot, long Epoch);
+    private long _all;
+
+    private sealed record Entry(SessionSnapshot? Snapshot, long Epoch, long All);
 
     public void InvalidateUser(long userId) => _epochs.AddOrUpdate(userId, 1, (_, old) => old + 1);
+
+    /// <summary>Makes every cached answer stale: after a restore the sessions in the database are not the ones that were checked before.</summary>
+    public void InvalidateAll() => Interlocked.Increment(ref _all);
 
     public async Task<SessionSnapshot?> GetAsync(Guid token, KkDbContext db, CancellationToken ct)
     {
         if (cache.TryGetValue(token, out Entry? entry) && entry is not null)
         {
-            if (entry.Snapshot is null || _epochs.GetValueOrDefault(entry.Snapshot.UserId) == entry.Epoch)
+            if (entry.All == Interlocked.Read(ref _all) && (entry.Snapshot is null || _epochs.GetValueOrDefault(entry.Snapshot.UserId) == entry.Epoch))
             {
                 return entry.Snapshot;
             }
@@ -41,7 +46,7 @@ public sealed class SessionCache(IMemoryCache cache, TimeProvider clock)
             .FirstOrDefaultAsync(ct);
 
         var epoch = snapshot is null ? 0 : _epochs.GetValueOrDefault(snapshot.UserId);
-        cache.Set(token, new Entry(snapshot, epoch), Lifetime);
+        cache.Set(token, new Entry(snapshot, epoch, Interlocked.Read(ref _all)), Lifetime);
         return snapshot;
     }
 }

@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Microsoft.EntityFrameworkCore;
 using KommaKorrektus.Configuration;
 using KommaKorrektus.Data;
 using KommaKorrektus.Data.Entities;
@@ -143,6 +144,28 @@ public sealed class FileStoreService(ConfigStore config, SecretProtector secrets
         return file;
     }
 
+    /// <summary>
+    /// Writes content under a key that is already known (a restore): into the store of its scheme, or, when that store is not set up here
+    /// (a backup restored on another machine), into the volume. Returns the key the file is under now.
+    /// </summary>
+    public async Task<string> RestoreAsync(string storageKey, Stream content, CancellationToken ct = default)
+    {
+        var (scheme, path) = Split(storageKey);
+        IFileStore store;
+        try
+        {
+            store = StoreFor(scheme);
+        }
+        catch (StorageException)
+        {
+            store = Local;
+            scheme = LocalScheme;
+        }
+
+        await store.SaveAsync(path, content, ct);
+        return $"{scheme}:{path}";
+    }
+
     public Task<Stream> OpenAsync(StoredFile file, CancellationToken ct = default)
     {
         var (scheme, path) = Split(file.StorageKey);
@@ -161,6 +184,44 @@ public sealed class FileStoreService(ConfigStore config, SecretProtector secrets
     {
         var (scheme, path) = Split(file.StorageKey);
         await StoreFor(scheme).DeleteAsync(path, ct);
+    }
+
+    public sealed record MoveResult(int Moved, int Failed, string? FirstError);
+
+    /// <summary>
+    /// Moves every file that is not in the store of <paramref name="toScheme"/> into it: copy, write the new key, only then remove the old file.
+    /// A file that cannot be moved stays where it is and works as before.
+    /// </summary>
+    public async Task<MoveResult> MoveAllAsync(string toScheme, CancellationToken ct = default)
+    {
+        var target = StoreFor(toScheme);
+        var moved = 0;
+        var failed = 0;
+        string? firstError = null;
+        var files = (await db.StoredFile.ToListAsync(ct)).Where(f => Split(f.StorageKey).Scheme != toScheme).ToList();
+        foreach (var file in files)
+        {
+            var (scheme, path) = Split(file.StorageKey);
+            try
+            {
+                await using (var source = await StoreFor(scheme).OpenReadAsync(path, ct))
+                {
+                    await target.SaveAsync(path, source, ct);
+                }
+
+                file.StorageKey = $"{toScheme}:{path}";
+                await db.SaveChangesAsync(ct);
+                await StoreFor(scheme).DeleteAsync(path, ct);
+                moved++;
+            }
+            catch (Exception ex) when (ex is StorageException or IOException)
+            {
+                failed++;
+                firstError ??= $"{file.FileName}: {ex.Message}";
+            }
+        }
+
+        return new MoveResult(moved, failed, firstError);
     }
 
     /// <summary>A file name that is safe in a download header and on any file system: no path, no control characters.</summary>

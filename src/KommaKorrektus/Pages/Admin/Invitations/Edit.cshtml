@@ -1,0 +1,63 @@
+@page
+@model KommaKorrektus.Pages.Admin.Invitations.EditModel
+@{
+    var roles = Controls.Options.Of<UserRole>(Labels.Of);
+    var now = DateTime.UtcNow;
+}
+
+@if (Model.Invitation is { } invitation)
+{
+    <kk-card title="@invitation.Email" icon="send" sub="@Labels.Of(invitation.Role)">
+        <dl class="mat-kv">
+            <dt>Status</dt><dd>@KommaKorrektus.Pages.Admin.Invitations.IndexModel.StatusPill(invitation, now)</dd>
+            @if (!string.IsNullOrWhiteSpace(invitation.DisplayName)) { <dt>Name</dt><dd>@invitation.DisplayName</dd> }
+            @if (invitation.Customer is not null) { <dt>Kunde</dt><dd><a href="/Customers/Details?id=@invitation.CustomerId&tab=portal">@invitation.Customer.DisplayName</a></dd> }
+            <dt>Gültig bis</dt><dd>@Fmt.Moment(invitation.ExpiresDate)</dd>
+            <dt>Gesendet</dt><dd>@(invitation.SentDate is null ? "nicht per E-Mail" : Fmt.Moment(invitation.SentDate))</dd>
+            @if (invitation.AcceptedDate is not null) { <dt>Angenommen</dt><dd>@Fmt.Moment(invitation.AcceptedDate)</dd> }
+            @if (!string.IsNullOrWhiteSpace(invitation.Note)) { <dt>Nachricht</dt><dd>@invitation.Note</dd> }
+        </dl>
+        @if (Model.IsOpen)
+        {
+            <div class="mat-field">
+                <label class="mat-label" for="invite-link">Link zum Weitergeben</label>
+                <div class="mat-input-group">
+                    <input class="mat-input mat-mono" id="invite-link" readonly value="@Model.Link" />
+                    <button type="button" class="mat-btn mat-btn--secondary" data-copy="#invite-link">@Ui.Icon("copy")<span>Kopieren</span></button>
+                </div>
+                <span class="mat-hint">Der Link funktioniert einmal.@(Model.MailConfigured ? "" : " Es ist noch kein E-Mail-Server eingerichtet: Gib den Link selbst weiter.")</span>
+            </div>
+        }
+    </kk-card>
+    <form method="post" class="mat-btn-row">
+        @if (Model.IsOpen)
+        {
+            <button type="submit" asp-page-handler="Send" asp-route-id="@invitation.Id" class="mat-btn mat-btn--primary">@Ui.Icon("send")<span>Per E-Mail senden</span></button>
+        }
+        <a class="mat-btn mat-btn--secondary" href="/Admin/Invitations">@Ui.Icon("back")<span>Zurück</span></a>
+        @if (Model.IsOpen)
+        {
+            <button type="submit" asp-page-handler="Revoke" asp-route-id="@invitation.Id" class="mat-btn mat-btn--ghost" data-confirm="Die Einladung zurückziehen? Der Link funktioniert danach nicht mehr." data-confirm-ok="Zurückziehen">@Ui.Icon("lock")<span>Zurückziehen</span></button>
+        }
+        <span class="mat-btn-row__spacer"></span>
+        <button type="submit" asp-page-handler="Delete" asp-route-id="@invitation.Id" class="mat-btn mat-btn--danger" data-confirm="Diese Einladung löschen?" data-confirm-ok="Löschen">@Ui.Icon("trash")<span>Löschen</span></button>
+    </form>
+}
+else
+{
+    <form class="mat-form" method="post" novalidate>
+        <kk-summary />
+        <kk-card title="Wen möchtest du einladen?" icon="user-plus">
+            <p class="mat-muted">Die eingeladene Person bekommt einen Link, der einmal funktioniert und eine Weile gilt. Sie legt ein Passwort fest oder meldet sich künftig mit einem Code per E-Mail an.</p>
+            <div class="mat-form__grid">
+                <kk-input for="Input.Email" label="E-Mail-Adresse" type="email" inputmode="email" required="true" />
+                <kk-input for="Input.DisplayName" label="Name (optional)" autocomplete="off" />
+                <kk-select for="Input.Role" label="Rolle" items="roles" hint="Kunden sehen nur ihr Portal, Lektorat arbeitet mit Kunden und Projekten, Administratoren verwalten alles." />
+                <kk-select for="Input.CustomerId" label="Kunde" items="Model.Customers" empty="(bitte wählen)" required="true" show-if="Input.Role" show-value="Client" hint="Die Person sieht die Projekte, Fassungen und Rechnungen dieses Kunden." />
+                <kk-textarea for="Input.Note" label="Persönliche Nachricht (optional)" rows="3" full="true" />
+                <kk-switch for="Input.Send" label="Einladung gleich per E-Mail senden" full="true" />
+            </div>
+        </kk-card>
+        <kk-buttons save-text="Einladung erstellen" save-icon="send" back-href="/Admin/Invitations" />
+    </form>
+}

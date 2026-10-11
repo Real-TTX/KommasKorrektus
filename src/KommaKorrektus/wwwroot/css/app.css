@@ -188,3 +188,6 @@ form.mat-form.kk-diff__bar { display: flex; flex-direction: row; flex-wrap: wrap
 .kk-totals { margin-left: auto; max-width: 22rem; display: grid; gap: var(--mat-space-1); font-variant-numeric: tabular-nums; }
 .kk-totals__row { display: flex; justify-content: space-between; gap: var(--mat-space-4); }
 .kk-totals__row--gross { font-weight: 700; border-top: 1px solid var(--mat-border-strong); padding-top: var(--mat-space-2); margin-top: var(--mat-space-1); }
+
+/* ---- Administration ---- */
+.kk-mailtext { margin: var(--mat-space-4) 0 0; padding: var(--mat-space-4); border: 1px solid var(--mat-border); border-radius: var(--mat-radius); background: var(--mat-surface-2); white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: var(--mat-fs-sm); }

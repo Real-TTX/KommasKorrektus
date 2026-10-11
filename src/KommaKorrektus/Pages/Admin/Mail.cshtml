@@ -1,0 +1,36 @@
+@page
+@model KommaKorrektus.Pages.Admin.MailModel
+@{
+    var security = new List<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>
+    {
+        new("STARTTLS (Port 587)", nameof(KommaKorrektus.Configuration.MailSecurity.StartTls)),
+        new("SSL/TLS (Port 465)", nameof(KommaKorrektus.Configuration.MailSecurity.Ssl)),
+        new("keine (nur im eigenen Netz)", nameof(KommaKorrektus.Configuration.MailSecurity.None)),
+    };
+}
+
+<form class="mat-form" method="post" asp-page-handler="" novalidate>
+    <kk-summary />
+    @if (Model.Test is not null)
+    {
+        <div class="mat-alert mat-alert--@(Model.TestOk ? "success" : "danger")" role="status">@Ui.Icon(Model.TestOk ? "check-circle" : "alert")<div class="mat-alert__body">@Model.Test</div></div>
+    }
+
+    <kk-card title="Versand" icon="mail">
+        <div class="mat-form__grid">
+            <kk-switch for="Input.Enabled" label="E-Mails senden" full="true" />
+            <kk-input for="Input.Host" label="Server" hint="Zum Beispiel smtp.example.com" show-if="Input.Enabled" />
+            <kk-input for="Input.Port" label="Port" type="number" min="1" max="65535" show-if="Input.Enabled" />
+            <kk-select for="Input.Security" label="Verschlüsselung" items="security" show-if="Input.Enabled" />
+            <kk-input for="Input.UserName" label="Benutzername" autocomplete="off" show-if="Input.Enabled" />
+            <kk-input for="Input.Password" label="Passwort" type="password" autocomplete="new-password" show-if="Input.Enabled" hint="@(Model.HasPassword ? "Leer lassen, um das gespeicherte Passwort zu behalten." : "Wird verschlüsselt gespeichert.")" />
+            <kk-input for="Input.FromAddress" label="Absenderadresse" type="email" inputmode="email" show-if="Input.Enabled" />
+            <kk-input for="Input.FromName" label="Absendername" show-if="Input.Enabled" />
+        </div>
+    </kk-card>
+
+    <kk-buttons back-href="/">
+        <button type="submit" formnovalidate asp-page-handler="Test" class="mat-btn mat-btn--secondary">@Ui.Icon("activity")<span>Verbindung prüfen</span></button>
+        <button type="submit" formnovalidate asp-page-handler="SendTest" class="mat-btn mat-btn--secondary" data-tip="Sendet mit den gespeicherten Einstellungen eine Nachricht an deine Adresse">@Ui.Icon("send")<span>Testnachricht an mich</span></button>
+    </kk-buttons>
+</form>
