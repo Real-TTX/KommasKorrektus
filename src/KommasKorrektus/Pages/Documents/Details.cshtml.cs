@@ -41,7 +41,10 @@ public sealed class DetailsModel(KkDbContext db, DocumentService documents, Conf
 
     public decimal NormPages => config.Current.Company.NormPageCharacters <= 0 ? 0 : (decimal)Current.CharCount / config.Current.Company.NormPageCharacters;
 
-    public List<SelectListItem> VersionOptions => [.. Versions.Select(v => new SelectListItem($"Fassung {v.Version.VersionNo}{(string.IsNullOrWhiteSpace(v.Version.Label) ? "" : " – " + v.Version.Label)}", v.Version.VersionNo.ToString()))];
+    /// <summary>The names of the versions: "Original", "Änderung 1" ... "Datei vom Kunden v2", "Änderung 1" ... and the round each belongs to.</summary>
+    public Dictionary<int, VersionName> Names { get; private set; } = [];
+
+    public List<SelectListItem> VersionOptions => [.. Versions.Select(v => new SelectListItem(Names[v.Version.VersionNo].Option(v.Version.VersionNo), v.Version.VersionNo.ToString()))];
 
     public async Task<IActionResult> OnGetAsync() => await LoadAsync() ? Page() : NotFound();
 
@@ -84,6 +87,7 @@ public sealed class DetailsModel(KkDbContext db, DocumentService documents, Conf
                 Author = db.User.IgnoreQueryFilters().Where(u => u.Id == v.CreateUserId).Select(u => u.DisplayName).FirstOrDefault(),
             }).ToListAsync();
         Versions = [.. rows.Select(r => new VersionRow(r.Version, r.Author))];
+        Names = VersionNames.Of(Versions.Select(v => (v.Version.VersionNo, v.Version.Origin, v.Version.Label)));
         Current = Versions.First(v => v.Version.VersionNo == document.CurrentVersionNo).Version;
         RoundStart = await documents.RoundStartAsync(document, document.CurrentVersionNo, HttpContext.RequestAborted);
 

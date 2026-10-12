@@ -96,8 +96,9 @@ public sealed class CompareModel(KkDbContext db, DocumentService documents, Layo
         ViewData["ActiveHref"] = "/Projects";
         ViewData["Width"] = "wide";
 
-        VersionOptions = await db.DocumentVersion.AsNoTracking().Where(v => v.DocumentId == Id).OrderBy(v => v.VersionNo)
-            .Select(v => new SelectListItem("Fassung " + v.VersionNo + (v.Label != null && v.Label != "" ? " – " + v.Label : ""), v.VersionNo.ToString())).ToListAsync();
+        var rows = await db.DocumentVersion.AsNoTracking().Where(v => v.DocumentId == Id).OrderBy(v => v.VersionNo).Select(v => new { v.VersionNo, v.Origin, v.Label }).ToListAsync();
+        var names = VersionNames.Of(rows.Select(r => (r.VersionNo, r.Origin, r.Label)));
+        VersionOptions = [.. rows.Select(r => new SelectListItem(names[r.VersionNo].Option(r.VersionNo), r.VersionNo.ToString()))];
 
         var (diff, stats) = await documents.CompareAsync(document, From, To, HttpContext.RequestAborted);
         Stats = stats;

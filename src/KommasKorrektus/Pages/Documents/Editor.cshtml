@@ -12,7 +12,7 @@
         <div class="kk-editor__head">
             <div class="kk-editor__title">
                 <h1>@d.Title</h1>
-                <p class="mat-muted"><a href="/Projects/Details?id=@d.ProjectId&tab=documents">@d.Project!.Title</a> · <span id="editor-version">Fassung @Model.Version.VersionNo@(Model.Version.Origin switch { VersionOrigin.Working => " · in Arbeit", VersionOrigin.Manual => " · abgeschlossen", _ => "" })</span> · <span id="editor-words">0</span> Wörter</p>
+                <p class="mat-muted"><a href="/Projects/Details?id=@d.ProjectId&tab=documents">@d.Project!.Title</a> · <span id="editor-version">Fassung @Model.Version.VersionNo · @Model.VersionTitle@(Model.Version.Origin switch { VersionOrigin.Working => " · in Arbeit", VersionOrigin.Manual => " · abgeschlossen", _ => "" })</span> · <span id="editor-words">0</span> Wörter</p>
             </div>
             <div class="kk-editor__state">
                 <span id="editor-status" class="kk-editor__status is-saved" aria-live="polite" role="status">Geöffnet</span>
@@ -74,12 +74,22 @@
         {
             <button type="button" class="mat-menu__item" role="menuitem" id="editor-original" aria-pressed="false">@Ui.Icon("eye")<span>Das Original-PDF daneben zeigen</span></button>
         }
+        <button type="button" class="mat-menu__item" role="menuitemcheckbox" id="editor-reference-toggle" aria-pressed="false">@Ui.Icon("columns")<span>Frühere Fassung daneben (Alt+R)</span></button>
         <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-close-menu">@Ui.Icon("check-circle")<span>Durchgang abschließen</span></button>
         <div class="mat-menu__sep" role="separator"></div>
         <button type="button" class="mat-menu__item" role="menuitem" id="editor-keys-open">@Ui.Icon("help-circle")<span>Tastenkürzel (Alt+H)</span></button>
     </div>
 
     <div class="kk-editor__body">
+        <aside class="kk-editor__reference" id="editor-reference" aria-label="Frühere Fassung mit den Änderungen" hidden>
+            <div class="kk-editor__reference-head">
+                <label class="mat-sr-only" for="reference-from">Vergleichen mit</label>
+                <select class="mat-select mat-select--sm" id="reference-from"></select>
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" id="reference-close" aria-label="Schließen" data-tip="Schließen">@Ui.Icon("x")</button>
+            </div>
+            <p class="mat-hint kk-editor__reference-note" id="reference-note" aria-live="polite"></p>
+            <div class="kk-editor__reference-body"></div>
+        </aside>
         @if (d.Kind == DocumentKind.Pdf && d.OriginalFileId is not null)
         {
             <aside class="kk-editor__original" id="editor-original-pane" aria-label="Original-PDF" hidden>
@@ -128,6 +138,7 @@
                     <dt><kbd>Alt</kbd> + <kbd>L</kbd></dt><dd>Kommentare und Stilblatt ein- oder ausblenden</dd>
                     <dt><kbd>Alt</kbd> + <kbd>W</kbd></dt><dd>Zwischen Text und Seite wechseln</dd>
                     <dt><kbd>Alt</kbd> + <kbd>X</kbd></dt><dd>Exportieren (Word, PDF, Text)</dd>
+                    <dt><kbd>Alt</kbd> + <kbd>R</kbd></dt><dd>Die frühere Fassung mit den Änderungen daneben zeigen (Änderungsmodus)</dd>
                     <dt><kbd>Alt</kbd> + <kbd>V</kbd></dt><dd>Vollbild: Menü und Kopfzeile aus- und einblenden (<kbd>Esc</kbd> beendet es)</dd>
                     <dt><kbd>Strg</kbd> + <kbd>H</kbd></dt><dd>Suchen und ersetzen</dd>
                     <dt><kbd>F3</kbd> / <kbd>Umschalt</kbd> + <kbd>F3</kbd></dt><dd>Nächster / voriger Treffer</dd>

@@ -192,7 +192,7 @@ public sealed class DocumentVersionTests : IClassFixture<AppFixture>
         Assert.Equal("working", next.GetProperty("state").GetString());
 
         var page = await AppFixture.TextAsync(client, $"/Documents/Editor?id={id}");
-        Assert.Contains("Fassung 3 · in Arbeit", page);
+        Assert.Contains("Fassung 3 · Änderung 2 · in Arbeit", page);
         Assert.Contains("Durchgang abschließen", page);
     }
 }

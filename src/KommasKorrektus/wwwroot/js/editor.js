@@ -614,8 +614,9 @@
       setStatus(dirty ? 'dirty' : 'saved', dirty ? dirtyText() : (kind === 'auto' ? 'Automatisch gespeichert um ' : 'Gespeichert um ') + result.savedAt + ' (Fassung ' + result.versionNo + (word ? ', ' + word : '') + ')');
       if (kind === 'close') { toast('Fassung ' + result.versionNo + ' ist abgeschlossen. Die nächste Änderung beginnt Fassung ' + (result.versionNo + 1) + '.'); }
       else if (kind === 'manual') { toast('Gespeichert. Das bleibt Fassung ' + result.versionNo + (word ? ' (' + word + ')' : '') + '.'); }
+      if (refPane && !refPane.hidden) { clearTimeout(refTimer); refTimer = setTimeout(refLoad, 600); }
       var versionLabel = document.getElementById('editor-version');
-      if (versionLabel) { versionLabel.textContent = 'Fassung ' + result.versionNo + (word ? ' · ' + word : ''); }
+      if (versionLabel) { versionLabel.textContent = 'Fassung ' + result.versionNo + (result.name ? ' · ' + result.name : '') + (word ? ' · ' + word : ''); }
       if (dirty) { markDirty(); }
       return result;
     }).catch(function (error) {
@@ -683,6 +684,7 @@
     KeyW: function () { switchView(); },
     KeyX: function () { var b = document.getElementById('editor-export'); if (b) { b.click(); } },
     KeyV: function () { toggleFocus(); },
+    KeyR: function () { toggleReference(); },
     KeyH: function () { openKeys(); },
     ArrowDown: function () { jumpComment(1); },
     ArrowUp: function () { jumpComment(-1); }
@@ -1047,6 +1049,86 @@
 
   try { if (window.localStorage.getItem(FOCUS_KEY) === '1') { setFocus(true, true); } } catch (e) { /* not remembered */ }
 
+  // ================================================================================================ the earlier version beside the text
+  // The "Änderungsmodus": the page of an earlier version next to the text, with what was taken away marked in it. It is made from the saved text and drawn again
+  // after every save, so it follows the work with the delay of the autosave.
+  var refPane = document.getElementById('editor-reference');
+  var refBody = refPane ? refPane.querySelector('.kk-editor__reference-body') : null;
+  var refSelect = document.getElementById('reference-from');
+  var refNote = document.getElementById('reference-note');
+  var refToggle = document.getElementById('editor-reference-toggle');
+  var refLink = null;
+  var refTimer = null;
+  var refFrom = 0;
+  var refTicket = 0;
+
+  function refFit() {
+    var sheet = refBody ? refBody.querySelector('.kk-sheet') : null;
+    if (!sheet) { return; }
+    sheet.style.zoom = '';
+    var wanted = sheet.offsetWidth;
+    var available = refBody.clientWidth - 24;
+    sheet.style.zoom = wanted > available && available > 0 ? String(Math.max(0.3, available / wanted)) : '';
+  }
+
+  function refLoad() {
+    if (!refPane || refPane.hidden) { return; }
+    var ticket = refTicket + 1;
+    refTicket = ticket;
+    fetch(location.pathname + '?id=' + data.documentId + '&handler=Reference&from=' + refFrom, { credentials: 'same-origin' })
+      .then(function (response) { if (!response.ok) { throw new Error('HTTP ' + response.status); } return response.json(); })
+      .then(function (r) {
+        if (ticket !== refTicket) { return; }
+        refSelect.textContent = '';
+        r.options.forEach(function (o) {
+          var option = el('option');
+          option.value = String(o.no);
+          option.textContent = o.text;
+          if (o.no === r.from) { option.selected = true; }
+          refSelect.appendChild(option);
+        });
+        var top = refBody.scrollTop;
+        refBody.textContent = '';
+        if (r.empty) {
+          refNote.textContent = '';
+          var none = el('p', 'mat-muted kk-editor__reference-empty');
+          none.textContent = 'Es gibt noch keine frühere Fassung. Sobald der Text gespeichert ist und eine zweite Fassung besteht, steht sie hier.';
+          refBody.appendChild(none);
+          return;
+        }
+        refFrom = r.from;
+        if (refLink) { refLink.remove(); }
+        refLink = el('link');
+        refLink.rel = 'stylesheet';
+        refLink.href = r.link;
+        document.head.appendChild(refLink);
+        var desk = el('div', 'kk-desk kk-desk--read kk-desk--old');
+        var sheet = el('div', 'kk-sheet kk-sheet--read ' + r.pageClass);
+        sheet.innerHTML = r.html;
+        desk.appendChild(sheet);
+        refBody.appendChild(desk);
+        refFit();
+        refBody.scrollTop = top;
+        refNote.textContent = 'Fassung ' + r.from + ', was bis zur gespeicherten Fassung ' + r.to + ' wegfällt, durchgestrichen.';
+      })
+      .catch(function () { if (ticket === refTicket) { refNote.textContent = 'Die frühere Fassung lässt sich gerade nicht laden.'; } });
+  }
+
+  function toggleReference(on) {
+    if (!refPane) { return; }
+    var show = on === undefined ? refPane.hidden : on;
+    refPane.hidden = !show;
+    host.classList.toggle('has-reference', show);
+    if (refToggle) { refToggle.setAttribute('aria-pressed', show ? 'true' : 'false'); }
+    if (show) { refLoad(); }
+  }
+
+  if (refPane) {
+    refSelect.addEventListener('change', function () { refFrom = parseInt(refSelect.value, 10) || 0; refLoad(); });
+    document.getElementById('reference-close').addEventListener('click', function () { toggleReference(false); });
+    if (typeof ResizeObserver !== 'undefined') { new ResizeObserver(refFit).observe(refBody); }
+  }
+
   var keysDialog = document.getElementById('editor-keys');
   function openKeys() { if (keysDialog) { window.MatUi.dialog.open(keysDialog); } }
 
@@ -1058,6 +1140,7 @@
   wire('editor-find', toggleFind);
   wire('editor-keys-open', openKeys);
   wire('editor-focus', toggleFocus);
+  wire('editor-reference-toggle', function () { toggleReference(); });
 
   // An export is made of the saved text: what is typed and not yet saved goes first, then the file comes.
   function afterSave() {

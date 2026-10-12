@@ -52,7 +52,9 @@ public sealed class VersionModel(KkDbContext db, DocumentService documents, Layo
         Document = document;
         Version = version;
         Paragraphs = DocumentService.ParagraphsOf(version);
-        Head($"{document.Title}, Fassung {no}", $"{Fmt.Moment(version.CreateDate)} · {Fmt.Integer(version.WordCount)} Wörter", ("Projekte", "/Projects"), (document.Project!.Title, $"/Projects/Details?id={document.ProjectId}&tab=documents"), (document.Title, $"/Documents/Details?id={id}"), ($"Fassung {no}", null));
+        var rows = await db.DocumentVersion.AsNoTracking().Where(v => v.DocumentId == id).Select(v => new { v.VersionNo, v.Origin, v.Label }).ToListAsync();
+        var name = VersionNames.Of(rows.Select(r => (r.VersionNo, r.Origin, r.Label)))[no];
+        Head($"{document.Title}, Fassung {no} · {name.Title}", $"{Fmt.Moment(version.CreateDate)} · {Fmt.Integer(version.WordCount)} Wörter", ("Projekte", "/Projects"), (document.Project!.Title, $"/Projects/Details?id={document.ProjectId}&tab=documents"), (document.Title, $"/Documents/Details?id={id}"), ($"Fassung {no}", null));
         ViewData["ActiveHref"] = "/Projects";
         ViewData["Width"] = PageView ? "wide" : "narrow";
 

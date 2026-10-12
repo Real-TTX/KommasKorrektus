@@ -40,6 +40,9 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
 
     public int AutosaveMinChars => config.Current.Tracking.AutosaveMinChars;
 
+    /// <summary>How the version in the editor is called: "Änderung 2", "Datei vom Kunden v2" ...</summary>
+    public string VersionTitle { get; private set; } = "";
+
     public int IdleMinutes => config.Current.Tracking.IdleMinutes;
 
     /// <summary>What the bar says about the version: "working" (saves go into it), "closed" (the next change begins a new one), or nothing (the original, a restored one).</summary>
@@ -68,6 +71,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         Version = version;
         var comments = await db.DocumentComment.AsNoTracking().Where(c => c.DocumentId == Id).OrderBy(c => c.ParagraphIndex).ThenBy(c => c.CreateDate).ToListAsync();
         var styles = await db.StyleEntry.AsNoTracking().Where(s => s.ProjectId == document.ProjectId).OrderBy(s => s.Category).ThenBy(s => s.Term).ToListAsync();
+        VersionTitle = (await NameOfAsync(document.Id, version.VersionNo)).Title;
         var views = await ViewPreferences.GetAsync(db, current.UserId, HttpContext.RequestAborted);
         DataJson = JsonSerializer.Serialize(new
         {
@@ -75,6 +79,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
             view = views.Editor,
             kind = document.Kind.ToString(),
             versionNo = version.VersionNo,
+            versionName = VersionTitle,
             state = StateOf(version),
             paragraphs = DocumentService.ParagraphsOf(version),
             autosaveSeconds = AutosaveSeconds,
@@ -129,6 +134,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         {
             ok = true,
             versionNo = result.Version.VersionNo,
+            name = (await NameOfAsync(document.Id, result.Version.VersionNo)).Title,
             state = StateOf(result.Version),
             created = result.Created,
             changed = result.Delta.HasChanges,
@@ -168,6 +174,43 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
             width = page.Layout.PageWidthPx,
             formatted = page.Formatted,
         });
+    }
+
+    /// <summary>What the version is called in the lists: "Änderung 2" of the round, "Datei vom Kunden v2" ...</summary>
+    private async Task<VersionName> NameOfAsync(long documentId, int versionNo)
+    {
+        var rows = await db.DocumentVersion.AsNoTracking().Where(v => v.DocumentId == documentId).Select(v => new { v.VersionNo, v.Origin, v.Label }).ToListAsync();
+        return VersionNames.Of(rows.Select(r => (r.VersionNo, r.Origin, r.Label)))[versionNo];
+    }
+
+    /// <summary>
+    /// The earlier version beside the text ("Änderungsmodus"): the changes between <c>from</c> and the saved newest version as one page, of which the editor shows the
+    /// side that has what was taken away (the markup is the one of the comparison). Without a starting version it is the one before the newest.
+    /// </summary>
+    public async Task<IActionResult> OnGetReferenceAsync(int from)
+    {
+        var document = await db.Document.AsNoTracking().FirstOrDefaultAsync(d => d.Id == Id);
+        if (document is null)
+        {
+            return NotFound();
+        }
+
+        var to = document.CurrentVersionNo;
+        var rows = await db.DocumentVersion.AsNoTracking().Where(v => v.DocumentId == Id).Select(v => new { v.VersionNo, v.Origin, v.Label }).ToListAsync();
+        var names = VersionNames.Of(rows.Select(r => (r.VersionNo, r.Origin, r.Label)));
+        var options = rows.Where(r => r.VersionNo < to).OrderByDescending(r => r.VersionNo).Select(r => new { no = r.VersionNo, text = names[r.VersionNo].Option(r.VersionNo) }).ToList();
+        if (to <= 1)
+        {
+            return new JsonResult(new { ok = true, empty = true, to, options });
+        }
+
+        if (from <= 0 || from >= to)
+        {
+            from = to - 1;
+        }
+
+        var page = await layouts.ForChangesAsync(document, from, to, HttpContext.RequestAborted);
+        return new JsonResult(new { ok = true, empty = false, from, to, options, html = page.Html, link = page.CssUrl, pageClass = page.Layout.PageClass, formatted = page.Formatted });
     }
 
     /// <summary>The person changed the view of the text: it is kept with the account, so that the next browser opens the same way.</summary>

@@ -100,6 +100,17 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-editor.has-original .kk-editor__body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--mat-space-4); align-items: start; }
 .kk-editor.has-original.has-side .kk-editor__body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 22rem; }
 .kk-editor.has-original .kk-editor__paper { margin-inline: 0; max-width: none; }
+.kk-editor.has-reference .kk-editor__body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--mat-space-4); align-items: start; }
+.kk-editor.has-reference.has-side .kk-editor__body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 22rem; }
+.kk-editor.has-reference .kk-editor__paper { margin-inline: 0; max-width: none; }
+.kk-editor__reference { position: sticky; top: 6rem; height: calc(100vh - 8rem); display: flex; flex-direction: column; border: 1px solid var(--mat-border); border-radius: var(--mat-radius-lg); overflow: hidden; background: var(--mat-surface-2); }
+.kk-editor__reference-head { display: flex; align-items: center; gap: var(--mat-space-2); padding: var(--mat-space-2) var(--mat-space-3); background: var(--mat-surface); border-bottom: 1px solid var(--mat-border); }
+.kk-editor__reference-head .mat-select { flex: 1; min-width: 0; }
+.kk-editor__reference-note { margin: 0; padding: var(--mat-space-1) var(--mat-space-3); }
+.kk-editor__reference-body { flex: 1; min-height: 0; overflow: auto; }
+.kk-editor__reference-body .kk-desk { border: 0; border-radius: 0; background: transparent; }
+.kk-editor__reference-empty { padding: var(--mat-space-4); }
+html.kk-focus .kk-editor__reference { top: 5.5rem; height: calc(100vh - 7rem); }
 .kk-editor__original { position: sticky; top: 6rem; height: calc(100vh - 8rem); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-lg); overflow: hidden; background: var(--mat-surface); }
 .kk-editor__original iframe { width: 100%; height: 100%; border: 0; }
 .kk-editor__side { position: sticky; top: 6rem; max-height: calc(100vh - 8rem); overflow-y: auto; }
@@ -230,7 +241,8 @@ a.kk-a { cursor: pointer; }
   .kk-find { position: relative; }
 }
 @media (max-width: 900px) {
-  .kk-editor.has-side .kk-editor__body, .kk-editor.has-original .kk-editor__body, .kk-editor.has-original.has-side .kk-editor__body { grid-template-columns: 1fr; }
+  .kk-editor.has-side .kk-editor__body, .kk-editor.has-original .kk-editor__body, .kk-editor.has-original.has-side .kk-editor__body, .kk-editor.has-reference .kk-editor__body, .kk-editor.has-reference.has-side .kk-editor__body { grid-template-columns: 1fr; }
+  .kk-editor__reference { position: static; height: 70vh; }
   /* The panel with the comments comes first when it is open: below a long text nobody would find it. */
   .kk-editor__side { position: static; order: -1; max-height: 55vh; overflow-y: auto; }
   .kk-editor__original { position: static; height: 70vh; }
