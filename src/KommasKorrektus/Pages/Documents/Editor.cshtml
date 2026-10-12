@@ -31,7 +31,8 @@
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-redo" aria-label="Wiederholen (Strg+Y)" data-tip="Wiederholen" disabled>@Ui.Icon("redo")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-find" aria-pressed="false" aria-label="Suchen und ersetzen (Strg+H)" data-tip="Suchen und ersetzen (Strg+H)">@Ui.Icon("search")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-side-toggle" aria-pressed="false" aria-label="Kommentare und Stilblatt (Alt+L)" data-tip="Kommentare und Stilblatt (Alt+L)">@Ui.Icon("message-square")<span class="mat-badge mat-badge--soft" id="comment-count">0</span></button>
-            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-focus" aria-pressed="false" aria-label="Vollbild: Menü und Kopfzeile ausblenden (Alt+V)" data-tip="Vollbild: mehr Platz zum Schreiben (Alt+V)"><span data-focus-icon="off">@Ui.Icon("maximize")</span><span data-focus-icon="on" hidden>@Ui.Icon("minimize")</span></button>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-maximize" aria-pressed="false" aria-label="Maximieren: im Browserfenster groß, alle Menüs weg (Alt+V)" data-tip="Maximieren: alle Menüs weg (Alt+V)"><span data-icon-state="off">@Ui.Icon("maximize-2")</span><span data-icon-state="on" hidden>@Ui.Icon("minimize-2")</span></button>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-fullscreen" aria-pressed="false" aria-label="Vollbild: der ganze Bildschirm (Alt+B)" data-tip="Vollbild: der ganze Bildschirm (Alt+B)"><span data-icon-state="off">@Ui.Icon("maximize")</span><span data-icon-state="on" hidden>@Ui.Icon("minimize")</span></button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-export" data-menu-toggle="editor-export-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Exportieren (Alt+X)" data-tip="Exportieren (Alt+X)">@Ui.Icon("download")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-more" data-menu-toggle="editor-more-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Mehr" data-tip="Mehr">@Ui.Icon("more-vertical")</button>
         </div>
@@ -165,7 +166,8 @@
                     <dt><kbd>Alt</kbd> + <kbd>X</kbd></dt><dd>Exportieren (Word, PDF, Text)</dd>
                     <dt><kbd>Alt</kbd> + <kbd>S</kbd></dt><dd>Das markierte Wort ins Stilblatt des Projekts eintragen</dd>
                     <dt><kbd>Alt</kbd> + <kbd>R</kbd></dt><dd>Die frühere Fassung mit den Änderungen daneben zeigen (Änderungsmodus)</dd>
-                    <dt><kbd>Alt</kbd> + <kbd>V</kbd></dt><dd>Vollbild: Menü und Kopfzeile aus- und einblenden (<kbd>Esc</kbd> beendet es)</dd>
+                    <dt><kbd>Alt</kbd> + <kbd>V</kbd></dt><dd>Maximieren: im Browserfenster groß, Menü, Kopfzeile und Fußzeile weg (<kbd>Esc</kbd> beendet es)</dd>
+                    <dt><kbd>Alt</kbd> + <kbd>B</kbd></dt><dd>Vollbild: der ganze Bildschirm (<kbd>Esc</kbd> beendet es)</dd>
                     <dt><kbd>Strg</kbd> + <kbd>H</kbd></dt><dd>Suchen und ersetzen</dd>
                     <dt><kbd>F3</kbd> / <kbd>Umschalt</kbd> + <kbd>F3</kbd></dt><dd>Nächster / voriger Treffer</dd>
                     <dt><kbd>Strg</kbd> + <kbd>Z</kbd> / <kbd>Y</kbd></dt><dd>Rückgängig / wiederholen</dd>

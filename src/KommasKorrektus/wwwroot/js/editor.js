@@ -683,7 +683,8 @@
     KeyA: function () { closePass(); },
     KeyW: function () { switchView(); },
     KeyX: function () { var b = document.getElementById('editor-export'); if (b) { b.click(); } },
-    KeyV: function () { toggleFocus(); },
+    KeyV: function () { toggleMaximize(); },
+    KeyB: function () { toggleFullscreen(); },
     KeyR: function () { toggleReference(); },
     KeyS: function () { openStyle(); },
     KeyH: function () { openKeys(); },
@@ -704,8 +705,8 @@
       event.preventDefault();
       findAgain(event.shiftKey);
     } else if (event.key === 'Escape' && !event.defaultPrevented && document.documentElement.classList.contains('kk-focus') && !(findBar && !findBar.hidden)) {
-      // Esc leaves the full screen (the search bar and the dialogs have their own Esc).
-      setFocus(false);
+      // Esc ends the maximizing (the search bar and the dialogs have their own Esc; the browser's full screen ends on its own).
+      setMaximized(false);
     }
   });
 
@@ -1061,30 +1062,47 @@
     setView(next);
   }
 
-  // Full screen: the menu, the breadcrumb and the footer step aside (CSS class on the page), and the browser goes full screen as well when it may
-  // (a click is the gesture it asks for). Esc leaves the browser's full screen; the page then leaves its own too. The choice is remembered.
-  var FOCUS_KEY = 'kk.editor.focus';
-  var focusButton = document.getElementById('editor-focus');
+  // Two ways to get room: "maximize" makes the editor big inside the browser window (the menu, the breadcrumb and the footer step aside: a class on the page),
+  // "full screen" is the browser's own (the whole screen; it maximizes too, because a menu in the way is the point). Esc ends the one that is on. Maximizing is
+  // remembered, full screen cannot be (a browser wants a click for it).
+  var MAXIMIZE_KEY = 'kk.editor.maximize';
+  var maximizeButton = document.getElementById('editor-maximize');
+  var fullscreenButton = document.getElementById('editor-fullscreen');
+  var maximized = false;
+  var maximizedBefore = false;   // what the maximizing was before full screen turned it on
 
-  function setFocus(on, fromBrowser) {
-    document.documentElement.classList.toggle('kk-focus', on);
-    if (focusButton) {
-      focusButton.setAttribute('aria-pressed', on ? 'true' : 'false');
-      Array.prototype.forEach.call(focusButton.querySelectorAll('[data-focus-icon]'), function (icon) { icon.hidden = (icon.getAttribute('data-focus-icon') === 'on') !== on; });
-    }
-    try { window.localStorage.setItem(FOCUS_KEY, on ? '1' : '0'); } catch (e) { /* not remembered */ }
-    if (fromBrowser || !document.documentElement.requestFullscreen) { return; }
-    if (on && !document.fullscreenElement) { document.documentElement.requestFullscreen().catch(function () { /* the page's own full screen is enough */ }); }
-    else if (!on && document.fullscreenElement) { document.exitFullscreen().catch(function () { /* already out */ }); }
+  function showState(button, on) {
+    if (!button) { return; }
+    button.setAttribute('aria-pressed', on ? 'true' : 'false');
+    Array.prototype.forEach.call(button.querySelectorAll('[data-icon-state]'), function (icon) { icon.hidden = (icon.getAttribute('data-icon-state') === 'on') !== on; });
   }
 
-  function toggleFocus() { setFocus(!document.documentElement.classList.contains('kk-focus')); }
+  function setMaximized(on) {
+    maximized = on;
+    document.documentElement.classList.toggle('kk-focus', on);
+    showState(maximizeButton, on && !document.fullscreenElement);
+    try { window.localStorage.setItem(MAXIMIZE_KEY, on && !document.fullscreenElement ? '1' : '0'); } catch (e) { /* not remembered */ }
+  }
+
+  function toggleMaximize() {
+    if (document.fullscreenElement) { document.exitFullscreen().catch(function () { /* already out */ }); return; }
+    setMaximized(!maximized);
+  }
+
+  function toggleFullscreen() {
+    if (!document.documentElement.requestFullscreen) { toast('Dieser Browser kann keinen Vollbildmodus. Mit F11 geht es vielleicht.'); return; }
+    if (document.fullscreenElement) { document.exitFullscreen().catch(function () { /* already out */ }); return; }
+    maximizedBefore = maximized;
+    document.documentElement.requestFullscreen().then(function () { setMaximized(true); showState(fullscreenButton, true); }).catch(function () { toast('Der Browser erlaubt den Vollbildmodus hier nicht.'); });
+  }
 
   document.addEventListener('fullscreenchange', function () {
-    if (!document.fullscreenElement && document.documentElement.classList.contains('kk-focus')) { setFocus(false, true); }
+    var on = !!document.fullscreenElement;
+    showState(fullscreenButton, on);
+    if (!on) { setMaximized(maximizedBefore); }
   });
 
-  try { if (window.localStorage.getItem(FOCUS_KEY) === '1') { setFocus(true, true); } } catch (e) { /* not remembered */ }
+  try { if (window.localStorage.getItem(MAXIMIZE_KEY) === '1') { setMaximized(true); } } catch (e) { /* not remembered */ }
 
   // ================================================================================================ the earlier version beside the text
   // The "Änderungsmodus": the page of an earlier version next to the text, with what was taken away marked in it. It is made from the saved text and drawn again
@@ -1176,7 +1194,8 @@
   wire('editor-redo', function () { view.redo(); });
   wire('editor-find', toggleFind);
   wire('editor-keys-open', openKeys);
-  wire('editor-focus', toggleFocus);
+  wire('editor-maximize', toggleMaximize);
+  wire('editor-fullscreen', toggleFullscreen);
   wire('style-add', openStyle);
   wire('editor-reference-toggle', function () { toggleReference(); });
 
