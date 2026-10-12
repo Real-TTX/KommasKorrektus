@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using KommasKorrektus.Data;
 using KommasKorrektus.Data.Entities;
@@ -105,5 +106,41 @@ public sealed class ViewPreferenceTests : IClassFixture<AppFixture>
 
         var stored = await _app.WithScopeAsync(sp => sp.GetRequiredService<KkDbContext>().User.AsNoTracking().Where(u => u.Email == "vergleich-eins@example.test").Select(u => u.CompareView).SingleAsync());
         Assert.Equal("inline", stored);
+    }
+
+    [DatabaseFact]
+    public async Task The_earlier_version_beside_the_text_is_chosen_by_a_rule_that_is_kept()
+    {
+        await _app.EnsureAdminAsync();
+        var (_, _, document) = await _app.CreateCustomerWithDocumentAsync("Regel");
+        await _app.CreateUserAsync("regel-eins@example.test", "Eins-Passwort-2026", UserRole.User);
+        using var client = await SignedInAsync("regel-eins@example.test", "Eins-Passwort-2026");
+
+        async Task<JsonElement> ReferenceAsync(string? from)
+            => (await client.GetFromJsonAsync<JsonElement>($"/Documents/Editor?id={document.Id}&handler=Reference" + (from is null ? "" : "&from=" + from))).Clone();
+
+        // without a choice: the version before (the document has two versions)
+        var previous = await ReferenceAsync(null);
+        Assert.Equal(1, previous.GetProperty("from").GetInt32());
+        Assert.Equal(2, previous.GetProperty("to").GetInt32());
+        Assert.Equal("previous", previous.GetProperty("selected").GetString());
+        Assert.Contains("kk-lp", previous.GetProperty("html").GetString());
+        Assert.Equal("previous", previous.GetProperty("rules")[0].GetProperty("value").GetString());
+        Assert.Equal("1", previous.GetProperty("versions")[0].GetProperty("value").GetString());
+
+        // the rules, a number, and nonsense (which is the version before)
+        Assert.Equal("original", (await ReferenceAsync("original")).GetProperty("selected").GetString());
+        Assert.Equal(1, (await ReferenceAsync("1")).GetProperty("from").GetInt32());
+        // with one round only, its beginning is the original
+        Assert.Equal("original", (await ReferenceAsync("round")).GetProperty("selected").GetString());
+        Assert.Equal(1, (await ReferenceAsync("9999")).GetProperty("from").GetInt32());
+        Assert.Equal("previous", (await ReferenceAsync("'; drop table")).GetProperty("selected").GetString());
+
+        // the choice is kept with the account
+        var token = await AppFixture.TokenAsync(client, $"/Documents/Editor?id={document.Id}");
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/Documents/Editor?id={document.Id}&handler=View") { Content = JsonContent.Create(new { referenceFrom = "round", view = (string?)null, reference = (bool?)null, side = (bool?)null }) };
+        request.Headers.Add("RequestVerificationToken", token);
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(request)).StatusCode);
+        Assert.Contains("\"referenceFrom\":\"round\"", await client.GetStringAsync($"/Documents/Editor?id={document.Id}"));
     }
 }

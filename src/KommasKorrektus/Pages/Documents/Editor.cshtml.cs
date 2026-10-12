@@ -25,7 +25,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
 
     public sealed record LayoutRequest(string[] Paragraphs);
 
-    public sealed record ViewRequest(string? View, bool? Reference, bool? Side);
+    public sealed record ViewRequest(string? View, bool? Reference, bool? Side, string? ReferenceFrom);
 
     public sealed record StyleRequest(string? Category, string? Term, string? Decision, string? Note);
 
@@ -79,7 +79,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         {
             documentId = document.Id,
             view = views.Editor,
-            options = new { reference = views.Options.Reference, side = views.Options.Side },
+            options = new { reference = views.Options.Reference, side = views.Options.Side, referenceFrom = ViewPreferences.CleanReferenceFrom(views.Options.ReferenceFrom) },
             kind = document.Kind.ToString(),
             versionNo = version.VersionNo,
             versionName = VersionTitle,
@@ -188,9 +188,10 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
 
     /// <summary>
     /// The earlier version beside the text ("Änderungsmodus"): the changes between <c>from</c> and the saved newest version as one page, of which the editor shows the
-    /// side that has what was taken away (the markup is the one of the comparison). Without a starting version it is the one before the newest.
+    /// side that has what was taken away (the markup is the one of the comparison). <c>from</c> is a rule that stays right as the work goes on ("previous": the version
+    /// before the newest, "round": where this round of the ping pong began, "original") or the number of a version.
     /// </summary>
-    public async Task<IActionResult> OnGetReferenceAsync(int from)
+    public async Task<IActionResult> OnGetReferenceAsync(string? from)
     {
         var document = await db.Document.AsNoTracking().FirstOrDefaultAsync(d => d.Id == Id);
         if (document is null)
@@ -201,26 +202,51 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         var to = document.CurrentVersionNo;
         var rows = await db.DocumentVersion.AsNoTracking().Where(v => v.DocumentId == Id).Select(v => new { v.VersionNo, v.Origin, v.Label }).ToListAsync();
         var names = VersionNames.Of(rows.Select(r => (r.VersionNo, r.Origin, r.Label)));
-        var options = rows.Where(r => r.VersionNo < to).OrderByDescending(r => r.VersionNo).Select(r => new { no = r.VersionNo, text = names[r.VersionNo].Option(r.VersionNo) }).ToList();
+        var roundStart = await documents.RoundStartAsync(document, to, HttpContext.RequestAborted);
+        var choice = ViewPreferences.CleanReferenceFrom(from);
+
+        // a rule that says the same as another one is the other (the beginning of the first round is the original; of a round that has just begun, the version before)
+        var selected = choice == "round" ? (roundStart <= 1 ? "original" : roundStart >= to ? "previous" : "round") : choice;
+
+        // the rules first, then every version
+        var rules = new List<object> { new { value = "previous", text = to > 1 ? $"Die Fassung davor (Fassung {to - 1}: {names[to - 1].Title})" : "Die Fassung davor" } };
+        if (roundStart > 1 && roundStart < to)
+        {
+            rules.Add(new { value = "round", text = $"Anfang dieser Runde (Fassung {roundStart}: {names[roundStart].Title})" });
+        }
+
+        if (to > 2 || selected == "original")
+        {
+            rules.Add(new { value = "original", text = $"Das Original (Fassung 1: {names[1].Title})" });
+        }
+
+        var versions = rows.Where(r => r.VersionNo < to).OrderByDescending(r => r.VersionNo).Select(r => new { value = r.VersionNo.ToString(), text = names[r.VersionNo].Option(r.VersionNo) }).ToList();
         if (to <= 1)
         {
-            return new JsonResult(new { ok = true, empty = true, to, options });
+            return new JsonResult(new { ok = true, empty = true, to, rules, versions, selected });
         }
 
-        if (from <= 0 || from >= to)
+        var fromNo = choice switch
         {
-            from = to - 1;
+            "round" => roundStart,
+            "original" => 1,
+            "previous" => to - 1,
+            _ => int.TryParse(choice, out var number) ? number : to - 1,
+        };
+        if (fromNo < 1 || fromNo >= to)
+        {
+            fromNo = to - 1;
         }
 
-        var page = await layouts.ForChangesAsync(document, from, to, HttpContext.RequestAborted);
-        return new JsonResult(new { ok = true, empty = false, from, to, options, html = page.Html, link = page.CssUrl, pageClass = page.Layout.PageClass, formatted = page.Formatted });
+        var page = await layouts.ForChangesAsync(document, fromNo, to, HttpContext.RequestAborted);
+        return new JsonResult(new { ok = true, empty = false, from = fromNo, to, rules, versions, selected, html = page.Html, link = page.CssUrl, pageClass = page.Layout.PageClass, formatted = page.Formatted });
     }
 
     /// <summary>The person changed the view of the text: it is kept with the account, so that the next browser opens the same way.</summary>
     public async Task<IActionResult> OnPostViewAsync([FromBody] ViewRequest request)
     {
         var saved = await ViewPreferences.SetEditorAsync(db, current.UserId, request.View, HttpContext.RequestAborted);
-        saved |= await ViewPreferences.SetOptionsAsync(db, current.UserId, request.Reference, request.Side, HttpContext.RequestAborted);
+        saved |= await ViewPreferences.SetOptionsAsync(db, current.UserId, request.Reference, request.Side, request.ReferenceFrom, HttpContext.RequestAborted);
         return saved ? new JsonResult(new { ok = true }) : BadRequest();
     }
 

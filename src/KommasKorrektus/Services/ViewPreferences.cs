@@ -19,8 +19,15 @@ public static class ViewPreferences
 
     public const string DefaultCompareView = "pages";
 
-    /// <summary>What the editor has open: the earlier version beside the text, the side panel with the comments and the style sheet.</summary>
-    public sealed record EditorOptions(bool Reference = false, bool Side = false);
+    /// <summary>
+    /// What the editor has open: the earlier version beside the text (and which: "previous" the version before, "round" the beginning of the round, "original", or a number),
+    /// the side panel with the comments and the style sheet.
+    /// </summary>
+    public sealed record EditorOptions(bool Reference = false, bool Side = false, string ReferenceFrom = "previous");
+
+    /// <summary>"previous", "round", "original" or the number of a version; anything else is "previous".</summary>
+    public static string CleanReferenceFrom(string? value)
+        => value is "previous" or "round" or "original" || (value is not null && value.Length is > 0 and < 7 && value.All(char.IsAsciiDigit)) ? value : "previous";
 
     public static async Task<(string Editor, string Compare, EditorOptions Options)> GetAsync(KkDbContext db, long? userId, CancellationToken ct = default)
     {
@@ -69,15 +76,15 @@ public static class ViewPreferences
     }
 
     /// <summary>Remembers what the editor has open; what is null stays as it was.</summary>
-    public static async Task<bool> SetOptionsAsync(KkDbContext db, long? userId, bool? reference, bool? side, CancellationToken ct = default)
+    public static async Task<bool> SetOptionsAsync(KkDbContext db, long? userId, bool? reference, bool? side, string? referenceFrom = null, CancellationToken ct = default)
     {
-        if (userId is null || (reference is null && side is null))
+        if (userId is null || (reference is null && side is null && referenceFrom is null))
         {
             return false;
         }
 
         var current = ParseOptions(await db.User.AsNoTracking().Where(u => u.Id == userId).Select(u => u.EditorOptions).FirstOrDefaultAsync(ct));
-        var next = current with { Reference = reference ?? current.Reference, Side = side ?? current.Side };
+        var next = current with { Reference = reference ?? current.Reference, Side = side ?? current.Side, ReferenceFrom = referenceFrom is null ? CleanReferenceFrom(current.ReferenceFrom) : CleanReferenceFrom(referenceFrom) };
         var json = JsonSerializer.Serialize(next, JsonOptions);
         await db.User.Where(u => u.Id == userId).ExecuteUpdateAsync(s => s.SetProperty(u => u.EditorOptions, json), ct);
         return true;

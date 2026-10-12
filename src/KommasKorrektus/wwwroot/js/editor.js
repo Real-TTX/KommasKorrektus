@@ -1062,6 +1062,12 @@
   }
 
   // ================================================================================================ the bar
+  // The bar sticks to the top and its height changes (the search, the earlier version): what sticks below it needs to know how high it is.
+  var barElement = host.querySelector('.kk-editor__bar');
+  if (barElement && typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(function () { document.documentElement.style.setProperty('--kk-bar-h', barElement.offsetHeight + 'px'); }).observe(barElement);
+  }
+
   function wire(id, handler) { var b = document.getElementById(id); if (b) { b.addEventListener('click', handler); } }
   function closePass() {
     window.MatUi.prompt('Name des Durchgangs (zum Beispiel „Erster Durchgang“). Danach beginnt die nächste Änderung eine neue Fassung.', { title: 'Durchgang abschließen', ok: 'Abschließen' }).then(function (label) {
@@ -1132,10 +1138,12 @@
   var refShown = false;
   var refLink = null;
   var refTimer = null;
-  var refFrom = 0;
+  var refFrom = cleanChoice(data.options && data.options.referenceFrom);   // "previous", "round", "original" or the number of a version (kept with the account)
   var refTicket = 0;
   var alignFrame = 0;
   var alignSheet = null;     // the room on the side of the text: rules of a constructable stylesheet (the policy of the site forbids style attributes in markup)
+
+  function cleanChoice(value) { return value === 'round' || value === 'original' || (value && /^\d{1,6}$/.test(String(value))) ? String(value) : 'previous'; }
 
   function zoomOf(element) { var z = parseFloat(element.style.zoom); return z > 0 ? z : 1; }
 
@@ -1227,18 +1235,27 @@
     if (!refShown) { return; }
     var ticket = refTicket + 1;
     refTicket = ticket;
-    fetch(location.pathname + '?id=' + data.documentId + '&handler=Reference&from=' + refFrom, { credentials: 'same-origin' })
+    fetch(location.pathname + '?id=' + data.documentId + '&handler=Reference&from=' + encodeURIComponent(refFrom), { credentials: 'same-origin' })
       .then(function (response) { if (!response.ok) { throw new Error('HTTP ' + response.status); } return response.json(); })
       .then(function (r) {
         if (ticket !== refTicket) { return; }
         refSelect.textContent = '';
-        r.options.forEach(function (o) {
-          var option = el('option');
-          option.value = String(o.no);
-          option.textContent = o.text;
-          if (o.no === r.from) { option.selected = true; }
-          refSelect.appendChild(option);
-        });
+        var fill = function (parent, list) {
+          list.forEach(function (o) {
+            var option = el('option');
+            option.value = o.value;
+            option.textContent = o.text;
+            if (o.value === r.selected) { option.selected = true; }
+            parent.appendChild(option);
+          });
+        };
+        fill(refSelect, r.rules);
+        if (r.versions.length > 0) {
+          var group = el('optgroup');
+          group.label = 'Eine bestimmte Fassung';
+          fill(group, r.versions);
+          refSelect.appendChild(group);
+        }
         clearAlignment();
         refBody.textContent = '';
         if (r.empty) {
@@ -1248,7 +1265,6 @@
           refBody.appendChild(none);
           return;
         }
-        refFrom = r.from;
         if (refLink) { refLink.remove(); }
         refLink = el('link');
         refLink.rel = 'stylesheet';
@@ -1295,7 +1311,11 @@
   }
 
   if (refPane) {
-    refSelect.addEventListener('change', function () { refFrom = parseInt(refSelect.value, 10) || 0; refLoad(); });
+    refSelect.addEventListener('change', function () {
+      refFrom = cleanChoice(refSelect.value);
+      post('View', { referenceFrom: refFrom }).catch(function () { /* it is only not remembered */ });
+      refLoad();
+    });
     document.getElementById('reference-close').addEventListener('click', function () { toggleReference(false); });
     if (typeof ResizeObserver !== 'undefined') {
       // Whatever changes the height of one column (a word that wraps, the zoom of the page, the window) is lined up again.
