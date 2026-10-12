@@ -8,6 +8,12 @@
     @Html.AntiForgeryToken()
     <script type="application/json" id="editor-data">@Html.Raw(Model.DataJson)</script>
 
+        @* The two ways to get room are fixed in the corner of the window at the top right, outside the bar (a bar that sticks makes a layer of its own, and the top bar would lie over them). *@
+        <div class="kk-editor__size">
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-maximize" aria-pressed="false" aria-label="Maximieren: im Browserfenster groß, alle Menüs weg (Alt+V)" data-tip="Maximieren: alle Menüs weg (Alt+V)"><span data-icon-state="off">@Ui.Icon("maximize-2")</span><span data-icon-state="on" hidden>@Ui.Icon("minimize-2")</span></button>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-fullscreen" aria-pressed="false" aria-label="Vollbild: der ganze Bildschirm (Alt+B)" data-tip="Vollbild: der ganze Bildschirm (Alt+B)"><span data-icon-state="off">@Ui.Icon("maximize")</span><span data-icon-state="on" hidden>@Ui.Icon("minimize")</span></button>
+        </div>
+
     <div class="kk-editor__bar mat-card">
         <div class="kk-editor__head">
             <div class="kk-editor__title">
@@ -31,8 +37,6 @@
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-redo" aria-label="Wiederholen (Strg+Y)" data-tip="Wiederholen" disabled>@Ui.Icon("redo")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-find" aria-pressed="false" aria-label="Suchen und ersetzen (Strg+H)" data-tip="Suchen und ersetzen (Strg+H)">@Ui.Icon("search")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-side-toggle" aria-pressed="false" aria-label="Kommentare und Stilblatt (Alt+L)" data-tip="Kommentare und Stilblatt (Alt+L)">@Ui.Icon("message-square")<span class="mat-badge mat-badge--soft" id="comment-count">0</span></button>
-            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-maximize" aria-pressed="false" aria-label="Maximieren: im Browserfenster groß, alle Menüs weg (Alt+V)" data-tip="Maximieren: alle Menüs weg (Alt+V)"><span data-icon-state="off">@Ui.Icon("maximize-2")</span><span data-icon-state="on" hidden>@Ui.Icon("minimize-2")</span></button>
-            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-fullscreen" aria-pressed="false" aria-label="Vollbild: der ganze Bildschirm (Alt+B)" data-tip="Vollbild: der ganze Bildschirm (Alt+B)"><span data-icon-state="off">@Ui.Icon("maximize")</span><span data-icon-state="on" hidden>@Ui.Icon("minimize")</span></button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-export" data-menu-toggle="editor-export-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Exportieren (Alt+X)" data-tip="Exportieren (Alt+X)">@Ui.Icon("download")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-more" data-menu-toggle="editor-more-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Mehr" data-tip="Mehr">@Ui.Icon("more-vertical")</button>
         </div>

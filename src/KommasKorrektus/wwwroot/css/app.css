@@ -72,6 +72,11 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 /* ---- The editor ---- */
 .kk-editor__bar { display: flex; flex-direction: column; gap: var(--mat-space-3); padding: var(--mat-space-3) var(--mat-space-4); position: sticky; top: var(--mat-topbar-h, 3.5rem); z-index: 5; }
 .kk-editor__head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--mat-space-1) var(--mat-space-5); }
+/* The two ways to get room are fixed in the top right corner of the window, the same place whether the menus are there or not (over the bar with the breadcrumb, or over
+   the bar of the editor when everything else has stepped aside). Their tooltips open downwards and to the left: above, they would be cut off by the window. */
+.kk-editor__size { position: fixed; top: var(--mat-space-2); right: var(--mat-space-4); z-index: calc(var(--mat-z-topbar) + 1); display: flex; gap: var(--mat-space-1); padding: 2px; border-radius: var(--mat-radius); background: var(--mat-surface); border: 1px solid var(--mat-border); box-shadow: var(--mat-shadow-1); }
+.kk-editor__size [data-tip]::after { bottom: auto; top: calc(100% + 6px); left: auto; right: 0; transform: translateY(-2px); }
+.kk-editor__size [data-tip]:hover::after, .kk-editor__size [data-tip]:focus-visible::after { transform: none; }
 .kk-editor__sep { width: 1px; height: 1.5rem; background: var(--mat-border); margin-inline: var(--mat-space-1); }
 .kk-editor__phone { display: none; }
 .kk-editor__title { min-width: 0; flex: 1 1 14rem; }
@@ -233,7 +238,8 @@ a.kk-a { cursor: pointer; }
   /* A phone: the bar scrolls away with the page (the text needs the room), the buttons keep to two short rows, the long words become the short ones. */
   .kk-editor__bar { position: static; padding: var(--mat-space-3); }
   .kk-editor__title h1 { font-size: var(--mat-fs-lg); }
-  #editor-close, #editor-maximize, #editor-fullscreen { display: none; }
+  #editor-close, .kk-editor__size { display: none; }
+  html.kk-focus .kk-editor__head, html.kk-focus .kk-editor__actions { padding-right: 0; }
   .kk-editor__phone { display: flex; }
   .kk-editor__actions .mat-seg__btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .kk-editor__sep { display: none; }
@@ -319,7 +325,9 @@ html.kk-focus .mat-page { padding-top: var(--mat-space-3); padding-bottom: var(-
 html.kk-focus .kk-editor__body { margin-top: var(--mat-space-3); }
 /* maximized, the bar of the editor is one row: the name and the state on the left, the buttons beside them */
 html.kk-focus .kk-editor__bar { top: 0; padding: var(--mat-space-2) var(--mat-space-3); gap: var(--mat-space-2); }
-@media (min-width: 1100px) { html.kk-focus .kk-editor__bar { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--mat-space-5); } html.kk-focus .kk-editor__actions { justify-content: flex-end; flex-wrap: nowrap; } html.kk-focus #editor-close > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } html.kk-focus .kk-find { grid-column: 1 / -1; } }
+/* the first row keeps clear of the corner, the rows under it (search, earlier version) run the whole width */
+html.kk-focus .kk-editor__head, html.kk-focus .kk-editor__actions { padding-right: 6.5rem; }
+@media (min-width: 1100px) { html.kk-focus .kk-editor__bar { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--mat-space-5); } html.kk-focus .kk-editor__actions { justify-content: flex-end; flex-wrap: nowrap; } html.kk-focus #editor-close > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } html.kk-focus .kk-find, html.kk-focus .kk-refbar { grid-column: 1 / -1; } }
 html.kk-focus .kk-editor__head { flex: 0 1 auto; flex-wrap: nowrap; align-items: center; gap: var(--mat-space-1) var(--mat-space-4); }
 html.kk-focus .kk-editor__title { flex: 0 1 14rem; }
 html.kk-focus .kk-editor__title h1 { font-size: var(--mat-fs-lg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
