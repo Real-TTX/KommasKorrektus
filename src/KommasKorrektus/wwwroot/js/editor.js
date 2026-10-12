@@ -1196,6 +1196,8 @@
   wire('editor-keys-open', openKeys);
   wire('editor-maximize', toggleMaximize);
   wire('editor-fullscreen', toggleFullscreen);
+  wire('editor-maximize-menu', toggleMaximize);
+  wire('editor-fullscreen-menu', toggleFullscreen);
   wire('style-add', openStyle);
   wire('editor-reference-toggle', function () { toggleReference(); });
 

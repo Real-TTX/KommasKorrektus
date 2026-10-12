@@ -231,7 +231,7 @@ a.kk-a { cursor: pointer; }
   /* A phone: the bar scrolls away with the page (the text needs the room), the buttons keep to two short rows, the long words become the short ones. */
   .kk-editor__bar { position: static; padding: var(--mat-space-3); }
   .kk-editor__title h1 { font-size: var(--mat-fs-lg); }
-  #editor-close { display: none; }
+  #editor-close, #editor-maximize, #editor-fullscreen { display: none; }
   .kk-editor__phone { display: flex; }
   .kk-editor__actions .mat-seg__btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .kk-editor__sep { display: none; }
