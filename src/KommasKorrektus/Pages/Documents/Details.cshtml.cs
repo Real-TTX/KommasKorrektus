@@ -95,7 +95,7 @@ public sealed class DetailsModel(KkDbContext db, DocumentService documents, Conf
         RoundStart = await documents.RoundStartAsync(document, document.CurrentVersionNo, HttpContext.RequestAborted);
         CompareView = (await ViewPreferences.GetAsync(db, current.UserId, HttpContext.RequestAborted)).Compare;
 
-        Comments = await db.DocumentComment.AsNoTracking().Where(c => c.DocumentId == Id).OrderBy(c => c.IsResolved).ThenBy(c => c.ParagraphIndex).ThenBy(c => c.CreateDate).ToListAsync();
+        Comments = await db.DocumentComment.AsNoTracking().Where(c => c.DocumentId == Id).OrderBy(c => c.IsResolved).ThenBy(c => c.ParagraphIndex).ThenBy(c => c.CreateDate).ThenBy(c => c.Id).ToListAsync();
 
         var activity = await db.WorkActivity.AsNoTracking().Where(a => a.DocumentId == Id).Select(a => new { a.At, a.ActiveSeconds, Edited = a.WordsAdded + a.WordsChanged }).ToListAsync();
         TotalSeconds = activity.Sum(a => a.ActiveSeconds);

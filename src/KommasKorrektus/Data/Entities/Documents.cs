@@ -121,6 +121,12 @@ public class DocumentComment : AuditedEntity
     public bool IsResolved { get; set; }
 
     public DateTime? ResolvedDate { get; set; }
+
+    /// <summary>Where the remark came from when it was not written here: "docx" (a comment of Word) or "pdf" (a note of a PDF); null for one written in the editor.</summary>
+    public string? Source { get; set; }
+
+    /// <summary>When it was written, as the file says (an imported remark: the audit columns say when it was imported).</summary>
+    public DateTime? WrittenDate { get; set; }
 }
 
 public enum FileKind

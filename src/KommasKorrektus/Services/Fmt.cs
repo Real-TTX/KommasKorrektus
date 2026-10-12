@@ -38,6 +38,9 @@ public static class Fmt
 
     public static string Moment(DateTime? utc) => utc is null ? "" : Local(utc.Value).ToString("dd.MM.yyyy HH:mm", Culture);
 
+    /// <summary>A moment as a file states it (the date of a comment in a Word file): shown as written, without a change of time zone; else the moment it was made here.</summary>
+    public static string Moment(DateTime made, DateTime? stated) => stated is { } s ? s.ToString("dd.MM.yyyy HH:mm", Culture) : Moment(made);
+
     public static string Time(DateTime? utc) => utc is null ? "" : Local(utc.Value).ToString("HH:mm", Culture);
 
     /// <summary>An ISO date for the value of a date input.</summary>

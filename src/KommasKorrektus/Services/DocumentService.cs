@@ -54,7 +54,7 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
     }
 
     /// <summary>Reads a file: the kind, the paragraphs, and what the reading had to guess.</summary>
-    private static (DocumentKind Kind, IReadOnlyList<string> Paragraphs, List<string> Notes) ReadFile(string fileName, byte[] bytes)
+    private static (DocumentKind Kind, IReadOnlyList<string> Paragraphs, List<string> Notes, IReadOnlyList<ImportedComment> Comments) ReadFile(string fileName, byte[] bytes)
     {
         if (bytes.Length == 0)
         {
@@ -63,6 +63,7 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
 
         var kind = DetectKind(fileName, bytes);
         IReadOnlyList<string> paragraphs;
+        IReadOnlyList<ImportedComment> comments = [];
         var notes = new List<string>();
         try
         {
@@ -70,6 +71,7 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
             {
                 case DocumentKind.Docx:
                     paragraphs = DocxReader.ReadParagraphs(bytes);
+                    comments = ReadWordComments(bytes, notes);
                     if (!Path.GetExtension(fileName).Equals(".docx", StringComparison.OrdinalIgnoreCase))
                     {
                         notes.Add("Die Datei ist ein Word-Dokument, hat aber eine andere Endung.");
@@ -79,6 +81,7 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
                 case DocumentKind.Pdf:
                     var pdf = PdfTextReader.Read(bytes);
                     paragraphs = pdf.Paragraphs;
+                    comments = pdf.Comments;
                     notes.AddRange(pdf.Notes);
                     break;
                 default:
@@ -96,7 +99,56 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
             throw new ImportException(notes.FirstOrDefault(n => n.Contains("keinen Text")) ?? "In der Datei steht kein Text.");
         }
 
-        return (kind, paragraphs, notes);
+        if (comments.Count > 0)
+        {
+            notes.Add(comments.Count == 1 ? "Ein Kommentar aus der Datei wurde übernommen." : $"{comments.Count} Kommentare aus der Datei wurden übernommen.");
+        }
+
+        return (kind, paragraphs, notes, comments);
+    }
+
+    /// <summary>The comments of a Word file. They are a bonus: a file whose comments cannot be read is imported without them.</summary>
+    private static IReadOnlyList<ImportedComment> ReadWordComments(byte[] bytes, List<string> notes)
+    {
+        try
+        {
+            return DocxComments.Read(bytes);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            notes.Add("Die Kommentare der Word-Datei ließen sich nicht lesen.");
+            return [];
+        }
+    }
+
+    /// <summary>The remarks that were in a file become comments of the document, on the paragraph and the passage they were written on.</summary>
+    private void AddImportedComments(Document document, int versionNo, DocumentKind kind, int paragraphCount, IReadOnlyList<ImportedComment> comments)
+    {
+        foreach (var c in comments)
+        {
+            var comment = new DocumentComment
+            {
+                VersionNo = versionNo,
+                ParagraphIndex = Math.Clamp(c.ParagraphIndex, 0, Math.Max(0, paragraphCount - 1)),
+                Quote = c.Quote,
+                Text = c.Text,
+                AuthorName = c.Author ?? "Aus der Datei",
+                Source = kind == DocumentKind.Docx ? "docx" : "pdf",
+                WrittenDate = c.Written,
+                IsResolved = c.Resolved,
+                ResolvedDate = c.Resolved ? c.Written ?? clock.GetUtcNow().UtcDateTime : null,
+            };
+            if (document.Id == 0)
+            {
+                comment.Document = document;
+            }
+            else
+            {
+                comment.DocumentId = document.Id;
+            }
+
+            db.DocumentComment.Add(comment);
+        }
     }
 
     private static string ContentTypeOf(DocumentKind kind) => kind switch
@@ -109,7 +161,7 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
     /// <summary>Reads a file and makes a document with its first version (the text as the author delivered it). Saved by the caller's SaveChanges.</summary>
     public async Task<ImportResult> ImportAsync(Project project, string title, string fileName, byte[] bytes, CancellationToken ct = default)
     {
-        var (kind, paragraphs, notes) = ReadFile(fileName, bytes);
+        var (kind, paragraphs, notes, comments) = ReadFile(fileName, bytes);
         var original = await files.SaveAsync(bytes, fileName, ContentTypeOf(kind), FileKind.Original, projectId: project.Id, customerId: project.CustomerId, ct: ct);
         var document = new Document
         {
@@ -124,6 +176,7 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
         };
         document.Versions.Add(NewVersion(1, paragraphs, VersionOrigin.Import, "Original", null, DiffStats.None));
         db.Document.Add(document);
+        AddImportedComments(document, 1, kind, paragraphs.Count, comments);
         return new ImportResult(document, notes);
     }
 
@@ -134,7 +187,7 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
     /// </summary>
     public async Task<SaveResult> AddFileVersionAsync(Document document, string fileName, byte[] bytes, string? label, string? comment, CancellationToken ct = default)
     {
-        var (kind, paragraphs, notes) = ReadFile(fileName, bytes);
+        var (kind, paragraphs, notes, comments) = ReadFile(fileName, bytes);
         var latest = await db.DocumentVersion.FirstAsync(v => v.DocumentId == document.Id && v.VersionNo == document.CurrentVersionNo, ct);
         var delta = DocumentDiff.Stats(DocumentDiff.Compare(TextMetrics.Paragraphs(latest.Text), paragraphs));
         if (latest.Origin == VersionOrigin.Working)
@@ -149,6 +202,7 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
         version.DocumentId = document.Id;
         version.SourceFile = stored;
         db.DocumentVersion.Add(version);
+        AddImportedComments(document, version.VersionNo, kind, paragraphs.Count, comments);
         document.CurrentVersionNo = version.VersionNo;
         await db.SaveChangesAsync(ct);
         return new SaveResult(version, true, delta);

@@ -515,6 +515,9 @@ namespace KommasKorrektus.Data.Migrations
                     b.Property<long?>("ShareLinkId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("Source")
+                        .HasColumnType("text");
+
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasColumnType("text");
@@ -527,6 +530,9 @@ namespace KommasKorrektus.Data.Migrations
 
                     b.Property<int>("VersionNo")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("WrittenDate")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 

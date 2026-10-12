@@ -71,7 +71,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         }
 
         Version = version;
-        var comments = await db.DocumentComment.AsNoTracking().Where(c => c.DocumentId == Id).OrderBy(c => c.ParagraphIndex).ThenBy(c => c.CreateDate).ToListAsync();
+        var comments = await db.DocumentComment.AsNoTracking().Where(c => c.DocumentId == Id).OrderBy(c => c.ParagraphIndex).ThenBy(c => c.CreateDate).ThenBy(c => c.Id).ToListAsync();
         var styles = await db.StyleEntry.AsNoTracking().Where(s => s.ProjectId == document.ProjectId).OrderBy(s => s.Category).ThenBy(s => s.Term).ToListAsync();
         VersionTitle = (await NameOfAsync(document.Id, version.VersionNo)).Title;
         var views = await ViewPreferences.GetAsync(db, current.UserId, HttpContext.RequestAborted);
@@ -89,7 +89,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
             autosaveMinChars = AutosaveMinChars,
             idleMinutes = IdleMinutes,
             // The names are the ones editor.js reads (camelCase): the serializer would keep the names of the properties.
-            comments = comments.Select(c => new { id = c.Id, paragraphIndex = c.ParagraphIndex, quote = c.Quote, text = c.Text, author = c.AuthorName ?? "Lektorat", isResolved = c.IsResolved, created = Fmt.Moment(c.CreateDate) }),
+            comments = comments.Select(c => new { id = c.Id, paragraphIndex = c.ParagraphIndex, quote = c.Quote, text = c.Text, author = c.AuthorName ?? "Lektorat", source = c.Source, isResolved = c.IsResolved, created = Fmt.Moment(c.CreateDate, c.WrittenDate) }),
             styles = styles.Select(s => new { term = s.Term, category = UiKit.Labels.Of(s.Category), decision = s.Decision }),
         });
 

@@ -1,11 +1,17 @@
 using System.Text;
 using System.Text.RegularExpressions;
 using UglyToad.PdfPig;
+using UglyToad.PdfPig.Annotations;
 using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.Tokens;
 
 namespace KommasKorrektus.Core.Documents;
 
-public sealed record TextImport(IReadOnlyList<string> Paragraphs, int Pages, IReadOnlyList<string> Notes);
+public sealed record TextImport(IReadOnlyList<string> Paragraphs, int Pages, IReadOnlyList<string> Notes)
+{
+    /// <summary>The remarks that were in the file (notes and marked passages of a PDF); a text file has none.</summary>
+    public IReadOnlyList<ImportedComment> Comments { get; init; } = [];
+}
 
 /// <summary>
 /// The text of a PDF, as paragraphs. A PDF knows letters at places, not paragraphs, so lines are put together from the words and the paragraphs are
@@ -15,6 +21,8 @@ public sealed record TextImport(IReadOnlyList<string> Paragraphs, int Pages, IRe
 public static partial class PdfTextReader
 {
     private sealed record Line(double Left, double Right, double Top, double Bottom, double Baseline, double FontSize, string Text);
+
+    private const int MaxQuote = 200;
 
     [GeneratedRegex(@"^(?:[-–—]\s*)?(?:Seite\s+)?\d{1,4}(?:\s*[-–—])?$", RegexOptions.IgnoreCase)]
     private static partial Regex PageNumber();
@@ -29,6 +37,7 @@ public static partial class PdfTextReader
     {
         var notes = new List<string>();
         var paragraphs = new List<string>();
+        var comments = new List<ImportedComment>();
         var current = new StringBuilder();
         Line? previous = null;
         var pageCount = 0;
@@ -62,6 +71,7 @@ public static partial class PdfTextReader
             var maxRight = lines.Max(l => l.Right);
 
             Line? before = null;
+            var placed = new List<(Line Line, int Paragraph)>();   // the paragraph each line of this page ended up in: where a remark on the page belongs
             foreach (var line in lines)
             {
                 var isFirstOnPage = before is null;
@@ -102,7 +112,10 @@ public static partial class PdfTextReader
 
                 previous = line;
                 before = line;
+                placed.Add((line, paragraphs.Count));
             }
+
+            comments.AddRange(Annotations(page, placed, notes));
         }
 
         Close();
@@ -116,7 +129,116 @@ public static partial class PdfTextReader
             notes.Add("Aus einem PDF wird nur der Text übernommen: Seitenlayout, Spalten, Tabellen und Fußnoten gehen verloren. Absätze wurden aus dem Zeilenabstand erkannt. Prüfe die Absatzgrenzen im Editor.");
         }
 
-        return new TextImport(paragraphs, pageCount, notes);
+        return new TextImport(paragraphs, pageCount, notes) { Comments = comments };
+    }
+
+    private static readonly HashSet<AnnotationType> Remarks = [AnnotationType.Text, AnnotationType.FreeText, AnnotationType.Highlight, AnnotationType.Underline, AnnotationType.Squiggly, AnnotationType.StrikeOut, AnnotationType.Caret];
+
+    private static readonly HashSet<AnnotationType> Markings = [AnnotationType.Highlight, AnnotationType.Underline, AnnotationType.Squiggly, AnnotationType.StrikeOut];
+
+    private sealed record Box(double Left, double Right, double Bottom, double Top);
+
+    private static Box BoxOf(QuadPointsQuadrilateral quad)
+    {
+        double left = double.MaxValue, right = double.MinValue, bottom = double.MaxValue, top = double.MinValue;
+        foreach (var p in quad.Points)
+        {
+            left = Math.Min(left, p.X);
+            right = Math.Max(right, p.X);
+            bottom = Math.Min(bottom, p.Y);
+            top = Math.Max(top, p.Y);
+        }
+
+        return new Box(left, right, bottom, top);
+    }
+
+    /// <summary>
+    /// The remarks written into a page of the PDF (sticky notes, text boxes, and notes on marked passages): the paragraph they are next to, the marked words as the quote,
+    /// who wrote them and when. A mark without a note says nothing and is left out. Whatever cannot be read is left out too, the import goes on.
+    /// </summary>
+    private static List<ImportedComment> Annotations(Page page, List<(Line Line, int Paragraph)> lines, List<string> notes)
+    {
+        var found = new List<ImportedComment>();
+        if (lines.Count == 0)
+        {
+            return found;
+        }
+
+        try
+        {
+            var annotations = page.GetAnnotations().Where(a => Remarks.Contains(a.Type) && !string.IsNullOrWhiteSpace(a.Content)).ToList();
+            if (annotations.Count == 0)
+            {
+                return found;
+            }
+
+            var words = page.GetWords().Where(w => !string.IsNullOrWhiteSpace(w.Text)).ToList();
+            foreach (var annotation in annotations)
+            {
+                // an answer stands where the remark it answers stands
+                var where = annotation.InReplyTo ?? annotation;
+                var boxes = where.QuadPoints is { Count: > 0 } quads
+                    ? quads.Select(BoxOf).ToList()
+                    : [new Box(where.Rectangle.Left, where.Rectangle.Right, where.Rectangle.Bottom, where.Rectangle.Top)];
+
+                string? quote = null;
+                if (Markings.Contains(where.Type))
+                {
+                    var marked = words.Where(w => boxes.Any(b =>
+                    {
+                        var x = (w.BoundingBox.Left + w.BoundingBox.Right) / 2;
+                        var y = (w.BoundingBox.Top + w.BoundingBox.Bottom) / 2;
+                        return x >= b.Left && x <= b.Right && y >= b.Bottom && y <= b.Top;
+                    })).OrderByDescending(w => Math.Round((w.BoundingBox.Top + w.BoundingBox.Bottom) / 2)).ThenBy(w => w.BoundingBox.Left).Select(w => w.Text);
+                    quote = string.Join(' ', marked);
+                    quote = quote.Length > MaxQuote ? quote[..MaxQuote].TrimEnd() + "…" : quote;
+                }
+
+                var top = boxes.Max(b => b.Top);
+                var bottom = boxes.Min(b => b.Bottom);
+                var left = boxes.Min(b => b.Left);
+                var best = lines
+                    .Select(l => (l.Paragraph, Overlap: Math.Min(top, l.Line.Top) - Math.Max(bottom, l.Line.Bottom), Gap: Math.Abs((top + bottom) / 2 - (l.Line.Top + l.Line.Bottom) / 2), Side: Math.Abs(left - l.Line.Left)))
+                    .OrderByDescending(l => l.Overlap > 0)
+                    .ThenBy(l => l.Overlap > 0 ? l.Side : l.Gap)
+                    .First();
+
+                var author = Entry(annotation, "T");
+                found.Add(new ImportedComment(best.Paragraph, string.IsNullOrWhiteSpace(quote) ? null : quote, annotation.Content!.Trim(), string.IsNullOrWhiteSpace(author) ? null : author.Trim(), PdfDate(annotation.ModifiedDate) ?? PdfDate(Entry(annotation, "M")), false));
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            notes.Add($"Die Anmerkungen auf Seite {page.Number} des PDFs ließen sich nicht lesen.");
+        }
+
+        return found;
+    }
+
+    /// <summary>A text entry of the dictionary of an annotation (the author is /T, the date /M).</summary>
+    private static string? Entry(Annotation annotation, string key)
+        => annotation.AnnotationDictionary.Data.TryGetValue(key, out var token) ? (token as StringToken)?.Data ?? (token as HexToken)?.Data : null;
+
+    [GeneratedRegex(@"^D?:?(?<y>\d{4})(?<m>\d{2})?(?<d>\d{2})?(?<h>\d{2})?(?<n>\d{2})?(?<s>\d{2})?")]
+    private static partial Regex PdfDateParts();
+
+    /// <summary>A date of a PDF ("D:20261012143000+02'00'"); the time zone is not applied: the moment is shown as it was written.</summary>
+    private static DateTime? PdfDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || PdfDateParts().Match(value.Trim()) is not { Success: true } m)
+        {
+            return null;
+        }
+
+        int Part(string name, int fallback) => m.Groups[name].Success ? int.Parse(m.Groups[name].Value, System.Globalization.CultureInfo.InvariantCulture) : fallback;
+        try
+        {
+            return new DateTime(Part("y", 1), Part("m", 1), Part("d", 1), Part("h", 0), Part("n", 0), Part("s", 0), DateTimeKind.Utc);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
     }
 
     private static bool StartsLower(string text) => text.Length > 0 && char.IsLower(text[0]);

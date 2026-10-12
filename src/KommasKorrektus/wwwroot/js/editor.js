@@ -960,7 +960,7 @@
       var body = el('p');
       body.textContent = c.text;
       var meta = el('small', 'mat-muted');
-      meta.textContent = (c.quote ? '„' + c.quote + '“ · ' : '') + c.author + ' · ' + c.created;
+      meta.textContent = (c.quote ? '„' + c.quote + '“ · ' : '') + c.author + (c.source === 'docx' ? ' (Word)' : c.source === 'pdf' ? ' (PDF)' : '') + ' · ' + c.created;
       item.appendChild(head); item.appendChild(body); item.appendChild(meta);
       commentList.appendChild(item);
     });

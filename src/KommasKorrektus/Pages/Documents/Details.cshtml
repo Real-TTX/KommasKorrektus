@@ -119,7 +119,7 @@
             <ul class="mat-listgroup mat-listgroup--flush">
                 @foreach (var c in Model.Comments)
                 {
-                    <li><a class="mat-listgroup__item" href="/Documents/Editor?id=@d.Id#p@(c.ParagraphIndex + 1)">@Ui.Icon(c.IsResolved ? "check-circle" : "message-square")<span class="mat-listgroup__text"><strong>Absatz @(c.ParagraphIndex + 1)@(string.IsNullOrWhiteSpace(c.Quote) ? "" : $": „{c.Quote}“")</strong><small>@c.Text · @(c.AuthorName ?? "Lektorat") · @Fmt.Moment(c.CreateDate)</small></span>@if (c.IsResolved) { <span class="mat-pill mat-pill--ok">erledigt</span> }</a></li>
+                    <li><a class="mat-listgroup__item" href="/Documents/Editor?id=@d.Id#p@(c.ParagraphIndex + 1)">@Ui.Icon(c.IsResolved ? "check-circle" : "message-square")<span class="mat-listgroup__text"><strong>Absatz @(c.ParagraphIndex + 1)@(string.IsNullOrWhiteSpace(c.Quote) ? "" : $": „{c.Quote}“")</strong><small>@c.Text · @(c.AuthorName ?? "Lektorat")@(c.Source == "docx" ? " (Word)" : c.Source == "pdf" ? " (PDF)" : "") · @Fmt.Moment(c.CreateDate, c.WrittenDate)</small></span>@if (c.IsResolved) { <span class="mat-pill mat-pill--ok">erledigt</span> }</a></li>
                 }
             </ul>
         }
