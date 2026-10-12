@@ -510,7 +510,11 @@
   }
 
   var autosaves = data.autosaveSeconds > 0;
-  function dirtyText() { return autosaves ? 'Wird automatisch gespeichert …' : 'Nicht gespeichert'; }
+  // While somebody types the bar says what is true and does not change its mind: not saved yet. Whether and when the autosave comes depends on the threshold,
+  // which is not worth a promise; "Speichert ..." and "Automatisch gespeichert um ..." come when it happens.
+  var HOLD_TEXT = 'Viel Text gelöscht: nicht automatisch gespeichert (Strg+S speichert)';
+  var heldBack = false;   // the autosave refused a big deletion: the bar keeps saying so, it does not change its mind with every keystroke
+  function dirtyText() { return heldBack ? HOLD_TEXT : 'Noch nicht gespeichert'; }
 
   // The text as the server has it, and since when the window holds something it has not: the threshold of the autosave measures against them.
   var savedText = data.paragraphs.join('\n');
@@ -553,11 +557,12 @@
     if (!dirty || saving) { return; }
     var diff = difference(snapshot().join('\n'));
     if (diff.removed > BIG_DELETION && diff.removed > savedText.length * BIG_SHARE) {
-      setStatus('dirty', 'Viel Text gelöscht: nicht automatisch gespeichert (Strg+S speichert)');
+      heldBack = true;
+      setStatus('dirty', HOLD_TEXT);
       return;
     }
+    heldBack = false;
     if (Math.max(diff.removed, diff.added) >= (data.autosaveMinChars || 0) || Date.now() - dirtySince >= PATIENCE_MS) { save('auto'); return; }
-    setStatus('dirty', 'Noch nicht gespeichert: erst bei mehr Änderungen (oder nach einer Minute)');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(autoTick, 10000);
   }
@@ -606,6 +611,7 @@
       }
       baseVersion = result.versionNo;
       savedText = text;
+      heldBack = false;
       dirty = snapshot().join('\n') !== text;
       if (dirty) { dirtySince = Date.now(); }
       session.added += result.added; session.removed += result.removed; session.replaced += result.replaced;
