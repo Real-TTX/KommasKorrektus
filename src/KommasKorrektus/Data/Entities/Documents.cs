@@ -42,17 +42,17 @@ public enum VersionOrigin
 {
     /// <summary>Version 1: the text as the author delivered it.</summary>
     Import,
-    /// <summary>Saved by the editor on purpose.</summary>
+    /// <summary>A pass that the editor closed on purpose ("Durchgang abschließen"): the next change begins a new version.</summary>
     Manual,
-    /// <summary>Kept by the editor while working; the next autosave of the same person updates it.</summary>
-    Autosave,
+    /// <summary>The version being worked on: every save of the same person, by hand or automatic, updates it until the pass is closed.</summary>
+    Working,
     /// <summary>An older version that was put back.</summary>
     Restore,
 }
 
 /// <summary>
 /// One state of the text of a document. The text holds the paragraphs separated by a line feed; a line break inside a paragraph is U+2028.
-/// Nothing is ever overwritten except an autosave by the same person: "everything is versioned".
+/// Nothing is ever overwritten except the version still being worked on by the same person: a closed pass is never touched, "everything is versioned".
 /// </summary>
 public class DocumentVersion : AuditedEntity
 {

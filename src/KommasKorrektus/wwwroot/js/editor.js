@@ -3,7 +3,8 @@
    - Seite: the page with the formatting of the original Word file, written in directly (editor-page.js).
    Both work on the same text; the formatting is never changed, it stays in the original and comes back in the export.
    Everything else is shared and lives here:
-   - Everything is saved as versions: an autosave while somebody types, a version when asked (Ctrl+S).
+   - A version is a pass over the text, not a click: saving (Ctrl+S, or the autosave while somebody types) always writes into the version being
+     worked on; "Durchgang abschließen" closes it, and the next change then begins a new version.
    - The editor reports how long it was used (seconds with activity, keys pressed); a long pause is a pause, the server cuts the time there.
    - Search and replace, remarks on paragraphs, the style sheet.
    A view is an object with the same few functions (see "the views"); editor-page.js registers the second one.
@@ -489,7 +490,12 @@
   var saveTimer = null;
   var maxTimer = null;
   var pendingKind = null;
+  var pendingOptions = null;
+  var RANK = { auto: 0, manual: 1, close: 2 };
   var session = { added: 0, removed: 0, replaced: 0 };
+
+  // "working": saves go into this version; "closed": the next change begins a new one; "fixed": the original or a restored one.
+  function stateWord(state) { return state === 'working' ? 'in Arbeit' : state === 'closed' ? 'abgeschlossen' : ''; }
 
   function setStatus(kind, text) {
     statusElement.className = 'kk-editor__status is-' + kind;
@@ -520,7 +526,11 @@
 
   function save(kind, options) {
     var o = options || {};
-    if (saving) { pendingKind = pendingKind === 'manual' ? 'manual' : kind; return Promise.resolve(); }
+    if (saving) {
+      // What is asked while a save runs follows it; closing the pass wins over saving, saving over the autosave.
+      if (!pendingKind || RANK[kind] >= RANK[pendingKind]) { pendingKind = kind; pendingOptions = o; }
+      return Promise.resolve();
+    }
     if (kind === 'auto' && !dirty) { return Promise.resolve(); }
     if (view.checkpoint) { view.checkpoint(); } else if (view.name === 'text') { checkpoint(); }
     clearTimeout(saveTimer);
@@ -545,21 +555,23 @@
       dirty = snapshot().join('\n') !== text;
       session.added += result.added; session.removed += result.removed; session.replaced += result.replaced;
       showSession();
-      setStatus(dirty ? 'dirty' : 'saved', dirty ? 'Nicht gespeichert' : 'Gespeichert um ' + result.savedAt + ' (Fassung ' + result.versionNo + ')');
-      if (kind === 'manual') { toast('Fassung ' + result.versionNo + ' ist gespeichert.'); }
+      var word = stateWord(result.state);
+      setStatus(dirty ? 'dirty' : 'saved', dirty ? 'Nicht gespeichert' : 'Gespeichert um ' + result.savedAt + ' (Fassung ' + result.versionNo + (word ? ', ' + word : '') + ')');
+      if (kind === 'close') { toast('Fassung ' + result.versionNo + ' ist abgeschlossen. Die nächste Änderung beginnt Fassung ' + (result.versionNo + 1) + '.'); }
+      else if (kind === 'manual') { toast('Gespeichert. Das bleibt Fassung ' + result.versionNo + (word ? ' (' + word + ')' : '') + '.'); }
       var versionLabel = document.getElementById('editor-version');
-      if (versionLabel) { versionLabel.textContent = 'Fassung ' + result.versionNo; }
+      if (versionLabel) { versionLabel.textContent = 'Fassung ' + result.versionNo + (word ? ' · ' + word : ''); }
       if (dirty) { markDirty(); }
       return result;
     }).catch(function (error) {
       saving = false;
       setStatus('error', 'Speichern fehlgeschlagen (' + error.message + ')');
-      if (kind === 'manual') { toast('Speichern fehlgeschlagen. Der Text bleibt in diesem Fenster.', 'error'); }
+      if (kind !== 'auto') { toast('Speichern fehlgeschlagen. Der Text bleibt in diesem Fenster.', 'error'); }
       // Time that was not reported goes into the next report.
       activeSeconds += lostActive; keys += lostKeys;
       return null;
     }).then(function (result) {
-      if (pendingKind) { var next = pendingKind; pendingKind = null; return save(next); }
+      if (pendingKind) { var next = pendingKind, nextOptions = pendingOptions; pendingKind = null; pendingOptions = null; return save(next, nextOptions); }
       return result;
     });
   }
@@ -809,9 +821,9 @@
   // ================================================================================================ the bar
   function wire(id, handler) { var b = document.getElementById(id); if (b) { b.addEventListener('click', handler); } }
   wire('editor-save', function () { save('manual'); });
-  wire('editor-name', function () {
-    window.MatUi.prompt('Name der Fassung (zum Beispiel „Nach dem ersten Durchgang“)', { title: 'Fassung benennen', ok: 'Speichern' }).then(function (label) {
-      if (label !== null) { save('manual', { label: label }); }
+  wire('editor-close', function () {
+    window.MatUi.prompt('Name des Durchgangs (zum Beispiel „Erster Durchgang“). Danach beginnt die nächste Änderung eine neue Fassung.', { title: 'Durchgang abschließen', ok: 'Abschließen' }).then(function (label) {
+      if (label !== null) { save('close', { label: label }); }
     });
   });
   wire('editor-undo', function () { view.undo(); });
@@ -879,7 +891,8 @@
     setView(first, data.paragraphs).then(function (ok) {
       return ok || first === 'text' ? ok : setView('text', data.paragraphs);
     }).then(function () {
-      setStatus('saved', 'Fassung ' + data.versionNo + ' geöffnet');
+      var word = stateWord(data.state);
+      setStatus('saved', 'Fassung ' + data.versionNo + (word ? ' (' + word + ')' : '') + ' geöffnet');
       showSession();
     }).then(function () {
       if (location.hash && /^#p\d+$/.test(location.hash)) {

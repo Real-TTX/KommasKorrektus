@@ -176,7 +176,7 @@ public sealed class TrackingConfig
     /// <summary>A pause longer than this ends a block of working time; the next keystroke starts a new one.</summary>
     public int IdleMinutes { get; set; } = 5;
 
-    /// <summary>The editor saves its text as an autosave version after this many seconds without typing (0 = off).</summary>
+    /// <summary>The editor saves its text into the version being worked on after this many seconds without typing (0 = off).</summary>
     public int AutosaveSeconds { get; set; } = 20;
 }
 

@@ -11,8 +11,9 @@ using Microsoft.EntityFrameworkCore;
 namespace KommasKorrektus.Pages.Documents;
 
 /// <summary>
-/// The editor: the text of a document as paragraphs that can be written in. The browser saves it as an autosave while somebody types and as a version
-/// when asked; it also reports how long it was used. Comments on paragraphs are kept here too.
+/// The editor: the text of a document as paragraphs that can be written in. The browser saves it while somebody types and when asked, always into the
+/// version being worked on; "close" ends the pass so that the next change begins a new version. It also reports how long it was used. Comments on
+/// paragraphs are kept here too.
 /// </summary>
 public sealed class EditorModel(KkDbContext db, DocumentService documents, LayoutService layouts, TimeTrackingService tracking, ConfigStore config, ICurrentUser current, TimeProvider clock, ActivityLogger log) : PageModelBase
 {
@@ -37,6 +38,14 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
 
     public int IdleMinutes => config.Current.Tracking.IdleMinutes;
 
+    /// <summary>What the bar says about the version: "working" (saves go into it), "closed" (the next change begins a new one), or nothing (the original, a restored one).</summary>
+    public static string StateOf(DocumentVersion version) => version.Origin switch
+    {
+        VersionOrigin.Working => "working",
+        VersionOrigin.Manual => "closed",
+        _ => "fixed",
+    };
+
     public async Task<IActionResult> OnGetAsync()
     {
         var document = await db.Document.AsNoTracking().Include(d => d.Project).ThenInclude(p => p!.Customer).FirstOrDefaultAsync(d => d.Id == Id);
@@ -60,6 +69,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
             documentId = document.Id,
             kind = document.Kind.ToString(),
             versionNo = version.VersionNo,
+            state = StateOf(version),
             paragraphs = DocumentService.ParagraphsOf(version),
             autosaveSeconds = AutosaveSeconds,
             idleMinutes = IdleMinutes,
@@ -93,18 +103,25 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
             return new JsonResult(new { ok = false, conflict = true, message = $"{other ?? "Jemand anderes"} hat inzwischen Fassung {latest.VersionNo} gespeichert. Lade die Seite neu, oder speichere trotzdem." });
         }
 
-        var kind = request.Kind == "manual" ? VersionOrigin.Manual : VersionOrigin.Autosave;
-        var result = await documents.SaveAsync(document, request.Text ?? string.Empty, kind, request.Label, request.Comment, HttpContext.RequestAborted);
+        // Saving by hand and the autosave both go into the version being worked on; only "close" ends the pass.
+        var closing = request.Kind == "close";
+        var result = await documents.SaveAsync(document, request.Text ?? string.Empty, closing ? VersionOrigin.Manual : VersionOrigin.Working, request.Label, request.Comment, HttpContext.RequestAborted);
         await tracking.RecordAsync(userId, document, request.ActiveSeconds, request.Keystrokes, result.Delta, HttpContext.RequestAborted);
-        if (kind == VersionOrigin.Manual && result.Created)
+        if (result.Created)
         {
-            await log.LogAsync("Fassung gespeichert", "Document", document.Id, $"Fassung {result.Version.VersionNo}");
+            await log.LogAsync("Fassung begonnen", "Document", document.Id, $"Fassung {result.Version.VersionNo}");
+        }
+
+        if (closing)
+        {
+            await log.LogAsync("Durchgang abgeschlossen", "Document", document.Id, $"Fassung {result.Version.VersionNo}");
         }
 
         return new JsonResult(new
         {
             ok = true,
             versionNo = result.Version.VersionNo,
+            state = StateOf(result.Version),
             created = result.Created,
             changed = result.Delta.HasChanges,
             wordCount = result.Version.WordCount,

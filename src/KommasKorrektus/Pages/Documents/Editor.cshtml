@@ -11,7 +11,7 @@
     <div class="kk-editor__bar mat-card">
         <div class="kk-editor__title">
             <h1>@d.Title</h1>
-            <p class="mat-muted"><a href="/Projects/Details?id=@d.ProjectId&tab=documents">@d.Project!.Title</a> · <span id="editor-version">Fassung @Model.Version.VersionNo</span> · <span id="editor-words">0</span> Wörter</p>
+            <p class="mat-muted"><a href="/Projects/Details?id=@d.ProjectId&tab=documents">@d.Project!.Title</a> · <span id="editor-version">Fassung @Model.Version.VersionNo@(Model.Version.Origin switch { VersionOrigin.Working => " · in Arbeit", VersionOrigin.Manual => " · abgeschlossen", _ => "" })</span> · <span id="editor-words">0</span> Wörter</p>
         </div>
         <div class="kk-editor__state">
             <span id="editor-status" class="kk-editor__status is-saved" aria-live="polite" role="status">Geöffnet</span>
@@ -22,8 +22,8 @@
                 <button type="button" class="mat-seg__btn" data-view="text" aria-pressed="true" data-tip="Nur der Text, ohne Ablenkung durch das Layout">@Ui.Icon("type")<span>Text</span></button>
                 <button type="button" class="mat-seg__btn" data-view="page" aria-pressed="false" disabled data-tip="Die Seite mit der Formatierung des Originals">@Ui.Icon("file")<span>Seite</span></button>
             </div>
-            <button type="button" class="mat-btn mat-btn--primary" id="editor-save" data-tip="Fassung speichern (Strg+S)">@Ui.Icon("save")<span>Speichern</span></button>
-            <button type="button" class="mat-btn mat-btn--secondary" id="editor-name">@Ui.Icon("tag")<span>Fassung benennen</span></button>
+            <button type="button" class="mat-btn mat-btn--primary" id="editor-save" data-tip="Speichern: die Fassung bleibt in Arbeit (Strg+S)">@Ui.Icon("save")<span>Speichern</span></button>
+            <button type="button" class="mat-btn mat-btn--secondary" id="editor-close" data-tip="Den Durchgang beenden: die nächste Änderung beginnt eine neue Fassung">@Ui.Icon("check-circle")<span>Durchgang abschließen</span></button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-undo" aria-label="Rückgängig (Strg+Z)" data-tip="Rückgängig" disabled>@Ui.Icon("undo")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-redo" aria-label="Wiederholen (Strg+Y)" data-tip="Wiederholen" disabled>@Ui.Icon("redo")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-find" aria-label="Suchen und ersetzen (Strg+H)" data-tip="Suchen und ersetzen">@Ui.Icon("search")</button>

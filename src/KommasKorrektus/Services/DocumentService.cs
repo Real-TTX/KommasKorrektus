@@ -29,8 +29,9 @@ public sealed record ImportResult(Document Document, IReadOnlyList<string> Notes
 public sealed class ImportException(string message) : Exception(message);
 
 /// <summary>
-/// Documents and their versions. Everything the editor does to a text goes through here: the import of a file (Word, PDF, text), saving (every save is a
-/// version; an autosave of the same person updates the autosave before it instead of piling up), putting an old version back, and the exports.
+/// Documents and their versions. Everything the editor does to a text goes through here: the import of a file (Word, PDF, text), saving (a version is a
+/// pass over the text: saves go into the version being worked on until the editor closes it, then the next change begins a new one), putting an old
+/// version back, and the exports.
 /// </summary>
 public sealed class DocumentService(KkDbContext db, FileStoreService files, ConfigStore config, ICurrentUser current, TimeProvider clock)
 {
@@ -157,32 +158,33 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
     public sealed record SaveResult(DocumentVersion Version, bool Created, DiffStats Delta);
 
     /// <summary>
-    /// Saves a text as a version. No change, no new version. An autosave after an autosave of the same person updates that one; an explicit save
-    /// after such an autosave turns it into the saved version (so one working session leaves one version, not twenty).
+    /// Saves a text. No change, no new version. A save goes into the version that is being worked on (<see cref="VersionOrigin.Working"/>) as long as it is
+    /// the same person's: saving ten times leaves one version, so a version is a pass over the text, not a click. Saving with <see cref="VersionOrigin.Manual"/>
+    /// closes the version (the editor says "this pass is done", and may name it); the next change then begins a new one.
     /// </summary>
     public async Task<SaveResult> SaveAsync(Document document, string text, VersionOrigin origin, string? label, string? comment, CancellationToken ct = default)
     {
         var latest = await db.DocumentVersion.FirstAsync(v => v.DocumentId == document.Id && v.VersionNo == document.CurrentVersionNo, ct);
         var paragraphs = TextMetrics.Paragraphs(text);
         var oldParagraphs = TextMetrics.Paragraphs(latest.Text);
+        var closing = origin == VersionOrigin.Manual;
 
         var delta = DocumentDiff.Stats(DocumentDiff.Compare(oldParagraphs, paragraphs));
         if (!delta.HasChanges)
         {
-            if (origin == VersionOrigin.Manual && (latest.Origin == VersionOrigin.Autosave || !string.IsNullOrWhiteSpace(label)))
+            // Nothing changed since, but the editor closes the pass (or names a closed one). The original is never touched.
+            var named = !string.IsNullOrWhiteSpace(label) || !string.IsNullOrWhiteSpace(comment);
+            if (closing && latest.Origin != VersionOrigin.Import && (latest.Origin == VersionOrigin.Working || named))
             {
-                // Nothing changed since, but the editor says "this is a version": the autosave becomes one.
-                latest.Origin = VersionOrigin.Manual;
-                latest.Label = string.IsNullOrWhiteSpace(label) ? latest.Label : label.Trim();
-                latest.Comment = string.IsNullOrWhiteSpace(comment) ? latest.Comment : comment.Trim();
+                Close(latest, label, comment);
                 await db.SaveChangesAsync(ct);
             }
 
             return new SaveResult(latest, false, DiffStats.None);
         }
 
-        var sameAuthorAutosave = latest.Origin == VersionOrigin.Autosave && latest.CreateUserId == current.UserId && latest.VersionNo > 1;
-        if (sameAuthorAutosave)
+        var working = latest.Origin == VersionOrigin.Working && latest.CreateUserId == current.UserId && latest.VersionNo > 1;
+        if (working)
         {
             // The statistics of the version are against the version before it, not against itself.
             var before = await db.DocumentVersion.AsNoTracking().FirstAsync(v => v.DocumentId == document.Id && v.VersionNo == latest.VersionNo - 1, ct);
@@ -194,23 +196,33 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
             latest.WordsAdded = against.WordsAdded;
             latest.WordsRemoved = against.WordsRemoved;
             latest.WordsChanged = against.WordsChanged;
-            if (origin != VersionOrigin.Autosave)
+            if (closing)
             {
-                latest.Origin = origin;
-                latest.Label = string.IsNullOrWhiteSpace(label) ? latest.Label : label.Trim();
-                latest.Comment = string.IsNullOrWhiteSpace(comment) ? latest.Comment : comment.Trim();
+                Close(latest, label, comment);
             }
 
             await db.SaveChangesAsync(ct);
             return new SaveResult(latest, false, delta);
         }
 
-        var version = NewVersion(latest.VersionNo + 1, paragraphs, origin, string.IsNullOrWhiteSpace(label) ? null : label.Trim(), string.IsNullOrWhiteSpace(comment) ? null : comment.Trim(), delta);
+        var version = NewVersion(latest.VersionNo + 1, paragraphs, closing ? VersionOrigin.Manual : VersionOrigin.Working, string.IsNullOrWhiteSpace(label) ? null : label.Trim(), string.IsNullOrWhiteSpace(comment) ? null : comment.Trim(), delta);
         version.DocumentId = document.Id;
         db.DocumentVersion.Add(version);
         document.CurrentVersionNo = version.VersionNo;
         await db.SaveChangesAsync(ct);
         return new SaveResult(version, true, delta);
+    }
+
+    /// <summary>The pass is done: a version being worked on becomes a closed one; a name or remark given with it is kept (a closed version only gets the name).</summary>
+    private static void Close(DocumentVersion version, string? label, string? comment)
+    {
+        if (version.Origin == VersionOrigin.Working)
+        {
+            version.Origin = VersionOrigin.Manual;
+        }
+
+        version.Label = string.IsNullOrWhiteSpace(label) ? version.Label : label.Trim();
+        version.Comment = string.IsNullOrWhiteSpace(comment) ? version.Comment : comment.Trim();
     }
 
     /// <summary>Puts an old version back as a new one: nothing is lost, the versions in between stay.</summary>

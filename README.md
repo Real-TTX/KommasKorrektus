@@ -40,8 +40,9 @@ documents in a volume or on a NAS (SMB).
   replace, remarks per paragraph and a style sheet (names, spellings, terms) per project, in **two views**: *Text* (only the
   words, one field per paragraph) and *Seite* (the page in the layout of the original Word file: headings, emphasis, lists,
   tables, pictures, notes, written in directly)
-- **Every save is a version**; an autosave of the same person updates the previous autosave, a manual save promotes it:
-  one working session leaves one version, not twenty. Restoring an old version creates a new one
+- **A version is a pass over the text, not a click**: every save (`Ctrl+S`, the button, the autosave) writes into the version
+  being worked on, and *Durchgang abschließen* closes it; the next change begins the next version. Restoring an old version
+  creates a new one
 - **Comparison** at word level: side by side or as one text, only the changes (with a paragraph of context) or
   everything, jump from change to change (`n` / `p`)
 - The **page view** is in the comparison, the version view and for authors and clients as well: the changes inside the

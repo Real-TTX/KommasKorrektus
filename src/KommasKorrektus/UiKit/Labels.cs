@@ -166,9 +166,9 @@ public static class Labels
     public static string Of(VersionOrigin o) => o switch
     {
         VersionOrigin.Import => "Original",
-        VersionOrigin.Autosave => "Zwischenstand",
+        VersionOrigin.Working => "In Arbeit",
         VersionOrigin.Restore => "Wiederhergestellt",
-        _ => "Gespeichert",
+        _ => "Abgeschlossen",
     };
 
     public static string Of(DocumentKind k) => k switch

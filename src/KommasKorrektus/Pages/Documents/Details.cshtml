@@ -39,9 +39,12 @@
                     @foreach (var v in Model.Versions)
                     {
                         var ver = v.Version;
+                        var title = string.IsNullOrWhiteSpace(ver.Label) ? Labels.Of(ver.Origin) : ver.Label;
+                        // the state is not said twice when it is already the name
+                        var sub = string.Join(" · ", new[] { Labels.Of(ver.Origin), v.Author, ver.Comment }.Where(s => !string.IsNullOrWhiteSpace(s) && s != title));
                         <tr>
                             <td data-label="Nr." class="mat-num"><strong>@ver.VersionNo</strong></td>
-                            <td data-label="Fassung"><div class="mat-table__name kk-name"><span><a href="/Documents/Version?id=@d.Id&no=@ver.VersionNo">@(string.IsNullOrWhiteSpace(ver.Label) ? Labels.Of(ver.Origin) : ver.Label)</a>@if (ver.VersionNo == newest) { <span class="mat-pill mat-pill--accent">aktuell</span> }</span><small class="mat-muted kk-sub">@Labels.Of(ver.Origin)@(string.IsNullOrWhiteSpace(v.Author) ? "" : " · " + v.Author)@(string.IsNullOrWhiteSpace(ver.Comment) ? "" : " · " + ver.Comment)</small></div></td>
+                            <td data-label="Fassung"><div class="mat-table__name kk-name"><span><a href="/Documents/Version?id=@d.Id&no=@ver.VersionNo">@title</a>@if (ver.VersionNo == newest) { <span class="mat-pill mat-pill--accent">aktuell</span> }</span><small class="mat-muted kk-sub">@sub</small></div></td>
                             <td data-label="Wann" class="mat-hide-sm">@Fmt.Moment(ver.CreateDate)</td>
                             <td data-label="Wörter" class="mat-num mat-hide-sm">@Fmt.Integer(ver.WordCount)</td>
                             <td data-label="Änderungen" class="mat-hide-sm">@if (ver.VersionNo == 1) { <span class="mat-muted">–</span> } else { <span class="kk-ins">+@ver.WordsAdded</span> <span class="kk-del">−@ver.WordsRemoved</span> <span class="mat-muted">~@ver.WordsChanged</span> }</td>
