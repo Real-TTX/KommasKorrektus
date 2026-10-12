@@ -1,23 +1,25 @@
-/* The comparison of two texts in the browser, paragraph by paragraph and word by word: what the editor shows beside the text while somebody writes (what is different
-   from an earlier version, as it is now, not as it was saved). It follows the way a diff is made for a pull request:
+/* The comparison of two texts in the browser, paragraph by paragraph and word by word: what the editor shows beside the text while somebody writes (what differs from an
+   earlier version, as it is now, not as it was saved), and what the comparison page shows of two versions. It is the same comparison the server makes (DocumentDiff.cs in
+   KommasKorrektus.Core: same steps, same limits, same way of pairing, the same tokens), so that a text looks the same wherever it is compared; a test asks both
+   for the same answer (tests/js/parity.mjs, DiffParityTests). It follows the way a diff is made for a pull request:
 
    1. the paragraphs that are the same (Myers' algorithm, on the paragraphs as whole strings) are the anchors;
    2. between two anchors the paragraphs that are left are paired by what they have in common (a changed paragraph is a changed paragraph, not one taken away and one
-      new), the rest that stands opposite each other is a replacement, and what has no opposite is taken away or new;
+      new), and what has no partner is taken away or new;
    3. inside a changed paragraph the words are compared (Myers again, on the words).
 
    Pure functions, no page needed: window.KkTextDiff in the browser, module.exports for a test. */
 (function (root) {
   'use strict';
 
-  var SIMILAR = 0.45;          // how much two paragraphs have in common to be the same paragraph, changed
-  var HUNK_PAIRING = 3600;     // the biggest block of leftovers that is paired by similarity (old x new): a bigger one is paired in order
-  var PARAGRAPH_STEPS = 1500;  // how many differences Myers is allowed to look at before the paragraphs count as different from one another
-  var WORD_STEPS = 3000;
+  var SIMILAR = 0.35;          // how much two paragraphs have in common (shared words / all words) to be the same paragraph, changed
+  var PAIRING_LIMIT = 150;     // blocks of leftovers that are bigger than this in both directions are not paired (taken away and new)
+  var PAIRING_CELLS = 250000;  // the same for a block that is huge on one side: old x new, a limit for the browser (the server has none)
+  var MAX_DISTANCE = 3000;     // how many differences Myers is allowed to look at: more, and the middle is one deletion and one insertion
 
   /**
    * Myers' O(ND) algorithm on two arrays of numbers: the pairs [i, j] of equal elements that stay, in order, or null when there are more than
-   * <paramref name="limit"/> differences (the caller then gives up on the finer comparison).
+   * <paramref name="limit"/> differences (the caller then takes the whole middle as taken away and new).
    */
   function myers(a, b, limit) {
     var n = a.length;
@@ -65,101 +67,89 @@
     return [listA.map(number), listB.map(number)];
   }
 
-  // ------------------------------------------------------------------------------------------------ similarity of two paragraphs
-  var WORD = /[\p{L}\p{N}_]+/gu;
+  // ------------------------------------------------------------------------------------------------ the words
+  // Words, numbers, runs of blanks and single other characters: what the word-level comparison works on (the same pattern as DocumentDiff.TokenRegex).
+  var TOKEN = /[\p{L}\p{M}][\p{L}\p{M}\p{N}'’\-]*|\p{N}+(?:[.,]\p{N}+)*|[ \t ]+|\p{Zl}|[\s\S]/gu;
+  var WORD_CHARACTER = /[\p{L}\p{N}]/u;
 
-  function wordsOf(text) { return (text.toLowerCase().match(WORD) || []); }
+  function tokens(text) {
+    var list = [];
+    var found;
+    TOKEN.lastIndex = 0;
+    while ((found = TOKEN.exec(text)) !== null) { list.push({ t: found[0], s: found.index, e: found.index + found[0].length }); }
+    return list;
+  }
 
-  function profile(text, mode) {
+  function wordSet(text) {
     var set = new Set();
-    if (mode === 'words') {
-      wordsOf(text).forEach(function (w) { set.add(w); });
-    } else {
-      var flat = text.toLowerCase().replace(/\s+/g, ' ');
-      for (var i = 0; i + 1 < flat.length; i += 1) { set.add(flat.substr(i, 2)); }
-      if (flat.length === 1) { set.add(flat); }
-    }
+    tokens(text).forEach(function (token) { if (WORD_CHARACTER.test(token.t)) { set.add(token.t); } });
     return set;
   }
 
-  /** How much two texts have in common, from 0 to 1 (Dice's coefficient on their words, or on pairs of letters when they are short). */
-  function similarity(x, y) {
-    if (x === y) { return 1; }
-    if (x.length === 0 || y.length === 0) { return 0; }
-    var mode = Math.min(wordsOf(x).length, wordsOf(y).length) >= 4 ? 'words' : 'letters';
-    var a = profile(x, mode);
-    var b = profile(y, mode);
+  /** How much two sets of words have in common, from 0 to 1 (Dice's coefficient). */
+  function dice(a, b) {
+    if (a.size === 0 && b.size === 0) { return 1; }
     if (a.size === 0 || b.size === 0) { return 0; }
-    var common = 0;
-    a.forEach(function (g) { if (b.has(g)) { common += 1; } });
-    return (2 * common) / (a.size + b.size);
+    var shared = 0;
+    a.forEach(function (word) { if (b.has(word)) { shared += 1; } });
+    return (2 * shared) / (a.size + b.size);
   }
+
+  function similarity(x, y) { return x === y ? 1 : dice(wordSet(x), wordSet(y)); }
 
   // ------------------------------------------------------------------------------------------------ the paragraphs
-  /** The leftovers between two anchors: [pairs of indexes] of paragraphs that are the same one, changed (in order, as much as they have in common). */
-  function pairBySimilarity(oldText, newText, O, N) {
-    var rows = O.length;
-    var cols = N.length;
-    var sim = [];
-    for (var i = 0; i < rows; i += 1) {
-      sim.push([]);
-      for (var j = 0; j < cols; j += 1) { sim[i].push(similarity(oldText[O[i]], newText[N[j]])); }
-    }
-    // the best order-keeping pairing (like the longest common subsequence, with the similarity as the weight)
-    var best = [];
-    for (var a = 0; a <= rows; a += 1) { best.push(new Float64Array(cols + 1)); }
-    for (var r = 1; r <= rows; r += 1) {
-      for (var c = 1; c <= cols; c += 1) {
-        var take = sim[r - 1][c - 1] >= SIMILAR ? best[r - 1][c - 1] + sim[r - 1][c - 1] : -1;
-        best[r][c] = Math.max(best[r - 1][c], best[r][c - 1], take);
-      }
-    }
-    var pairs = [];
-    var ri = rows;
-    var ci = cols;
-    while (ri > 0 && ci > 0) {
-      var here = best[ri][ci];
-      if (sim[ri - 1][ci - 1] >= SIMILAR && here === best[ri - 1][ci - 1] + sim[ri - 1][ci - 1] && here > best[ri - 1][ci] && here > best[ri][ci - 1]) {
-        pairs.push([ri - 1, ci - 1]);
-        ri -= 1;
-        ci -= 1;
-      } else if (best[ri - 1][ci] >= best[ri][ci - 1]) {
-        ri -= 1;
-      } else {
-        ci -= 1;
-      }
-    }
-    return pairs.reverse();
-  }
-
-  /** What is left of a stretch of paragraphs between two anchors: changed ones, replacements (standing opposite each other), taken away, new. */
+  /** What is left of a stretch of paragraphs between two anchors: changed ones (paired by what they have in common), taken away, new, in the order of the pages. */
   function hunk(oldText, newText, O, N, out) {
-    if (O.length === 0 || N.length === 0) {
-      O.forEach(function (o) { out.push({ o: o, n: null, kind: 'del' }); });
-      N.forEach(function (n) { out.push({ o: null, n: n, kind: 'ins' }); });
+    var n = O.length;
+    var m = N.length;
+    var del = function (i) { out.push({ o: O[i], n: null, kind: 'del' }); };
+    var ins = function (j) { out.push({ o: null, n: N[j], kind: 'ins' }); };
+    var mod = function (i, j) { out.push({ o: O[i], n: N[j], kind: 'mod' }); };
+    var x;
+    var y;
+    if (n === 0) { for (y = 0; y < m; y += 1) { ins(y); } return; }
+    if (m === 0) { for (x = 0; x < n; x += 1) { del(x); } return; }
+    if ((n > PAIRING_LIMIT && m > PAIRING_LIMIT) || n * m > PAIRING_CELLS) {
+      for (x = 0; x < n; x += 1) { del(x); }
+      for (y = 0; y < m; y += 1) { ins(y); }
       return;
     }
-    var pairs = O.length * N.length <= HUNK_PAIRING ? pairBySimilarity(oldText, newText, O, N) : [];
-    var po = 0;
-    var pn = 0;
-    var rest = function (toO, toN) {
-      var count = Math.min(toO - po, toN - pn);
-      for (var k = 0; k < count; k += 1) { out.push({ o: O[po + k], n: N[pn + k], kind: 'repl' }); }
-      for (var x = po + count; x < toO; x += 1) { out.push({ o: O[x], n: null, kind: 'del' }); }
-      for (var y = pn + count; y < toN; y += 1) { out.push({ o: null, n: N[y], kind: 'ins' }); }
-    };
-    pairs.forEach(function (pair) {
-      rest(pair[0], pair[1]);
-      out.push({ o: O[pair[0]], n: N[pair[1]], kind: 'mod' });
-      po = pair[0] + 1;
-      pn = pair[1] + 1;
-    });
-    rest(O.length, N.length);
+
+    var oldSets = O.map(function (i) { return wordSet(oldText[i]); });
+    var newSets = N.map(function (j) { return wordSet(newText[j]); });
+    var sim = [];
+    var score = [];
+    for (x = 0; x <= n; x += 1) { score.push(new Float64Array(m + 1)); }
+    for (x = 0; x < n; x += 1) {
+      sim.push(new Float64Array(m));
+      for (y = 0; y < m; y += 1) { sim[x][y] = dice(oldSets[x], newSets[y]); }
+    }
+    // the best order-keeping pairing (like the longest common subsequence, with the similarity as the weight)
+    for (x = n - 1; x >= 0; x -= 1) {
+      for (y = m - 1; y >= 0; y -= 1) {
+        var best = Math.max(score[x + 1][y], score[x][y + 1]);
+        if (sim[x][y] >= SIMILAR) { best = Math.max(best, score[x + 1][y + 1] + sim[x][y]); }
+        score[x][y] = best;
+      }
+    }
+
+    // Nothing is alike, but as many paragraphs went as came: a paragraph that was written over completely is still the same paragraph, in the same place.
+    var alike = false;
+    for (x = 0; x < n && !alike; x += 1) { for (y = 0; y < m; y += 1) { if (sim[x][y] >= SIMILAR) { alike = true; break; } } }
+    if (!alike && n === m) { for (x = 0; x < n; x += 1) { mod(x, x); } return; }
+
+    var a = 0;
+    var b = 0;
+    while (a < n || b < m) {
+      if (a < n && b < m && sim[a][b] >= SIMILAR && Math.abs(score[a][b] - (score[a + 1][b + 1] + sim[a][b])) < 1e-9) { mod(a, b); a += 1; b += 1; }
+      else if (a < n && (b >= m || Math.abs(score[a][b] - score[a + 1][b]) < 1e-9)) { del(a); a += 1; }
+      else { ins(b); b += 1; }
+    }
   }
 
   /**
    * Two lists of paragraphs (texts) as rows, in the order of the page: { o, n, kind } with the index in the old list (or null), the index in the new list (or null) and
-   * the kind: "same", "mod" (the same paragraph, changed), "repl" (a replacement: they stand opposite each other, no more), "del" (taken away), "ins" (new).
+   * the kind: "same", "mod" (the same paragraph, changed), "del" (taken away), "ins" (new).
    */
   function compare(oldText, newText) {
     var rows = [];
@@ -172,7 +162,7 @@
     var oldMid = oldText.slice(start, n - tail);
     var newMid = newText.slice(start, m - tail);
     var ids = idsOf(oldMid, newMid);
-    var matches = myers(ids[0], ids[1], PARAGRAPH_STEPS) || [];
+    var matches = myers(ids[0], ids[1], MAX_DISTANCE) || [];
     var io = 0;
     var jn = 0;
     var range = function (from, to) { var list = []; for (var x = from; x < to; x += 1) { list.push(x + start); } return list; };
@@ -188,16 +178,6 @@
   }
 
   // ------------------------------------------------------------------------------------------------ the words of a changed paragraph
-  var TOKEN = /\s+|[\p{L}\p{N}_]+(?:['’-][\p{L}\p{N}_]+)*|[^\s\p{L}\p{N}_]/gu;
-
-  function tokens(text) {
-    var list = [];
-    var found;
-    TOKEN.lastIndex = 0;
-    while ((found = TOKEN.exec(text)) !== null) { list.push({ t: found[0], s: found.index, e: found.index + found[0].length }); }
-    return list;
-  }
-
   /** Ranges [start, end) of the tokens that are not in the matches, merged where they touch. */
   function gaps(list, matched, side) {
     var keep = new Set(matched.map(function (pair) { return pair[side]; }));
@@ -221,7 +201,7 @@
     var midA = a.slice(start, a.length - tail);
     var midB = b.slice(start, b.length - tail);
     var ids = idsOf(midA.map(function (t) { return t.t; }), midB.map(function (t) { return t.t; }));
-    var matches = myers(ids[0], ids[1], WORD_STEPS);
+    var matches = myers(ids[0], ids[1], MAX_DISTANCE);
     if (matches === null) { matches = []; }
     return { del: gaps(midA, matches, 0), ins: gaps(midB, matches, 1) };
   }

@@ -366,6 +366,8 @@
       }
     },
     unmount: function () { clearTimeout(burstTimer); burstTimer = null; parasElement.textContent = ''; },
+    /** The size of the writing changed: the boxes of the paragraphs are made to fit again (where the browser does not do it by itself). */
+    refit: function () { paragraphs().forEach(function (p) { autosize(textareaOf(p)); }); },
     texts: textSnapshot,
     count: function () { return parasElement.children.length; },
     textAt: function (i) { var p = parasElement.children[i]; return p ? textareaOf(p).value : ''; },
@@ -684,6 +686,43 @@
     else if (view && view.keys && (key === 'y' || (key === 'z' && event.shiftKey))) { event.preventDefault(); view.redo(); }
   });
 
+  // ================================================================================================ the size of the writing
+  // 100 % is the text and the page the way they were made for (the page fitted to the width of the window); the person can make the writing bigger or smaller, which is
+  // kept with the account (the comparison of two pages uses the same size). It is a factor: the text view scales its letters, the page view its zoom.
+  var zoom = window.KkZoom.clean(data.options && data.options.zoom);
+  var zoomOut = document.getElementById('editor-zoom-out');
+  var zoomIn = document.getElementById('editor-zoom-in');
+  var zoomValue = document.getElementById('editor-zoom-value');
+
+  function scale() { return zoom / 100; }
+
+  function applyZoom() {
+    host.style.setProperty('--kk-zoom', String(scale()));
+    if (zoomValue) { zoomValue.textContent = zoom + ' %'; }
+    if (zoomOut) { zoomOut.disabled = !window.KkZoom.next(zoom, -1); }
+    if (zoomIn) { zoomIn.disabled = !window.KkZoom.next(zoom, 1); }
+    if (view && view.refit) { view.refit(); }
+    refFit();
+    scheduleRefresh();
+  }
+
+  function setZoom(next) {
+    if (next === zoom) { return; }
+    zoom = next;
+    applyZoom();
+    post('View', { zoom: zoom }).catch(function () { /* it is only not remembered */ });
+  }
+
+  function stepZoom(direction) { var next = window.KkZoom.next(zoom, direction); if (next) { setZoom(next); } }
+
+  /** Alt + plus / minus / 0 (by the character, with the number block as a second way: the keys of the signs are not in the same place on every keyboard). */
+  function zoomKey(event) {
+    if (event.key === '+' || event.key === '=' || event.code === 'NumpadAdd') { return 1; }
+    if (event.key === '-' || event.key === '_' || event.code === 'NumpadSubtract') { return -1; }
+    if (event.key === '0' || event.code === 'Digit0' || event.code === 'Numpad0') { return 0; }
+    return null;
+  }
+
   // The shortcuts of the editor are Alt + a letter: Ctrl + Alt is AltGr on a German keyboard (it types @, €, { ...), and Alt alone is free in the
   // browsers. They go by the position of the key (code), so that they work with any layout. The list is in the dialog "Tastenkürzel".
   var HOTKEYS = {
@@ -710,6 +749,10 @@
     if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && HOTKEYS[event.code]) {
       event.preventDefault();
       HOTKEYS[event.code]();
+    } else if (event.altKey && !event.ctrlKey && !event.metaKey && zoomKey(event) !== null) {
+      event.preventDefault();
+      var direction = zoomKey(event);
+      if (direction === 0) { setZoom(100); } else { stepZoom(direction); }
     } else if (event.key === 'F3' && !event.altKey && !event.ctrlKey && !event.metaKey) {
       event.preventDefault();
       findAgain(event.shiftKey);
@@ -1141,15 +1184,12 @@
   var refFrom = cleanChoice(data.options && data.options.referenceFrom);   // "previous", "round", "original" or the number of a version (kept with the account)
   var refTicket = 0;
   var refVersion = { from: 0, to: 0 };
-  var refOld = null;         // the earlier page as it was drawn: its paragraphs (the elements) and their texts
+  var refSide = window.KkSideBySide ? window.KkSideBySide.create({ editable: true }) : null;   // compares, marks and lines up (sidebyside.js, shared with the comparison page)
+  var refLoaded = false;     // the earlier page is drawn
   var refFrame = 0;
   var refTimerSoon = null;
-  var alignSheet = null;     // the room on the side of the text: rules of a constructable stylesheet (the policy of the site forbids style attributes in markup)
-  var canHighlight = typeof CSS !== 'undefined' && !!CSS.highlights && typeof Highlight !== 'undefined';
 
   function cleanChoice(value) { return value === 'round' || value === 'original' || (value && /^\d{1,6}$/.test(String(value))) ? String(value) : 'previous'; }
-
-  function zoomOf(element) { var z = parseFloat(element.style.zoom); return z > 0 ? z : 1; }
 
   function refFit() {
     var sheet = refBody ? refBody.querySelector('.kk-sheet') : null;
@@ -1157,121 +1197,23 @@
     sheet.style.zoom = '';
     var wanted = sheet.offsetWidth;
     var available = refBody.clientWidth - 24;
-    sheet.style.zoom = wanted > available && available > 0 ? String(Math.max(0.3, available / wanted)) : '';
-  }
-
-  // What the page shows of the comparison is taken away again before it is drawn anew: the room made for the lining up, the marks of the paragraphs and of the words.
-  function clearMarks() {
-    if (alignSheet) { alignSheet.replaceSync(''); }
-    if (canHighlight) { CSS.highlights.delete('kk-removed'); CSS.highlights.delete('kk-added'); }
-    if (!refBody) { return; }
-    Array.prototype.forEach.call(refBody.querySelectorAll('.kk-aligner'), function (node) { node.remove(); });
-    Array.prototype.forEach.call(refBody.querySelectorAll('.kk-gone'), function (node) { node.classList.remove('kk-gone'); });
-    if (view && view.name === 'page') {
-      for (var i = 0; i < view.count(); i += 1) { var p = view.element(i); if (p) { p.classList.remove('kk-new'); } }
-    }
-  }
-
-  function rangeIn(tools, paragraph, from, to) {
-    var a = tools.locate(paragraph, from);
-    var b = tools.locate(paragraph, to);
-    var range = document.createRange();
-    range.setStart(a.node, a.offset);
-    range.setEnd(b.node, b.offset);
-    return range;
+    var zoom = (wanted > available && available > 0 ? Math.max(0.3, available / wanted) : 1) * scale();   // the same size of the writing as the text beside it
+    sheet.style.zoom = Math.abs(zoom - 1) < 0.001 ? '' : String(zoom);
   }
 
   /**
-   * Everything that depends on the text as it is now, drawn anew: the text is compared with the earlier version (paragraph by paragraph, word by word: textdiff.js),
-   * what was taken away is marked on the earlier page, what is new on the text, and the two are lined up so that the paragraphs that belong together stand across from each
-   * other. It is meant to run on every change: it costs a comparison and a few measurements.
+   * Everything that depends on the text as it is now, drawn anew: the text is compared with the earlier version (paragraph by paragraph, word by word), what was taken away
+   * is marked on the earlier page, what is new on the text, and the two are lined up so that the paragraphs that belong together stand across from each other. It is meant
+   * to run on every change: it costs a comparison and a few measurements.
    */
   function refreshReference() {
     refFrame = 0;
-    if (!refShown || !view || view.name !== 'page' || !refBody || !refOld || !window.KkTextDiff) { return; }
-    var tools = views.page.tools;
-    tools.renumber();
-    clearMarks();
-    var count = view.count();
-    var newTexts = [];
-    for (var i = 0; i < count; i += 1) { newTexts.push(view.textAt(i)); }
-    var rows = window.KkTextDiff.compare(refOld.texts, newTexts);
-
-    var removed = [];
-    var added = [];
-    var pairs = [];
-    rows.forEach(function (row) {
-      var theirs = row.o === null ? null : refOld.els[row.o];
-      var mine = row.n === null ? null : view.element(row.n);
-      if (row.kind === 'mod' && canHighlight) {
-        var found = window.KkTextDiff.words(refOld.texts[row.o], newTexts[row.n]);
-        found.del.forEach(function (r) { removed.push(rangeIn(tools, theirs, r[0], r[1])); });
-        found.ins.forEach(function (r) { added.push(rangeIn(tools, mine, r[0], r[1])); });
-      } else if (row.kind !== 'same' && row.kind !== 'mod') {
-        if (theirs) { theirs.classList.add('kk-gone'); }
-        if (mine) { mine.classList.add('kk-new'); }
-      }
-      if (theirs && mine) { pairs.push({ theirs: theirs, mine: mine, index: row.n }); }
-    });
-    if (canHighlight) {
-      if (removed.length > 0) { CSS.highlights.set('kk-removed', new Highlight(...removed)); }
-      if (added.length > 0) { CSS.highlights.set('kk-added', new Highlight(...added)); }
-    }
-    alignPairs(pairs);
-  }
-
-  /**
-   * Lines the paragraphs that belong together up. Between two pairs one side may have more (a paragraph that was taken away, a longer one, one more that was just
-   * written): the other side gets that much room before its next paragraph. The text is the one that is written in, so its room is a rule of a stylesheet, not a
-   * change of the page; the earlier page gets a spacer.
-   */
-  function alignPairs(pairs) {
-    if (pairs.length === 0 || typeof CSSStyleSheet === 'undefined' || !CSSStyleSheet.prototype.replaceSync) { return; }
-    var paneSheet = refBody.querySelector('.kk-sheet');
-    var editSheet = pairs[0].mine.closest('.kk-sheet');
-    if (!paneSheet || !editSheet || editSheet.getBoundingClientRect().left === paneSheet.getBoundingClientRect().left) { return; }   // stacked, not side by side
-    var zp = zoomOf(paneSheet);
-    var ze = zoomOf(editSheet);
-    if (!alignSheet) { alignSheet = new CSSStyleSheet(); document.adoptedStyleSheets = document.adoptedStyleSheets.concat([alignSheet]); }
-    var count = pairs.length;
-
-    // the room each paragraph of the text has before it now (a margin that is bigger than this one stands in for the next paragraph's own)
-    var gaps = pairs.map(function (pair) {
-      var before = pair.mine.previousElementSibling;
-      return before ? (pair.mine.getBoundingClientRect().top - before.getBoundingClientRect().bottom) / ze : parseFloat(getComputedStyle(pair.mine).marginTop) || 0;
-    });
-    var roomTheirs = new Array(count).fill(0);
-    var roomMine = new Array(count).fill(0);
-
-    function apply() {
-      Array.prototype.forEach.call(refBody.querySelectorAll('.kk-aligner'), function (node) { node.remove(); });
-      var rules = [];
-      for (var k = 0; k < count; k += 1) {
-        if (roomTheirs[k] > 0.4) {
-          var spacer = el('div', 'kk-aligner');
-          spacer.style.height = (roomTheirs[k] / zp) + 'px';
-          pairs[k].theirs.parentNode.insertBefore(spacer, pairs[k].theirs);
-        }
-        if (roomMine[k] > 0.4) { rules.push('.kk-sheet[contenteditable] p.kk-lp[data-n="' + (pairs[k].index + 1) + '"] { margin-top: ' + (gaps[k] + roomMine[k] / ze) + 'px; }'); }
-      }
-      alignSheet.replaceSync(rules.join('\n'));
-    }
-
-    // From the first look at the page, and twice more should a margin not have done exactly what was asked: where the text lies lower than its counterpart by more
-    // than it did at the pair before, the earlier version gets room there, and the other way round.
-    for (var pass = 0; pass < 3; pass += 1) {
-      var before = 0;
-      var changed = false;
-      var offsets = [];
-      for (var j = 0; j < count; j += 1) { offsets.push(pairs[j].mine.getBoundingClientRect().top - pairs[j].theirs.getBoundingClientRect().top); }
-      for (var k = 0; k < count; k += 1) {
-        var step = offsets[k] - before;
-        before = offsets[k];
-        if (step > 0.5) { roomTheirs[k] += step; changed = true; } else if (step < -0.5) { roomMine[k] += -step; changed = true; }
-      }
-      if (!changed) { break; }
-      apply();
-    }
+    if (!refShown || !view || view.name !== 'page' || !refLoaded || !refSide) { return; }
+    views.page.tools.renumber();
+    var els = [];
+    var texts = [];
+    for (var i = 0; i < view.count(); i += 1) { els.push(view.element(i)); texts.push(view.textAt(i)); }
+    refSide.refresh(els, texts);
   }
 
   function scheduleRefresh() {
@@ -1309,8 +1251,8 @@
           fill(group, r.versions);
           refSelect.appendChild(group);
         }
-        clearMarks();
-        refOld = null;
+        if (refSide) { refSide.setOld(null); }
+        refLoaded = false;
         refBody.textContent = '';
         if (r.empty) {
           refNote.textContent = '';
@@ -1331,11 +1273,9 @@
         desk.appendChild(sheet);
         refBody.appendChild(desk);
         refFit();
-        // the same paragraphs the text has (notes have no number); the ids would be there twice on the page
-        var els = Array.prototype.slice.call(sheet.querySelectorAll('p.kk-lp[data-n]'));
-        els.forEach(function (p) { p.removeAttribute('id'); });
-        var tools = views.page.tools;
-        refOld = { els: els, texts: els.map(function (p) { return tools.displayOf(p); }) };
+        // the ids of the paragraphs would be there twice on the page
+        Array.prototype.forEach.call(sheet.querySelectorAll('p.kk-lp[id]'), function (p) { p.removeAttribute('id'); });
+        if (refSide) { refSide.setOld(sheet); refLoaded = true; }
         refNote.textContent = 'Fassung ' + r.from + ' neben deinem Text: rot ist, was dort weggefallen ist, grün, was bei dir neu ist. Es folgt jedem Tastendruck.';
         // the stylesheet of the page has to be there before anything is measured
         var ready = function () { scheduleRefresh(); };
@@ -1354,7 +1294,7 @@
     refPane.hidden = !show;
     refBar.hidden = !show;
     host.classList.toggle('has-reference', show);
-    if (show) { refLoad(); } else { clearMarks(); }
+    if (show) { refLoad(); } else if (refSide) { refSide.clear(); }
   }
 
   function toggleReference(on) {
@@ -1402,6 +1342,11 @@
   wire('editor-fullscreen-menu', toggleFullscreen);
   wire('style-add', openStyle);
   wire('editor-reference-toggle', function () { toggleReference(); });
+  wire('editor-zoom-out', function () { stepZoom(-1); });
+  wire('editor-zoom-in', function () { stepZoom(1); });
+  wire('editor-zoom-value', function () { setZoom(100); });
+  wire('editor-zoom-in-menu', function () { stepZoom(1); });
+  wire('editor-zoom-out-menu', function () { stepZoom(-1); });
 
   // An export is made of the saved text: what is typed and not yet saved goes first, then the file comes.
   function afterSave() {
@@ -1449,6 +1394,7 @@
   // ================================================================================================ start
   /** What the other view needs from this one. */
   window.KkEditor = {
+    scale: scale,
     data: data,
     host: host,
     parasElement: parasElement,
@@ -1476,6 +1422,7 @@
   };
 
   function start() {
+    applyZoom();
     var wanted = storedView();
     var first = wanted !== 'text' && views.page ? 'page' : 'text';
     view = null;

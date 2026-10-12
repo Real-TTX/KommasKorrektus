@@ -25,7 +25,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
 
     public sealed record LayoutRequest(string[] Paragraphs);
 
-    public sealed record ViewRequest(string? View, bool? Reference, bool? Side, string? ReferenceFrom);
+    public sealed record ViewRequest(string? View, bool? Reference, bool? Side, string? ReferenceFrom, int? Zoom = null);
 
     public sealed record StyleRequest(string? Category, string? Term, string? Decision, string? Note);
 
@@ -79,7 +79,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         {
             documentId = document.Id,
             view = views.Editor,
-            options = new { reference = views.Options.Reference, side = views.Options.Side, referenceFrom = ViewPreferences.CleanReferenceFrom(views.Options.ReferenceFrom) },
+            options = new { reference = views.Options.Reference, side = views.Options.Side, referenceFrom = ViewPreferences.CleanReferenceFrom(views.Options.ReferenceFrom), zoom = ViewPreferences.CleanZoom(views.Options.Zoom) },
             kind = document.Kind.ToString(),
             versionNo = version.VersionNo,
             versionName = VersionTitle,
@@ -253,7 +253,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
     public async Task<IActionResult> OnPostViewAsync([FromBody] ViewRequest request)
     {
         var saved = await ViewPreferences.SetEditorAsync(db, current.UserId, request.View, HttpContext.RequestAborted);
-        saved |= await ViewPreferences.SetOptionsAsync(db, current.UserId, request.Reference, request.Side, request.ReferenceFrom, HttpContext.RequestAborted);
+        saved |= await ViewPreferences.SetOptionsAsync(db, current.UserId, request.Reference, request.Side, request.ReferenceFrom, request.Zoom, HttpContext.RequestAborted);
         return saved ? new JsonResult(new { ok = true }) : BadRequest();
     }
 

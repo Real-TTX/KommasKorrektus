@@ -84,6 +84,47 @@ public sealed class ViewPreferenceTests : IClassFixture<AppFixture>
     }
 
     [DatabaseFact]
+    public async Task The_size_of_the_writing_is_kept_with_the_account_and_the_comparison_uses_it()
+    {
+        await _app.EnsureAdminAsync();
+        var (_, _, document) = await _app.CreateCustomerWithDocumentAsync("Groesse");
+        await _app.CreateUserAsync("groesse-eins@example.test", "Eins-Passwort-2026", UserRole.User);
+        using var client = await SignedInAsync("groesse-eins@example.test", "Eins-Passwort-2026");
+        var editor = $"/Documents/Editor?id={document.Id}";
+        var compare = $"/Documents/Compare?id={document.Id}&from=1&to=2&mode=pages";
+
+        string ZoomOf(string html) => Regex.Match(html, "\"zoom\":(\\d+)").Groups[1].Value;
+        async Task<HttpStatusCode> PostAsync(string page, string handler, object body)
+        {
+            var token = await AppFixture.TokenAsync(client, page);
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{page}{(page.Contains('?') ? "&" : "?")}handler={handler}") { Content = JsonContent.Create(body) };
+            request.Headers.Add("RequestVerificationToken", token);
+            return (await client.SendAsync(request)).StatusCode;
+        }
+
+        // the size the page and the text were made for, until somebody chooses another
+        Assert.Equal("100", ZoomOf(await client.GetStringAsync(editor)));
+        Assert.Contains("data-scale=\"1\"", await client.GetStringAsync(compare));
+
+        Assert.Equal(HttpStatusCode.OK, await PostAsync(editor, "View", new { zoom = 125 }));
+        Assert.Equal("125", ZoomOf(await client.GetStringAsync(editor)));
+        var pages = await client.GetStringAsync(compare);
+        Assert.Contains("data-scale=\"1.25\"", pages);
+        Assert.Contains("data-zoom=\"125\"", pages);
+
+        // the comparison can change it too, and it is the same choice; what is not one of the sizes is refused
+        Assert.Equal(HttpStatusCode.OK, await PostAsync(compare, "Zoom", new { zoom = 90 }));
+        Assert.Equal("90", ZoomOf(await client.GetStringAsync(editor)));
+        Assert.Equal(HttpStatusCode.BadRequest, await PostAsync(compare, "Zoom", new { zoom = 130 }));
+        Assert.Equal(HttpStatusCode.BadRequest, await PostAsync(editor, "View", new { zoom = 5000 }));
+        Assert.Equal("90", ZoomOf(await client.GetStringAsync(editor)));
+
+        // the other things the editor keeps stay as they were
+        Assert.Equal(HttpStatusCode.OK, await PostAsync(editor, "View", new { reference = true }));
+        Assert.Equal("90", ZoomOf(await client.GetStringAsync(editor)));
+    }
+
+    [DatabaseFact]
     public async Task A_comparison_opens_the_way_the_account_looked_at_one_last()
     {
         await _app.EnsureAdminAsync();
@@ -97,6 +138,13 @@ public sealed class ViewPreferenceTests : IClassFixture<AppFixture>
         Assert.Contains("kk-pages", pages);
         Assert.Contains("kk-desk--old", pages);
         Assert.Contains("kk-desk--new", pages);
+
+        // the pages are the pages as they were (nothing marked, nothing folded away): what differs is found in the browser, the same way as in the editor
+        Assert.Contains("data-n=\"1\"", pages);
+        Assert.DoesNotContain("<ins", pages);
+        Assert.DoesNotContain("<del", pages);
+        Assert.DoesNotContain("kk-diff__gap", pages);
+        Assert.Contains("compare-pages.js", pages);
 
         // a choice sticks without being named again
         Assert.Contains("kk-diff--side", await client.GetStringAsync(url + "&mode=side"));

@@ -52,6 +52,23 @@ public sealed class CompareModel(KkDbContext db, DocumentService documents, Layo
 
     public PagePayload? Sheet { get; private set; }
 
+    /// <summary>The page of the old and of the new version as they were (two pages next to each other: what differs is found in the browser).</summary>
+    public PagePayload? FromSheet { get; private set; }
+
+    public PagePayload? ToSheet { get; private set; }
+
+    /// <summary>The size of the writing the person chose (percent), kept with the account and the same as in the editor.</summary>
+    public int Zoom { get; private set; } = ViewPreferences.DefaultZoom;
+
+    public sealed record ZoomRequest(int Zoom);
+
+    /// <summary>The person chose another size of the writing: it is kept with the account.</summary>
+    public async Task<IActionResult> OnPostZoomAsync([FromBody] ZoomRequest request)
+    {
+        var saved = await ViewPreferences.SetOptionsAsync(db, current.UserId, reference: null, side: null, zoom: request.Zoom, ct: HttpContext.RequestAborted);
+        return saved ? new JsonResult(new { ok = true }) : BadRequest();
+    }
+
     public List<LayoutItem> PageItems { get; private set; } = [];
 
     private List<T> Slice<T>(List<T> all, int size, out int page)
@@ -81,6 +98,8 @@ public sealed class CompareModel(KkDbContext db, DocumentService documents, Layo
         }
 
         // The way of looking is kept with the account: without a choice in the address the person gets what they chose last, and a choice is remembered.
+        var views = await ViewPreferences.GetAsync(db, current.UserId, HttpContext.RequestAborted);
+        Zoom = ViewPreferences.CleanZoom(views.Options.Zoom);
         if (Request.Query.ContainsKey("mode"))
         {
             Mode = ViewPreferences.CompareViews.Contains(Mode) ? Mode : ViewPreferences.DefaultCompareView;
@@ -88,7 +107,7 @@ public sealed class CompareModel(KkDbContext db, DocumentService documents, Layo
         }
         else
         {
-            Mode = (await ViewPreferences.GetAsync(db, current.UserId, HttpContext.RequestAborted)).Compare;
+            Mode = views.Compare;
         }
 
         var title = $"Vergleich: {document.Title}";
@@ -102,7 +121,20 @@ public sealed class CompareModel(KkDbContext db, DocumentService documents, Layo
 
         var (diff, stats) = await documents.CompareAsync(document, From, To, HttpContext.RequestAborted);
         Stats = stats;
-        if ((PageView || PagesView) && stats.HasChanges)
+        if (PagesView && stats.HasChanges)
+        {
+            var fromVersion = await documents.GetVersionAsync(document.Id, From, HttpContext.RequestAborted);
+            var toVersion = await documents.GetVersionAsync(document.Id, To, HttpContext.RequestAborted);
+            if (fromVersion is not null && toVersion is not null)
+            {
+                FromSheet = await layouts.ForVersionAsync(document, fromVersion, editable: false, HttpContext.RequestAborted);
+                ToSheet = await layouts.ForVersionAsync(document, toVersion, editable: false, HttpContext.RequestAborted);
+                Pager = new PagerModel { Page = 1, PageSize = PageBlocks, Total = 0, Url = p => Url.Page("/Documents/Compare", new { id = Id, from = From, to = To, mode = Mode, page = p })! };
+                return Page();
+            }
+        }
+
+        if (PageView && stats.HasChanges)
         {
             // The page is longer than the paragraphs it holds (pictures, tables): fewer blocks to a page.
             Sheet = await layouts.ForChangesAsync(document, From, To, HttpContext.RequestAborted);

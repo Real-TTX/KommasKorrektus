@@ -69,16 +69,26 @@ public static class LayoutView
     }
 
     /// <summary>
-    /// The stylesheet and the page. <paramref name="withNotes"/> puts the footnotes at the end (on the last page of a long text). <paramref name="side"/> ("old" or "new")
-    /// draws one of two pages next to each other from the same markup of the changes: the old page shows what was taken away, the new one what was added.
+    /// One of two pages next to each other (the comparison): the page of a version as it was, nothing marked. What differs is found in the browser from the two texts
+    /// (sidebyside.js), the same way as in the editor with an earlier version beside the text, so that the two look alike. <paramref name="side"/> is "old" or "new",
+    /// <paramref name="zoom"/> the size of the writing in percent (the person's choice).
     /// </summary>
-    public static IHtmlContent Render(PagePayload page, IEnumerable<LayoutItem> items, bool withNotes, bool diff = false, string? side = null)
+    public static IHtmlContent Plain(PagePayload page, string side, int zoom = 100)
     {
         var sb = new StringBuilder();
         sb.Append("<link rel=\"stylesheet\" href=\"").Append(WebUtility.HtmlEncode(page.CssUrl)).Append("\">");
-        sb.Append("<div class=\"kk-desk kk-desk--read").Append(side is null ? string.Empty : " kk-desk--" + side).Append("\" data-fit");
-        // the jump from change to change goes through the new page when there are two
-        if (diff && side != "old")
+        sb.Append("<div class=\"kk-desk kk-desk--read kk-desk--").Append(side).Append("\" data-fit data-scale=\"").Append(zoom / 100d == 1 ? "1" : (zoom / 100d).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)).Append("\"><div class=\"kk-sheet kk-sheet--read ").Append(page.Layout.PageClass).Append("\">");
+        sb.Append(page.Html).Append("</div></div>");
+        return new HtmlString(sb.ToString());
+    }
+
+    /// <summary>The stylesheet and the page. <paramref name="withNotes"/> puts the footnotes at the end (on the last page of a long text).</summary>
+    public static IHtmlContent Render(PagePayload page, IEnumerable<LayoutItem> items, bool withNotes, bool diff = false)
+    {
+        var sb = new StringBuilder();
+        sb.Append("<link rel=\"stylesheet\" href=\"").Append(WebUtility.HtmlEncode(page.CssUrl)).Append("\">");
+        sb.Append("<div class=\"kk-desk kk-desk--read\" data-fit");
+        if (diff)
         {
             sb.Append(" id=\"diff\" data-diff");
         }

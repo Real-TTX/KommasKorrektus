@@ -56,9 +56,9 @@ test('Backspace joining two paragraphs: one is the old one changed, one is gone'
   assert.equal(rows.slice(1, 3).map(r => r.kind).sort().join(','), 'del,mod');
   assert.deepEqual([rows[3].o, rows[3].n], [3, 2]);
 });
-test('a paragraph written anew is a replacement: the two stand across from each other', () => {
+test('a paragraph written anew is the same paragraph, changed: the two stand across from each other', () => {
   const rows = D.compare([A, B, C], [A, 'Ganz etwas anderes, das nichts mit dem Alten zu tun hat.', C]);
-  assert.equal(kinds(rows), 'same:0/0 repl:1/1 same:2/2');
+  assert.equal(kinds(rows), 'same:0/0 mod:1/1 same:2/2');
 });
 test('a changed word makes the paragraph a changed one (and the words are found)', () => {
   const changed = B.replace('betawort3', 'etwas anderes');
@@ -70,7 +70,7 @@ test('a changed word makes the paragraph a changed one (and the words are found)
 });
 test('empty paragraphs do not confuse the pairing', () => {
   const rows = D.compare([A, '', B, '', C], [A, '', B, '', 'Neu eingefügt.', '', C]);
-  assert.equal(rows.filter(r => r.kind === 'ins').length + rows.filter(r => r.kind === 'repl').length >= 1, true);
+  assert.equal(rows.filter(r => r.kind === 'ins').length >= 1, true);
   assert.deepEqual(rows.filter(r => r.o !== null).map(r => r.o), [0, 1, 2, 3, 4]);
   assert.deepEqual(rows.filter(r => r.n !== null).map(r => r.n), [0, 1, 2, 3, 4, 5, 6]);
 });

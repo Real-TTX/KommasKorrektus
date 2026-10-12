@@ -8,13 +8,12 @@
     @Html.AntiForgeryToken()
     <script type="application/json" id="editor-data">@Html.Raw(Model.DataJson)</script>
 
-        @* The two ways to get room are fixed in the corner of the window at the top right, outside the bar (a bar that sticks makes a layer of its own, and the top bar would lie over them). *@
+    <div class="kk-editor__bar mat-card">
+        @* The two ways to get room sit in the top right corner of the box (the bar), the same place whether the menus are there or not. *@
         <div class="kk-editor__size">
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-maximize" aria-pressed="false" aria-label="Maximieren: im Browserfenster groß, alle Menüs weg (Alt+V)" data-tip="Maximieren: alle Menüs weg (Alt+V)"><span data-icon-state="off">@Ui.Icon("maximize-2")</span><span data-icon-state="on" hidden>@Ui.Icon("minimize-2")</span></button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-fullscreen" aria-pressed="false" aria-label="Vollbild: der ganze Bildschirm (Alt+B)" data-tip="Vollbild: der ganze Bildschirm (Alt+B)"><span data-icon-state="off">@Ui.Icon("maximize")</span><span data-icon-state="on" hidden>@Ui.Icon("minimize")</span></button>
         </div>
-
-    <div class="kk-editor__bar mat-card">
         <div class="kk-editor__head">
             <div class="kk-editor__title">
                 <h1>@d.Title</h1>
@@ -29,6 +28,11 @@
             <div class="mat-seg" role="group" aria-label="Ansicht">
                 <button type="button" class="mat-seg__btn" data-view="text" aria-pressed="true" data-tip="Nur der Text (Alt+W)">@Ui.Icon("type")<span>Text</span></button>
                 <button type="button" class="mat-seg__btn" data-view="page" aria-pressed="false" disabled data-tip="Die Seite wie im Original (Alt+W)">@Ui.Icon("file")<span>Seite</span></button>
+            </div>
+            <div class="kk-zoom" role="group" aria-label="Schriftgröße">
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-zoom-out" aria-label="Schrift kleiner (Alt + Minus)" data-tip="Schrift kleiner (Alt + Minus)">@Ui.Icon("minus")</button>
+                <button type="button" class="mat-btn mat-btn--ghost kk-zoom__value" id="editor-zoom-value" aria-label="Schriftgröße auf 100 % zurücksetzen (Alt+0)" data-tip="Auf 100 % zurück (Alt+0)">100 %</button>
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-zoom-in" aria-label="Schrift größer (Alt + Plus)" data-tip="Schrift größer (Alt + Plus)">@Ui.Icon("plus")</button>
             </div>
             <button type="button" class="mat-btn mat-btn--primary" id="editor-save" data-tip="Speichern: die Fassung bleibt in Arbeit (Strg+S)">@Ui.Icon("save")<span>Speichern</span></button>
             <button type="button" class="mat-btn mat-btn--secondary" id="editor-close" data-tip="Den Durchgang beenden (Alt+A)">@Ui.Icon("check-circle")<span>Durchgang abschließen</span></button>
@@ -87,6 +91,8 @@
             <button type="button" class="mat-menu__item" role="menuitem" id="editor-original" aria-pressed="false">@Ui.Icon("eye")<span>Das Original-PDF daneben zeigen</span></button>
         }
         <button type="button" class="mat-menu__item kk-editor__wide" role="menuitemcheckbox" id="editor-reference-toggle" aria-pressed="false">@Ui.Icon("columns")<span>Frühere Fassung daneben (Alt+R)</span></button>
+        <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-zoom-in-menu">@Ui.Icon("plus")<span>Schrift größer</span></button>
+        <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-zoom-out-menu">@Ui.Icon("minus")<span>Schrift kleiner</span></button>
         <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-maximize-menu">@Ui.Icon("maximize-2")<span>Maximieren</span></button>
         <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-fullscreen-menu">@Ui.Icon("maximize")<span>Vollbild</span></button>
         <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-close-menu">@Ui.Icon("check-circle")<span>Durchgang abschließen</span></button>
@@ -173,6 +179,7 @@
                     <dt><kbd>Alt</kbd> + <kbd>X</kbd></dt><dd>Exportieren (Word, PDF, Text)</dd>
                     <dt><kbd>Alt</kbd> + <kbd>S</kbd></dt><dd>Das markierte Wort ins Stilblatt des Projekts eintragen</dd>
                     <dt><kbd>Alt</kbd> + <kbd>R</kbd></dt><dd>Die frühere Fassung mit den Änderungen daneben zeigen (Änderungsmodus)</dd>
+                    <dt><kbd>Alt</kbd> + <kbd>+</kbd> / <kbd>−</kbd> / <kbd>0</kbd></dt><dd>Schrift größer / kleiner / zurück auf 100 %</dd>
                     <dt><kbd>Alt</kbd> + <kbd>V</kbd></dt><dd>Maximieren: im Browserfenster groß, Menü, Kopfzeile und Fußzeile weg (<kbd>Esc</kbd> beendet es)</dd>
                     <dt><kbd>Alt</kbd> + <kbd>B</kbd></dt><dd>Vollbild: der ganze Bildschirm (<kbd>Esc</kbd> beendet es)</dd>
                     <dt><kbd>Strg</kbd> + <kbd>H</kbd></dt><dd>Suchen und ersetzen</dd>
@@ -192,7 +199,10 @@
 </div>
 
 @section Scripts {
+    <script src="~/js/zoom.js" asp-append-version="true"></script>
     <script src="~/js/textdiff.js" asp-append-version="true"></script>
+    <script src="~/js/pagetext.js" asp-append-version="true"></script>
+    <script src="~/js/sidebyside.js" asp-append-version="true"></script>
     <script src="~/js/editor.js" asp-append-version="true"></script>
     <script src="~/js/editor-page.js" asp-append-version="true"></script>
 }

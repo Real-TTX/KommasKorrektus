@@ -72,11 +72,15 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 /* ---- The editor ---- */
 .kk-editor__bar { display: flex; flex-direction: column; gap: var(--mat-space-3); padding: var(--mat-space-3) var(--mat-space-4); position: sticky; top: var(--mat-topbar-h, 3.5rem); z-index: 5; }
 .kk-editor__head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--mat-space-1) var(--mat-space-5); }
-/* The two ways to get room are fixed in the top right corner of the window, the same place whether the menus are there or not (over the bar with the breadcrumb, or over
-   the bar of the editor when everything else has stepped aside). Their tooltips open downwards and to the left: above, they would be cut off by the window. */
-.kk-editor__size { position: fixed; top: var(--mat-space-2); right: var(--mat-space-4); z-index: calc(var(--mat-z-topbar) + 1); display: flex; gap: var(--mat-space-1); padding: 2px; border-radius: var(--mat-radius); background: var(--mat-surface); border: 1px solid var(--mat-border); box-shadow: var(--mat-shadow-1); }
+/* The two ways to get room sit in the top right corner of the box of the editor (the bar), the same place whether the menus are there or not; the first row keeps clear of
+   them. Their tooltips open downwards and to the left: they are in the corner. */
+.kk-editor__size { position: absolute; top: var(--mat-space-3); right: var(--mat-space-4); display: flex; gap: var(--mat-space-1); }
+@media (min-width: 641px) { .kk-editor__head { padding-right: 5.5rem; min-height: var(--mat-control-h); } }
 .kk-editor__size [data-tip]::after { bottom: auto; top: calc(100% + 6px); left: auto; right: 0; transform: translateY(-2px); }
 .kk-editor__size [data-tip]:hover::after, .kk-editor__size [data-tip]:focus-visible::after { transform: none; }
+/* the size of the writing: smaller, the value (a click puts it back to 100 %), bigger */
+.kk-zoom { display: inline-flex; align-items: center; gap: 2px; }
+.kk-zoom__value { min-width: 3.6rem; font-variant-numeric: tabular-nums; }
 .kk-editor__sep { width: 1px; height: 1.5rem; background: var(--mat-border); margin-inline: var(--mat-space-1); }
 .kk-editor__phone { display: none; }
 .kk-editor__title { min-width: 0; flex: 1 1 14rem; }
@@ -119,6 +123,7 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 ::highlight(kk-added) { background-color: #d6f3dc; color: #0e5a24; }
 .kk-sheet .kk-lp.kk-gone { background-color: #fdeeee; color: #7a1a1d; text-decoration: line-through; text-decoration-color: #a4161a; }
 .kk-sheet .kk-lp.kk-new { background-color: #ecf9ef; }
+.kk-sheet .kk-lp.kk-changed { box-shadow: inset 3px 0 0 #e3b341; }
 .kk-refbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-2) var(--mat-space-3); padding-top: var(--mat-space-3); border-top: 1px solid var(--mat-border); }
 .kk-refbar__label { font-size: var(--mat-fs-sm); font-weight: 600; }
 .kk-refbar .mat-select { width: auto; min-width: 14rem; max-width: 100%; }
@@ -132,7 +137,7 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-p { position: relative; display: flex; padding-left: 3rem; content-visibility: auto; contain-intrinsic-size: auto 3rem; }
 .kk-p__no { position: absolute; left: 0; top: .6rem; width: 2.4rem; text-align: right; font-family: var(--mat-mono); font-size: var(--mat-fs-xs); color: var(--mat-text-faint); user-select: none; }
 .kk-p.is-changed .kk-p__no::after { content: ""; display: inline-block; width: .45rem; height: .45rem; border-radius: 50%; background: var(--mat-accent); margin-left: .3rem; vertical-align: middle; }
-.kk-p__text { flex: 1; width: 100%; min-width: 0; resize: none; overflow: hidden; border: 1px solid transparent; background: transparent; color: inherit; font: inherit; font-size: 1.0625rem; line-height: 1.7; padding: .3rem .6rem; min-height: 2.4rem; border-radius: var(--mat-radius); field-sizing: content; }
+.kk-p__text { flex: 1; width: 100%; min-width: 0; resize: none; overflow: hidden; border: 1px solid transparent; background: transparent; color: inherit; font: inherit; font-size: calc(1.0625rem * var(--kk-zoom, 1)); line-height: 1.7; padding: .3rem .6rem; min-height: 2.4rem; border-radius: var(--mat-radius); field-sizing: content; }
 .kk-p__text:hover { background: var(--mat-surface-2); }
 .kk-p__text:focus { background: var(--mat-surface-2); border-color: var(--mat-accent); outline: none; box-shadow: var(--mat-focus-ring); }
 .kk-p.has-comment .kk-p__text { background: var(--mat-warning-bg); }
@@ -244,8 +249,7 @@ a.kk-a { cursor: pointer; }
   /* A phone: the bar scrolls away with the page (the text needs the room), the buttons keep to two short rows, the long words become the short ones. */
   .kk-editor__bar { position: static; padding: var(--mat-space-3); }
   .kk-editor__title h1 { font-size: var(--mat-fs-lg); }
-  #editor-close, .kk-editor__size { display: none; }
-  html.kk-focus .kk-editor__head, html.kk-focus .kk-editor__actions { padding-right: 0; }
+  #editor-close, .kk-editor__size, .kk-zoom { display: none; }
   .kk-editor__phone { display: flex; }
   .kk-editor__actions .mat-seg__btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .kk-editor__sep { display: none; }
@@ -331,9 +335,9 @@ html.kk-focus .mat-page { padding-top: var(--mat-space-3); padding-bottom: var(-
 html.kk-focus .kk-editor__body { margin-top: var(--mat-space-3); }
 /* maximized, the bar of the editor is one row: the name and the state on the left, the buttons beside them */
 html.kk-focus .kk-editor__bar { top: 0; padding: var(--mat-space-2) var(--mat-space-3); gap: var(--mat-space-2); }
-/* the first row keeps clear of the corner, the rows under it (search, earlier version) run the whole width */
-html.kk-focus .kk-editor__head, html.kk-focus .kk-editor__actions { padding-right: 6.5rem; }
-@media (min-width: 1100px) { html.kk-focus .kk-editor__bar { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--mat-space-5); } html.kk-focus .kk-editor__actions { justify-content: flex-end; flex-wrap: nowrap; } html.kk-focus #editor-close > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } html.kk-focus .kk-find, html.kk-focus .kk-refbar { grid-column: 1 / -1; } }
+html.kk-focus .kk-editor__size { top: var(--mat-space-2); right: var(--mat-space-3); }
+/* the first row keeps clear of the corner (the buttons beside the name, or the buttons themselves in one row), the rows under it (search, earlier version) run the whole width */
+@media (min-width: 1100px) { html.kk-focus .kk-editor__head { padding-right: 0; } html.kk-focus .kk-editor__actions { padding-right: 5.5rem; } html.kk-focus .kk-editor__bar { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: var(--mat-space-5); } html.kk-focus .kk-editor__actions { justify-content: flex-end; flex-wrap: nowrap; } html.kk-focus #editor-close > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } html.kk-focus .kk-find, html.kk-focus .kk-refbar { grid-column: 1 / -1; } }
 html.kk-focus .kk-editor__head { flex: 0 1 auto; flex-wrap: nowrap; align-items: center; gap: var(--mat-space-1) var(--mat-space-4); }
 html.kk-focus .kk-editor__title { flex: 0 1 14rem; }
 html.kk-focus .kk-editor__title h1 { font-size: var(--mat-fs-lg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -368,6 +372,4 @@ html.kk-focus .kk-editor__side, html.kk-focus .kk-editor__original { top: calc(v
 .kk-pages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--mat-space-3); align-items: start; }
 .kk-pages__side { min-width: 0; }
 .kk-pages__title { font-size: var(--mat-fs-md); margin: 0 0 var(--mat-space-2); }
-.kk-desk--old .kk-sheet ins, .kk-desk--new .kk-sheet del { display: none; }
-.kk-desk--old .kk-sheet .kk-lp.is-inserted, .kk-desk--new .kk-sheet .kk-lp.is-deleted { visibility: hidden; }
 @media (max-width: 900px) { .kk-pages { grid-template-columns: minmax(0, 1fr); } }

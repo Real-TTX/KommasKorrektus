@@ -19,11 +19,18 @@ public static class ViewPreferences
 
     public const string DefaultCompareView = "pages";
 
+    /// <summary>The sizes of the writing (percent) the editor and the comparison offer; 100 is the size the page and the text were made for.</summary>
+    public static readonly int[] Zooms = [70, 80, 90, 100, 110, 125, 150, 175, 200];
+
+    public const int DefaultZoom = 100;
+
+    public static int CleanZoom(int? value) => value is { } z && Zooms.Contains(z) ? z : DefaultZoom;
+
     /// <summary>
     /// What the editor has open: the earlier version beside the text (and which: "previous" the version before, "round" the beginning of the round, "original", or a number),
-    /// the side panel with the comments and the style sheet.
+    /// the side panel with the comments and the style sheet, and the size of the writing (<see cref="Zooms"/>), which the comparison of two pages uses too.
     /// </summary>
-    public sealed record EditorOptions(bool Reference = false, bool Side = false, string ReferenceFrom = "previous");
+    public sealed record EditorOptions(bool Reference = false, bool Side = false, string ReferenceFrom = "previous", int Zoom = DefaultZoom);
 
     /// <summary>"previous", "round", "original" or the number of a version; anything else is "previous".</summary>
     public static string CleanReferenceFrom(string? value)
@@ -76,15 +83,16 @@ public static class ViewPreferences
     }
 
     /// <summary>Remembers what the editor has open; what is null stays as it was.</summary>
-    public static async Task<bool> SetOptionsAsync(KkDbContext db, long? userId, bool? reference, bool? side, string? referenceFrom = null, CancellationToken ct = default)
+    public static async Task<bool> SetOptionsAsync(KkDbContext db, long? userId, bool? reference, bool? side, string? referenceFrom = null, int? zoom = null, CancellationToken ct = default)
     {
-        if (userId is null || (reference is null && side is null && referenceFrom is null))
+        zoom = zoom is { } size && Zooms.Contains(size) ? size : null;   // what is not one of the sizes is no change
+        if (userId is null || (reference is null && side is null && referenceFrom is null && zoom is null))
         {
             return false;
         }
 
         var current = ParseOptions(await db.User.AsNoTracking().Where(u => u.Id == userId).Select(u => u.EditorOptions).FirstOrDefaultAsync(ct));
-        var next = current with { Reference = reference ?? current.Reference, Side = side ?? current.Side, ReferenceFrom = referenceFrom is null ? CleanReferenceFrom(current.ReferenceFrom) : CleanReferenceFrom(referenceFrom) };
+        var next = current with { Reference = reference ?? current.Reference, Side = side ?? current.Side, ReferenceFrom = referenceFrom is null ? CleanReferenceFrom(current.ReferenceFrom) : CleanReferenceFrom(referenceFrom), Zoom = zoom is null ? CleanZoom(current.Zoom) : CleanZoom(zoom) };
         var json = JsonSerializer.Serialize(next, JsonOptions);
         await db.User.Where(u => u.Id == userId).ExecuteUpdateAsync(s => s.SetProperty(u => u.EditorOptions, json), ct);
         return true;
