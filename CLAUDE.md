@@ -1,4 +1,4 @@
-# KommaKorrektus: notes for working in this repository
+# KommasKorrektus: notes for working in this repository
 
 A self-hosted editing studio and back office for manuscript editors: ASP.NET Core 10 Razor Pages, EF Core 10 on PostgreSQL 17,
 one container (port **2930**) plus a database. The user-facing text is **German**; code, comments and docs are English.
@@ -8,8 +8,8 @@ one container (port **2930**) plus a database. The user-facing text is **German*
 ```powershell
 ./scripts/redeploy.ps1            # always: rebuild the image and redeploy the dev stack (web 2930, pgAdmin 2931, Postgres 12930)
 ./scripts/redeploy.ps1 -Fresh     # the same with empty volumes (setup page again)
-dotnet build KommaKorrektus.slnx  # build locally BEFORE a redeploy: a compile error otherwise shows up as "docker compose failed"
-dotnet test KommaKorrektus.slnx   # unit tests; integration tests need KOMMAKORREKTUS_TEST_DB (and KOMMAKORREKTUS_TEST_SMB), see README
+dotnet build KommasKorrektus.slnx  # build locally BEFORE a redeploy: a compile error otherwise shows up as "docker compose failed"
+dotnet test KommasKorrektus.slnx   # unit tests; integration tests need KOMMASKORREKTUS_TEST_DB (and KOMMASKORREKTUS_TEST_SMB), see README
 ```
 
 Test and look at changes by **rebuilding the container and redeploying the stack**, not with a watcher. Do not pipe
@@ -18,12 +18,12 @@ before driving the app.
 
 ## Layout
 
-- `src/KommaKorrektus.Core`: no web dependencies. Diff engine (`Diff/`), DOCX and PDF reading / writing (`Documents/`), the page view
+- `src/KommasKorrektus.Core`: no web dependencies. Diff engine (`Diff/`), DOCX and PDF reading / writing (`Documents/`), the page view
   renderer DOCX -> HTML (`Documents/Layout/`),
   invoice maths, PDF, ZUGFeRD, XRechnung (`Billing/`), TOTP and password hashing (`Security/`), text metrics (`Writing/`)
-- `src/KommaKorrektus`: the web app. `Pages/<Area>/` (Razor Pages), `Services/`, `Controls/` (tag helpers `kk-*`), `UiKit/` (table,
+- `src/KommasKorrektus`: the web app. `Pages/<Area>/` (Razor Pages), `Services/`, `Controls/` (tag helpers `kk-*`), `UiKit/` (table,
   toolbar, pager, shell), `Data/` (EF model, migrations), `Storage/` (volume and SMB), `wwwroot/` (css, js, the MatDesign toolkit in `ui/`)
-- `tests/KommaKorrektus.Tests`: `Core/` unit tests, `Web/` unit tests, `Integration/` (real app against PostgreSQL / Samba)
+- `tests/KommasKorrektus.Tests`: `Core/` unit tests, `Web/` unit tests, `Integration/` (real app against PostgreSQL / Samba)
 
 ## Conventions
 

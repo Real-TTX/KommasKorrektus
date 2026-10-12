@@ -1,0 +1,147 @@
+@page
+@using Microsoft.AspNetCore.Mvc.Rendering
+@model KommasKorrektus.Pages.Documents.DetailsModel
+@{
+    var d = Model.Document;
+    var options = Model.VersionOptions;
+    var newest = Model.Current.VersionNo;
+    var previous = Model.Versions.Count > 1 ? Model.Versions[1].Version.VersionNo : 1;
+    var formats = new List<SelectListItem>
+    {
+        new("Word mit Änderungen (zum Annehmen in Word)", nameof(ExportFormat.DocxTracked)),
+        new("Word bereinigt (Änderungen übernommen)", nameof(ExportFormat.DocxClean)),
+        new("PDF Korrekturfahne (gelöscht rot, neu grün)", nameof(ExportFormat.PdfChanges)),
+        new("PDF alt und neu nebeneinander", nameof(ExportFormat.PdfSideBySide)),
+        new("PDF bereinigt", nameof(ExportFormat.PdfClean)),
+        new("Nur Text (.txt)", nameof(ExportFormat.Text)),
+    };
+}
+
+@if (!string.IsNullOrWhiteSpace(d.ImportNotes))
+{
+    <div class="mat-alert mat-alert--warning">@Ui.Icon("alert")<div class="mat-alert__body">@d.ImportNotes</div></div>
+}
+
+<div class="mat-grid mat-grid--4">
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Aktuelle Fassung</span><span class="mat-stat__value">@Model.Current.VersionNo</span><span class="mat-stat__delta">von @Model.Versions.Count Fassungen · @Labels.Of(d.Kind)</span></div></div>
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Umfang</span><span class="mat-stat__value">@Fmt.Integer(Model.Current.WordCount)</span><span class="mat-stat__delta">Wörter · @Model.NormPages.ToString("N1", Fmt.Culture) Normseiten</span></div></div>
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Bearbeitet</span><span class="mat-stat__value">@Fmt.Integer(Model.TotalWordsEdited)</span><span class="mat-stat__delta">Wörter korrigiert oder neu</span></div></div>
+    <div class="mat-card"><div class="mat-card__body mat-stat"><span class="mat-stat__label">Gearbeitet</span><span class="mat-stat__value">@Fmt.Duration(Model.TotalSeconds)</span><span class="mat-stat__delta">im Editor erfasst</span></div></div>
+</div>
+
+<kk-tabs id="document" label="Dokument" selected="@Model.Tab">
+    <kk-tab id="versions" title="Fassungen" icon="history" count="@Model.Versions.Count">
+        <div class="mat-table-wrap">
+            <table class="mat-table" id="document-versions">
+                <caption class="mat-sr-only">Fassungen des Dokuments</caption>
+                <thead><tr><th scope="col" class="mat-num">Nr.</th><th scope="col">Fassung</th><th scope="col" class="mat-hide-sm">Wann</th><th scope="col" class="mat-num mat-hide-sm">Wörter</th><th scope="col" class="mat-hide-sm">Änderungen gegenüber davor</th><th scope="col"><span class="mat-sr-only">Aktionen</span></th></tr></thead>
+                <tbody>
+                    @foreach (var v in Model.Versions)
+                    {
+                        var ver = v.Version;
+                        <tr>
+                            <td data-label="Nr." class="mat-num"><strong>@ver.VersionNo</strong></td>
+                            <td data-label="Fassung"><div class="mat-table__name kk-name"><span><a href="/Documents/Version?id=@d.Id&no=@ver.VersionNo">@(string.IsNullOrWhiteSpace(ver.Label) ? Labels.Of(ver.Origin) : ver.Label)</a>@if (ver.VersionNo == newest) { <span class="mat-pill mat-pill--accent">aktuell</span> }</span><small class="mat-muted kk-sub">@Labels.Of(ver.Origin)@(string.IsNullOrWhiteSpace(v.Author) ? "" : " · " + v.Author)@(string.IsNullOrWhiteSpace(ver.Comment) ? "" : " · " + ver.Comment)</small></div></td>
+                            <td data-label="Wann" class="mat-hide-sm">@Fmt.Moment(ver.CreateDate)</td>
+                            <td data-label="Wörter" class="mat-num mat-hide-sm">@Fmt.Integer(ver.WordCount)</td>
+                            <td data-label="Änderungen" class="mat-hide-sm">@if (ver.VersionNo == 1) { <span class="mat-muted">–</span> } else { <span class="kk-ins">+@ver.WordsAdded</span> <span class="kk-del">−@ver.WordsRemoved</span> <span class="mat-muted">~@ver.WordsChanged</span> }</td>
+                            <td class="mat-table__cell-actions">
+                                <form method="post" asp-page-handler="Restore" asp-route-id="@d.Id" asp-route-version="@ver.VersionNo" class="mat-table__actions">
+                                    @if (ver.VersionNo > 1)
+                                    {
+                                        <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Documents/Compare?id=@d.Id&from=@(ver.VersionNo - 1 < 1 ? 1 : ver.VersionNo - 1)&to=@ver.VersionNo" aria-label="Mit der Fassung davor vergleichen" data-tip="Vergleichen">@Ui.Icon("columns")</a>
+                                    }
+                                    @if (ver.VersionNo != newest)
+                                    {
+                                        <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="Diese Fassung wiederherstellen" data-tip="Wiederherstellen" data-confirm="Fassung @ver.VersionNo als neue Fassung wiederherstellen? Alle bisherigen Fassungen bleiben erhalten." data-confirm-ok="Wiederherstellen">@Ui.Icon("restore")</button>
+                                    }
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </kk-tab>
+
+    <kk-tab id="compare" title="Vergleichen" icon="columns">
+        <form class="mat-form" method="get" action="/Documents/Compare">
+            <input type="hidden" name="id" value="@d.Id" />
+            <kk-card title="Zwei Fassungen vergleichen" icon="columns">
+                <div class="mat-form__grid">
+                    <div class="mat-field"><label class="mat-label" for="cmp-from">Von (alt)</label><select class="mat-select" id="cmp-from" name="from">@foreach (var o in options.AsEnumerable().Reverse()) { <option value="@o.Value" selected="@(o.Value == "1")">@o.Text</option> }</select></div>
+                    <div class="mat-field"><label class="mat-label" for="cmp-to">Bis (neu)</label><select class="mat-select" id="cmp-to" name="to">@foreach (var o in options) { <option value="@o.Value" selected="@(o.Value == newest.ToString())">@o.Text</option> }</select></div>
+                    <div class="mat-field mat-field--full">
+                        <span class="mat-label">Ansicht</span>
+                        <div class="mat-checks mat-checks--inline" role="radiogroup">
+                            <label class="mat-check"><input type="radio" name="mode" value="side" checked /><span class="mat-check__text">Nebeneinander (alt | neu)</span></label>
+                            <label class="mat-check"><input type="radio" name="mode" value="inline" /><span class="mat-check__text">Ein Dokument (Änderungen im Text)</span></label>
+                        </div>
+                    </div>
+                </div>
+            </kk-card>
+            <div class="mat-btn-row"><button type="submit" class="mat-btn mat-btn--primary">@Ui.Icon("columns")<span>Vergleichen</span></button></div>
+        </form>
+    </kk-tab>
+
+    <kk-tab id="export" title="Exportieren" icon="download">
+        <form class="mat-form" method="get" action="/Documents/Export">
+            <input type="hidden" name="id" value="@d.Id" />
+            <kk-card title="Dokument ausgeben" icon="download">
+                <p class="mat-muted">Eine Datei mit den Änderungen zwischen zwei Fassungen, zum Beispiel für die Autorin oder den Autor. In Word nimmt man die Änderungen mit „Überprüfen > Annehmen“ einzeln oder alle auf einmal an.</p>
+                <div class="mat-form__grid">
+                    <div class="mat-field"><label class="mat-label" for="exp-from">Ausgangsfassung (alt)</label><select class="mat-select" id="exp-from" name="from">@foreach (var o in options.AsEnumerable().Reverse()) { <option value="@o.Value" selected="@(o.Value == "1")">@o.Text</option> }</select></div>
+                    <div class="mat-field"><label class="mat-label" for="exp-to">Zielfassung (neu)</label><select class="mat-select" id="exp-to" name="to">@foreach (var o in options) { <option value="@o.Value" selected="@(o.Value == newest.ToString())">@o.Text</option> }</select></div>
+                    <div class="mat-field mat-field--full"><label class="mat-label" for="exp-format">Format</label><select class="mat-select" id="exp-format" name="format">@foreach (var f in formats) { <option value="@f.Value">@f.Text</option> }</select></div>
+                </div>
+            </kk-card>
+            <div class="mat-btn-row"><button type="submit" class="mat-btn mat-btn--primary">@Ui.Icon("download")<span>Herunterladen</span></button></div>
+        </form>
+    </kk-tab>
+
+    <kk-tab id="comments" title="Kommentare" icon="message-square" count="@Model.Comments.Count">
+        @if (Model.Comments.Count == 0)
+        {
+            <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("message-square")</span><div class="mat-empty__title">Keine Kommentare</div><p>Anmerkungen zu einzelnen Absätzen schreibst du im Editor. Auch Kunden können über einen Freigabe-Link kommentieren.</p></div>
+        }
+        else
+        {
+            <ul class="mat-listgroup mat-listgroup--flush">
+                @foreach (var c in Model.Comments)
+                {
+                    <li><a class="mat-listgroup__item" href="/Documents/Editor?id=@d.Id#p@(c.ParagraphIndex + 1)">@Ui.Icon(c.IsResolved ? "check-circle" : "message-square")<span class="mat-listgroup__text"><strong>Absatz @(c.ParagraphIndex + 1)@(string.IsNullOrWhiteSpace(c.Quote) ? "" : $": „{c.Quote}“")</strong><small>@c.Text · @(c.AuthorName ?? "Lektorat") · @Fmt.Moment(c.CreateDate)</small></span>@if (c.IsResolved) { <span class="mat-pill mat-pill--ok">erledigt</span> }</a></li>
+                }
+            </ul>
+        }
+    </kk-tab>
+
+    <kk-tab id="activity" title="Aktivität" icon="activity">
+        @if (Model.Days.Count == 0)
+        {
+            <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("activity")</span><div class="mat-empty__title">Noch keine Aktivität</div><p>Sobald du im Editor arbeitest, siehst du hier, an welchen Tagen wie viele Wörter korrigiert wurden und wie lange es gedauert hat.</p></div>
+        }
+        else
+        {
+            <div class="mat-table-wrap">
+                <table class="mat-table" id="document-activity">
+                    <caption class="mat-sr-only">Aktivität der letzten Tage</caption>
+                    <thead><tr><th scope="col">Tag</th><th scope="col" class="mat-num">Gearbeitet</th><th scope="col" class="mat-num">Wörter bearbeitet</th></tr></thead>
+                    <tbody>
+                        @foreach (var day in Model.Days)
+                        {
+                            <tr><td data-label="Tag">@Fmt.Date(day.Day)</td><td data-label="Gearbeitet" class="mat-num">@Fmt.Duration(day.Seconds)</td><td data-label="Wörter bearbeitet" class="mat-num">@Fmt.Integer(day.WordsEdited)</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </kk-tab>
+</kk-tabs>
+
+<div class="mat-actions">
+    <a class="mat-btn mat-btn--primary" href="/Documents/Editor?id=@d.Id">@Ui.Icon("pen")<span>Im Editor bearbeiten</span></a>
+    <a class="mat-btn mat-btn--secondary" href="/Documents/Compare?id=@d.Id&from=@previous&to=@newest">@Ui.Icon("columns")<span>Letzte Änderungen</span></a>
+    <a class="mat-btn mat-btn--secondary" href="/Documents/Download?id=@d.Id">@Ui.Icon("download")<span>Original</span></a>
+    <a class="mat-btn mat-btn--secondary" href="/Documents/Edit?id=@d.Id">@Ui.Icon("edit")<span>Eigenschaften</span></a>
+    <a class="mat-btn mat-btn--secondary" href="/Projects/Details?id=@Model.Project.Id&tab=documents">@Ui.Icon("back")<span>Zurück</span></a>
+</div>

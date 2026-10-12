@@ -1,0 +1,23 @@
+@page
+@model KommasKorrektus.Pages.Documents.UploadModel
+@{
+    var back = $"/Projects/Details?id={Model.ProjectId}&tab=documents";
+}
+
+<form class="mat-form" method="post" enctype="multipart/form-data" novalidate>
+    <input type="hidden" name="ProjectId" value="@Model.ProjectId" />
+    <kk-summary />
+    <kk-card title="@Model.Project.Title" icon="upload">
+        <p class="mat-muted">Word (.docx), PDF oder Text (.txt). Der Text wird als <strong>Fassung 1</strong> übernommen, sie bleibt unverändert erhalten. Bei einem Word-Dokument bleiben Formatierung, Überschriften und Tabellen für den Export mit Änderungen erhalten.</p>
+        <div class="mat-form__grid">
+            <div class="mat-field mat-field--full @(ViewData.ModelState.ContainsKey("UploadedFile") ? "is-invalid" : "")">
+                <label class="mat-label" for="UploadedFile">Datei <span class="mat-req" aria-hidden="true">*</span></label>
+                <input class="mat-input" type="file" id="UploadedFile" name="UploadedFile" accept=".docx,.pdf,.txt,.md,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain" required data-msg-required="Bitte wähle eine Datei aus." />
+                <span class="mat-hint">Bis @(DocumentService.MaxUploadBytes / 1024 / 1024) MB.</span>
+                <span class="mat-error" aria-live="polite">@(ViewData.ModelState.TryGetValue("UploadedFile", out var e) && e.Errors.Count > 0 ? e.Errors[0].ErrorMessage : "")</span>
+            </div>
+            <kk-input for="Title" label="Titel" full="true" hint="Leer: der Dateiname." />
+        </div>
+    </kk-card>
+    <kk-buttons save-text="Hochladen und importieren" save-icon="upload" back-href="@back" />
+</form>

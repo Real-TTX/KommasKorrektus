@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Rebuilds the KommaKorrektus container and redeploys the dev stack (the project's live-reload / test workflow).
+    Rebuilds the KommasKorrektus container and redeploys the dev stack (the project's live-reload / test workflow).
 .DESCRIPTION
     Always rebuilds the image from the current source and recreates the container; the database and the data volume stay.
     The version of a local build is "local-<builddate>".
@@ -20,8 +20,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location $root
 try {
-    $env:KOMMAKORREKTUS_CHANNEL = 'local'
-    $env:KOMMAKORREKTUS_BUILD_DATE = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
+    $env:KOMMASKORREKTUS_CHANNEL = 'local'
+    $env:KOMMASKORREKTUS_BUILD_DATE = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
 
     $compose = @('compose', '-f', 'docker-compose.dev.yml')
 
@@ -37,8 +37,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'docker compose failed.' }
 
     Write-Host ''
-    Write-Host "KommaKorrektus local-$($env:KOMMAKORREKTUS_BUILD_DATE) is running on http://localhost:2930" -ForegroundColor Green
-    Write-Host 'pgAdmin: http://localhost:2931 (admin@kommakorrektus.example.com / kommakorrektus)' -ForegroundColor DarkGray
+    Write-Host "KommasKorrektus local-$($env:KOMMASKORREKTUS_BUILD_DATE) is running on http://localhost:2930" -ForegroundColor Green
+    Write-Host 'pgAdmin: http://localhost:2931 (admin@kommaskorrektus.example.com / kommaskorrektus)' -ForegroundColor DarkGray
 }
 finally {
     Pop-Location

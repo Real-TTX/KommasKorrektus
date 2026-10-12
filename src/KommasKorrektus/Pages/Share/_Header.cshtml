@@ -1,0 +1,39 @@
+@using KommasKorrektus.Pages.Share
+@model ShareModelBase
+@*
+    The head of every page behind a share link and the explanation when the content cannot be shown: no link, a link that has run out or was taken back, a password.
+    It says nothing about the project or the customer until the link is valid and the password is known.
+*@
+<header class="kk-share__head">
+    <div class="kk-share__brand">@Ui.Logo("md")<div><strong>@(string.IsNullOrWhiteSpace(Model.CompanyName) ? "KommasKorrektus" : Model.CompanyName)</strong><small class="mat-muted">Lektorat</small></div></div>
+</header>
+
+@if (Model.State == ShareState.Unknown)
+{
+    <div class="mat-card kk-share__card"><div class="mat-card__body mat-stack">
+        <h1>Diesen Link gibt es nicht</h1>
+        <p class="mat-muted">Prüfe die Adresse aus der E-Mail oder frage bei deinem Lektorat nach einem neuen Link.</p>
+    </div></div>
+}
+else if (Model.State != ShareState.Active)
+{
+    <div class="mat-card kk-share__card"><div class="mat-card__body mat-stack">
+        <h1>@(Model.State == ShareState.Expired ? "Dieser Link ist abgelaufen" : "Dieser Link wurde zurückgezogen")</h1>
+        <p class="mat-muted">Bitte dein Lektorat um einen neuen Link.</p>
+    </div></div>
+}
+else if (Model.NeedsPassword)
+{
+    <div class="mat-card kk-share__card"><div class="mat-card__body">
+        <h1>@Model.Link.Title</h1>
+        <p class="mat-muted">Diese Seite ist mit einem Passwort geschützt.</p>
+        <form class="mat-form" method="post" asp-page="/Share/Index" asp-page-handler="Password" asp-route-token="@Model.Token" novalidate>
+            <div class="mat-field @(ViewData.ModelState.ContainsKey("Password") ? "is-invalid" : "")">
+                <label class="mat-label" for="Password">Passwort</label>
+                <input class="mat-input" type="password" id="Password" name="Password" autocomplete="current-password" autofocus />
+                <span class="mat-error" aria-live="polite">@(ViewData.ModelState.TryGetValue("Password", out var pe) && pe.Errors.Count > 0 ? pe.Errors[0].ErrorMessage : "")</span>
+            </div>
+            <div class="mat-btn-row mat-btn-row--plain"><button type="submit" class="mat-btn mat-btn--primary">@Ui.Icon("key")<span>Öffnen</span></button></div>
+        </form>
+    </div></div>
+}

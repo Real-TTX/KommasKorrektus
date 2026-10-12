@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KommasKorrektus.Core/KommasKorrektus.Core.csproj" />
+    <Project Path="src/KommasKorrektus/KommasKorrektus.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KommasKorrektus.Tests/KommasKorrektus.Tests.csproj" />
+  </Folder>
+</Solution>

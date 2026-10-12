@@ -1,0 +1,15 @@
+@page
+@model KommasKorrektus.Pages.Admin.MailLog.DetailsModel
+
+<kk-card title="@Model.Mail.Subject" icon="mail" sub="@KommasKorrektus.Pages.Admin.MailLog.IndexModel.Of(Model.Mail.Kind)">
+    <dl class="mat-kv">
+        <dt>An</dt><dd>@Model.Mail.ToAddress</dd>
+        <dt>Zeit</dt><dd>@Fmt.Moment(Model.Mail.SentDate)</dd>
+        <dt>Status</dt><dd>@KommasKorrektus.Pages.Admin.MailLog.IndexModel.Pill(Model.Mail.Status)</dd>
+        @if (!string.IsNullOrWhiteSpace(Model.Mail.Error)) { <dt>Fehler</dt><dd>@Model.Mail.Error</dd> }
+    </dl>
+    <pre class="kk-mailtext">@Model.Mail.BodyText</pre>
+</kk-card>
+<div class="mat-actions">
+    <a class="mat-btn mat-btn--secondary" href="/Admin/MailLog">@Ui.Icon("back")<span>Zurück</span></a>
+</div>

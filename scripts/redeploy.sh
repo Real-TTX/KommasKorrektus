@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Rebuilds the KommaKorrektus container and redeploys the dev stack (live-reload / test workflow).
+# Rebuilds the KommasKorrektus container and redeploys the dev stack (live-reload / test workflow).
 #   ./scripts/redeploy.sh          rebuild + recreate, keep data
 #   ./scripts/redeploy.sh --fresh  also delete the data and database volumes
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-export KOMMAKORREKTUS_CHANNEL=local
-export KOMMAKORREKTUS_BUILD_DATE="$(date -u +%Y%m%d)"
+export KOMMASKORREKTUS_CHANNEL=local
+export KOMMASKORREKTUS_BUILD_DATE="$(date -u +%Y%m%d)"
 
 if [[ "${1:-}" == "--fresh" ]]; then
   docker compose -f docker-compose.dev.yml down -v
@@ -14,4 +14,4 @@ fi
 
 docker compose -f docker-compose.dev.yml up -d --build --remove-orphans
 echo
-echo "KommaKorrektus local-${KOMMAKORREKTUS_BUILD_DATE} is running on http://localhost:2930"
+echo "KommasKorrektus local-${KOMMASKORREKTUS_BUILD_DATE} is running on http://localhost:2930"

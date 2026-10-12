@@ -1,0 +1,28 @@
+@page
+@model KommasKorrektus.Pages.Account.LoginModel
+@{
+    Layout = "_Bare";
+}
+
+<div class="mat-auth__card">
+    <div class="mat-auth__brand">
+        @Ui.Logo("lg")
+        <h1>KommasKorrektus</h1>
+        <p class="mat-muted">Anmelden</p>
+    </div>
+
+    <form class="mat-form" method="post" novalidate>
+        <input type="hidden" name="ReturnUrl" value="@Model.ReturnUrl" />
+        <kk-summary title="Die Anmeldung hat nicht geklappt." />
+        <kk-input for="Input.Email" label="E-Mail-Adresse" type="email" autocomplete="username" inputmode="email" autofocus />
+        <kk-input for="Input.Password" label="Passwort" type="password" autocomplete="current-password" />
+        <div class="mat-btn-row mat-btn-row--plain">
+            <button type="submit" class="mat-btn mat-btn--primary mat-btn--block">@Ui.Icon("login")<span>Anmelden</span></button>
+        </div>
+    </form>
+
+    @if (Model.EmailCodeAvailable)
+    {
+        <p class="kk-auth__alt"><a href="/Account/LoginCode">Ohne Passwort anmelden: Code per E-Mail</a></p>
+    }
+</div>

@@ -1,7 +1,7 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Copies the MatUi toolkit (CSS, script, icon sprite) from the sibling repository MatDesign into src/KommaKorrektus/wwwroot/ui.
+    Copies the MatUi toolkit (CSS, script, icon sprite) from the sibling repository MatDesign into src/KommasKorrektus/wwwroot/ui.
 .DESCRIPTION
     Apps copy MatUi, they never load it from another site (rule CODE-03). The ten CSS parts are bundled into one matui.css in the
     order MatDesign serves them. Run it when MatDesign publishes a new toolkit version and commit the result.
@@ -16,7 +16,7 @@ $ErrorActionPreference = 'Stop'
 $ui = Join-Path $Source 'src/MatUi/wwwroot'
 if (-not (Test-Path $ui)) { throw "MatUi not found at $ui" }
 
-$target = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/KommaKorrektus/wwwroot/ui'
+$target = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/KommasKorrektus/wwwroot/ui'
 New-Item -ItemType Directory -Force $target | Out-Null
 
 $parts = 'matui.tokens.css', 'matui.base.css', 'matui.shell.css', 'matui.controls.css', 'matui.forms.css', 'matui.pickers.css', 'matui.lists.css', 'matui.dialogs.css', 'matui.layout.css', 'matui.apps.css'

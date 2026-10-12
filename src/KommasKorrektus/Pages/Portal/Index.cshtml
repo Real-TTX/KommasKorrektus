@@ -1,0 +1,31 @@
+@page
+@model KommasKorrektus.Pages.Portal.IndexModel
+
+@if (Model.OpenInvoices > 0)
+{
+    <div class="mat-alert mat-alert--info">@Ui.Icon("dollar")<div class="mat-alert__body">Du hast <strong>@Ui.Plural(Model.OpenInvoices, "offene Rechnung", "offene Rechnungen")</strong>. <a href="/Portal/Invoices">Zu den Rechnungen</a></div></div>
+}
+
+@if (Model.Projects.Count == 0)
+{
+    <div class="mat-empty">
+        <span class="mat-empty__icon">@Ui.Icon("folder")</span>
+        <div class="mat-empty__title">Noch keine Projekte</div>
+        <p>Sobald dein Lektorat ein Projekt für dich anlegt, erscheint es hier.</p>
+    </div>
+}
+else
+{
+    <div class="mat-gallery">
+        @foreach (var p in Model.Projects)
+        {
+            <a class="mat-tile" href="/Portal/Project?id=@p.Id">
+                <span class="mat-tile__media">@Ui.Icon("book")</span>
+                <span class="mat-tile__body">
+                    <span class="mat-tile__title">@p.Title</span>
+                    <span class="mat-tile__meta">@p.Customer?.DisplayName · @Labels.Of(p.Status)@(p.DueDate is null ? "" : " · Frist " + Fmt.Date(p.DueDate))</span>
+                </span>
+            </a>
+        }
+    </div>
+}

@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="src/KommaKorrektus/wwwroot/favicon.svg" width="96" alt="KommaKorrektus" />
+<img src="src/KommasKorrektus/wwwroot/favicon.svg" width="96" alt="KommasKorrektus" />
 
-# KommaKorrektus
+# KommasKorrektus
 
 **The editing studio and back office for freelance manuscript editors — in one container.**
 
@@ -18,7 +18,7 @@ proper e-invoice, and back everything up to your NAS. Self-hosted, German interf
 ## What this is about
 
 A manuscript editor's day is split between three tools that do not know each other: Word with tracked changes for the
-text, a spreadsheet for the hours, and an invoice template for the money. KommaKorrektus puts them in one place:
+text, a spreadsheet for the hours, and an invoice template for the money. KommasKorrektus puts them in one place:
 
 - **The text**: import a Word, PDF or text file, correct it in a paragraph editor, and every save is a **version**.
   Old and new can be compared next to each other or as one document, and exported as **Word with tracked changes**
@@ -127,8 +127,8 @@ for the administrator. Then the start page walks you through the rest:
 
 | Volume | Holds |
 |---|---|
-| `kommakorrektus-data` → `/data` | `config/app.json` (settings), `keys/` (the key ring that protects cookies and stored passwords), `files/` (documents, if stored in the volume), `backups/` (a local target), `tmp/` |
-| `kommakorrektus-db` | the PostgreSQL data |
+| `kommaskorrektus-data` → `/data` | `config/app.json` (settings), `keys/` (the key ring that protects cookies and stored passwords), `files/` (documents, if stored in the volume), `backups/` (a local target), `tmp/` |
+| `kommaskorrektus-db` | the PostgreSQL data |
 
 ### Environment variables
 
@@ -136,15 +136,15 @@ Everything a person sets up is on the administration pages. These belong to the 
 
 | Variable | Default | |
 |---|---|---|
-| `KOMMAKORREKTUS_DATA` | `/data` | the data folder |
-| `KOMMAKORREKTUS_PORT` | `2930` | the port inside the container |
-| `KOMMAKORREKTUS__Database__Host` / `Port` / `Database` / `Username` / `Password` | `db` / `5432` / `kommakorrektus` / `postgres` / `kommakorrektus` | the database |
-| `KOMMAKORREKTUS__Server__PublicUrl` | from the request | the address in links in mails |
-| `KOMMAKORREKTUS__Server__TimeZone` | `Europe/Berlin` | dates, schedules and numbering |
-| `KOMMAKORREKTUS__Server__ForceSecureCookie` | `false` | mark the cookie `Secure` behind a TLS proxy |
+| `KOMMASKORREKTUS_DATA` | `/data` | the data folder |
+| `KOMMASKORREKTUS_PORT` | `2930` | the port inside the container |
+| `KOMMASKORREKTUS__Database__Host` / `Port` / `Database` / `Username` / `Password` | `db` / `5432` / `kommaskorrektus` / `postgres` / `kommaskorrektus` | the database |
+| `KOMMASKORREKTUS__Server__PublicUrl` | from the request | the address in links in mails |
+| `KOMMASKORREKTUS__Server__TimeZone` | `Europe/Berlin` | dates, schedules and numbering |
+| `KOMMASKORREKTUS__Server__ForceSecureCookie` | `false` | mark the cookie `Secure` behind a TLS proxy |
 
 **Change the database password** before you expose anything: set `POSTGRES_PASSWORD` for the `db` service and
-`KOMMAKORREKTUS__Database__Password` for the app to the same value.
+`KOMMASKORREKTUS__Database__Password` for the app to the same value.
 
 ## Backup and restore
 
@@ -178,17 +178,17 @@ A page a client or visitor may not see answers *not found*, so that other record
 ```powershell
 ./scripts/redeploy.ps1          # rebuild the image and redeploy the dev stack (http://localhost:2930, pgAdmin on 2931)
 ./scripts/redeploy.ps1 -Fresh   # the same with empty volumes (the setup page appears again)
-dotnet test KommaKorrektus.slnx
+dotnet test KommasKorrektus.slnx
 ```
 
 Tests: unit tests need nothing. **Integration tests** run the real application against PostgreSQL and, for the NAS,
 a Samba server; they skip themselves when the variables are missing:
 
 ```bash
-docker run -d -p 55432:5432 -e POSTGRES_PASSWORD=kommakorrektus postgres:17
-export KOMMAKORREKTUS_TEST_DB="Host=localhost;Port=55432;Username=postgres;Password=kommakorrektus"
-export KOMMAKORREKTUS_TEST_SMB="localhost;share=backups;user=backup;password=backup-secret"   # optional
-dotnet test KommaKorrektus.slnx
+docker run -d -p 55432:5432 -e POSTGRES_PASSWORD=kommaskorrektus postgres:17
+export KOMMASKORREKTUS_TEST_DB="Host=localhost;Port=55432;Username=postgres;Password=kommaskorrektus"
+export KOMMASKORREKTUS_TEST_SMB="localhost;share=backups;user=backup;password=backup-secret"   # optional
+dotnet test KommasKorrektus.slnx
 ```
 
 Branches: **`main`** is the release, **`dev`** is development. The GitHub Action builds and tests on every push and pull
@@ -203,15 +203,15 @@ request and pushes the image to `ghcr.io/real-ttx/kommaskorrektus`:
 ### Structure
 
 ```
-src/KommaKorrektus.Core/   diff engine, DOCX / PDF reading and writing, invoice maths, e-invoice (no web dependencies)
-src/KommaKorrektus/        the web application
-  Pages/                   Razor Pages: one folder per area (Customers, Projects, Documents, Invoices, Admin, Portal, Share ...)
-  Services/                business logic (documents, time, billing, sharing, backup, sign-in)
-  Controls/                tag helpers: kk-input, kk-select, kk-tabs, kk-card, kk-buttons ... (one code base for every form)
-  UiKit/                   table, toolbar, pager and shell models
-  Data/                    EF Core model and migrations (PostgreSQL, PascalCase, audit columns)
-  Storage/                 volume and SMB file stores
-tests/                     unit and integration tests
+src/KommasKorrektus.Core/   diff engine, DOCX / PDF reading and writing, invoice maths, e-invoice (no web dependencies)
+src/KommasKorrektus/        the web application
+  Pages/                    Razor Pages: one folder per area (Customers, Projects, Documents, Invoices, Admin, Portal, Share ...)
+  Services/                 business logic (documents, time, billing, sharing, backup, sign-in)
+  Controls/                 tag helpers: kk-input, kk-select, kk-tabs, kk-card, kk-buttons ... (one code base for every form)
+  UiKit/                    table, toolbar, pager and shell models
+  Data/                     EF Core model and migrations (PostgreSQL, PascalCase, audit columns)
+  Storage/                  volume and SMB file stores
+tests/                      unit and integration tests
 ```
 
 The interface is built on the MatDesign toolkit (copied into `wwwroot/ui`, purple accent). Lists share one toolbar,

@@ -1,0 +1,13 @@
+@page
+@model KommasKorrektus.Pages.Portal.InvoicesModel
+
+@if (Model.Open > 0)
+{
+    <div class="mat-alert mat-alert--info">@Ui.Icon("dollar")<div class="mat-alert__body">Noch offen: <strong>@Fmt.Money(Model.Open)</strong>. Die Bankverbindung steht auf der Rechnung.</div></div>
+}
+
+<div class="mat-list">
+    <partial name="_Toolbar" model="Model.Toolbar" />
+    <partial name="_Table" model="Model.Table" />
+    <partial name="_Pager" model="Model.Pager" />
+</div>

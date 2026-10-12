@@ -25,8 +25,8 @@ jobs:
       postgres:
         image: postgres:17
         env:
-          POSTGRES_PASSWORD: kommakorrektus
-          POSTGRES_DB: kommakorrektus_test
+          POSTGRES_PASSWORD: kommaskorrektus
+          POSTGRES_DB: kommaskorrektus_test
         ports:
           - 5432:5432
         options: >-
@@ -43,7 +43,7 @@ jobs:
         ports:
           - 445:445
         volumes:
-          - /tmp/kommakorrektus-samba:/shares/backups
+          - /tmp/kommaskorrektus-samba:/shares/backups
 
     steps:
       - uses: actions/checkout@v4
@@ -70,27 +70,27 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Restore
-        run: dotnet restore KommaKorrektus.slnx
+        run: dotnet restore KommasKorrektus.slnx
 
       - name: Build
         run: >
-          dotnet build KommaKorrektus.slnx -c Release --no-restore
+          dotnet build KommasKorrektus.slnx -c Release --no-restore
           -p:Channel=${{ steps.ver.outputs.channel }}
           -p:BuildNumber=${{ steps.ver.outputs.build }}
           -p:BuildDate=${{ steps.ver.outputs.date }}
 
       - name: Test
         env:
-          KOMMAKORREKTUS_TEST_DB: Host=localhost;Port=5432;Database=kommakorrektus_test;Username=postgres;Password=kommakorrektus
-          KOMMAKORREKTUS_TEST_SMB: localhost;share=backups;user=backup;password=backup-secret
+          KOMMASKORREKTUS_TEST_DB: Host=localhost;Port=5432;Database=kommaskorrektus_test;Username=postgres;Password=kommaskorrektus
+          KOMMASKORREKTUS_TEST_SMB: localhost;share=backups;user=backup;password=backup-secret
         # The GitHubActions logger shows every failed test as an annotation of the run (and in the summary of a pull request).
-        run: dotnet test KommaKorrektus.slnx -c Release --no-build --verbosity normal --logger GitHubActions
+        run: dotnet test KommasKorrektus.slnx -c Release --no-build --verbosity normal --logger GitHubActions
 
       - name: Resolve version string
         id: appver
         shell: bash
         run: |
-          v=$(dotnet msbuild src/KommaKorrektus/KommaKorrektus.csproj -getProperty:InformationalVersion \
+          v=$(dotnet msbuild src/KommasKorrektus/KommasKorrektus.csproj -getProperty:InformationalVersion \
                 -p:Channel=${{ steps.ver.outputs.channel }} \
                 -p:BuildNumber=${{ steps.ver.outputs.build }} \
                 -p:BuildDate=${{ steps.ver.outputs.date }})

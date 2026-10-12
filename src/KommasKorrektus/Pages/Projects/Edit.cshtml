@@ -1,0 +1,69 @@
+@page
+@using Microsoft.AspNetCore.Mvc.Rendering
+@model KommasKorrektus.Pages.Projects.EditModel
+@{
+    var services = Controls.Options.Of<ServiceType>(Labels.Of);
+    var statuses = Controls.Options.Of<ProjectStatus>(Labels.Of);
+    var pricing = Controls.Options.Of<PricingModel>(Labels.Of);
+    var priorities = Controls.Options.Of<Priority>(Labels.Of);
+    var back = Model.Id is { } id ? $"/Projects/Details?id={id}" : "/Projects";
+}
+
+<form class="mat-form" method="post" novalidate>
+    <input type="hidden" name="Id" value="@Model.Id" />
+    <kk-summary />
+    <kk-card title="Projekt" icon="folder" sub="@Model.Number">
+        <div class="mat-form__grid">
+            <kk-select for="Input.CustomerId" label="Kunde" items="Model.Customers" empty="Bitte wählen ..." full="true" required="true" />
+            <kk-input for="Input.Title" label="Titel des Projekts" full="true" required="true" hint="Zum Beispiel der Titel des Romans." />
+            <kk-select for="Input.ServiceType" label="Leistung" items="services" />
+            <kk-select for="Input.Status" label="Status" items="statuses" />
+            <kk-input for="Input.Genre" label="Genre" hint="Fantasy, Liebesroman, Krimi ..." />
+            <kk-select for="Input.Priority" label="Priorität" items="priorities" />
+            <kk-textarea for="Input.Description" label="Beschreibung" rows="3" full="true" />
+        </div>
+    </kk-card>
+
+    <kk-card title="Termine und Aufwand" icon="calendar">
+        <div class="mat-form__grid">
+            <kk-input for="Input.StartDate" label="Beginn" type="date" />
+            <kk-input for="Input.DueDate" label="Frist" type="date" />
+            <kk-input for="Input.EstimatedHours" label="Geschätzter Aufwand in Stunden" type="number" min="0" />
+        </div>
+    </kk-card>
+
+    <kk-card title="Abrechnung" icon="dollar">
+        <div class="mat-form__grid">
+            <kk-select for="Input.PricingModel" label="Abrechnung" items="pricing" hint="Eine Normseite hat 1800 Zeichen inklusive Leerzeichen." />
+            <kk-input for="Input.Rate" label="Preis (netto)" type="number" min="0" hint="Je Normseite, Wort oder Stunde." show-if="Input.PricingModel" show-value="PerNormPage,PerWord,Hourly" />
+            <kk-input for="Input.FlatPrice" label="Pauschalpreis (netto)" type="number" min="0" show-if="Input.PricingModel" show-value="Flat" />
+        </div>
+    </kk-card>
+
+    @if (Model.Id is null && Model.Templates.Count > 0)
+    {
+        <kk-card title="Aufgaben" icon="check-square">
+            <div class="mat-form__grid">
+                <kk-select for="Input.TemplateId" label="Aufgaben aus einer Vorlage anlegen" items="Model.Templates" empty="(keine Aufgaben anlegen)" full="true" hint="Die Vorlagen pflegst du unter Projekte > Aufgabenvorlagen." />
+            </div>
+        </kk-card>
+    }
+
+    <kk-card title="Notizen" icon="edit">
+        <kk-textarea for="Input.Notes" label="Notizen" rows="3" hint="Nur für dich sichtbar." />
+    </kk-card>
+
+    @if (Model.Id is not null && Model.DeleteBlocker is not null)
+    {
+        <div class="mat-alert mat-alert--info">@Ui.Icon("info")<div class="mat-alert__body">@Model.DeleteBlocker</div></div>
+        <kk-buttons back-href="@back" />
+    }
+    else if (Model.Id is not null)
+    {
+        <kk-buttons back-href="@back" delete-url="@Url.Page("/Projects/Edit", "Delete", new { id = Model.Id })" delete-confirm="Das Projekt mit Aufgaben, Dokumenten und Zeiten löschen? Das kann nicht rückgängig gemacht werden." />
+    }
+    else
+    {
+        <kk-buttons back-href="@back" />
+    }
+</form>

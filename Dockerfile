@@ -11,14 +11,14 @@ WORKDIR /src
 
 # Restore first (better layer caching).
 COPY ["global.json", "Directory.Build.props", "./"]
-COPY ["src/KommaKorrektus.Core/KommaKorrektus.Core.csproj", "src/KommaKorrektus.Core/"]
-COPY ["src/KommaKorrektus/KommaKorrektus.csproj", "src/KommaKorrektus/"]
-RUN dotnet restore "src/KommaKorrektus/KommaKorrektus.csproj"
+COPY ["src/KommasKorrektus.Core/KommasKorrektus.Core.csproj", "src/KommasKorrektus.Core/"]
+COPY ["src/KommasKorrektus/KommasKorrektus.csproj", "src/KommasKorrektus/"]
+RUN dotnet restore "src/KommasKorrektus/KommasKorrektus.csproj"
 
 COPY src src
 # Fall back to today's date when BuildDate is not supplied, so the version never ends in "-".
 RUN BUILD_DATE="${BuildDate:-$(date -u +%Y%m%d)}" && \
-    dotnet publish "src/KommaKorrektus/KommaKorrektus.csproj" \
+    dotnet publish "src/KommasKorrektus/KommasKorrektus.csproj" \
     -c Release -o /app/publish --no-restore \
     -p:UseAppHost=false \
     -p:Channel=$Channel -p:BuildNumber=$BuildNumber -p:BuildDate=$BUILD_DATE
@@ -36,7 +36,7 @@ RUN apt-get update \
 
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_HTTP_PORTS="" \
-    KOMMAKORREKTUS_DATA=/data \
+    KOMMASKORREKTUS_DATA=/data \
     DOTNET_gcServer=0 \
     DOTNET_TieredPGO=1
 
@@ -51,6 +51,6 @@ USER $APP_UID
 
 # The app checks itself, so the image needs no extra tools.
 HEALTHCHECK --interval=30s --timeout=8s --start-period=40s --retries=3 \
-    CMD ["dotnet", "KommaKorrektus.dll", "--healthcheck"]
+    CMD ["dotnet", "KommasKorrektus.dll", "--healthcheck"]
 
-ENTRYPOINT ["dotnet", "KommaKorrektus.dll"]
+ENTRYPOINT ["dotnet", "KommasKorrektus.dll"]

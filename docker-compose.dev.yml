@@ -1,22 +1,22 @@
-# KommaKorrektus - development stack: builds the image from the source in this folder.
+# KommasKorrektus - development stack: builds the image from the source in this folder.
 #   ./scripts/redeploy.ps1            (rebuilds the container and redeploys the stack)
 #   docker compose -f docker-compose.dev.yml up -d --build
 #
 # Web:      http://localhost:2930
-# pgAdmin:  http://localhost:2931   (admin@kommakorrektus.example.com / kommakorrektus)
+# pgAdmin:  http://localhost:2931   (admin@kommaskorrektus.example.com / kommaskorrektus)
 # Postgres: localhost:12930         (for tests and tools)
-name: kommakorrektus-dev
+name: kommaskorrektus-dev
 
 services:
-  kommakorrektus:
+  kommaskorrektus:
     build:
       context: .
       dockerfile: Dockerfile
       args:
-        Channel: ${KOMMAKORREKTUS_CHANNEL:-local}
-        BuildNumber: ${KOMMAKORREKTUS_BUILD_NUMBER:-0}
-        BuildDate: ${KOMMAKORREKTUS_BUILD_DATE:-}
-    image: kommakorrektus:dev
+        Channel: ${KOMMASKORREKTUS_CHANNEL:-local}
+        BuildNumber: ${KOMMASKORREKTUS_BUILD_NUMBER:-0}
+        BuildDate: ${KOMMASKORREKTUS_BUILD_DATE:-}
+    image: kommaskorrektus:dev
     restart: unless-stopped
     depends_on:
       db:
@@ -26,16 +26,16 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
     volumes:
-      - kommakorrektus-data:/data
+      - kommaskorrektus-data:/data
 
   db:
     image: postgres:17
     restart: unless-stopped
     environment:
-      POSTGRES_PASSWORD: kommakorrektus
-      POSTGRES_DB: kommakorrektus
+      POSTGRES_PASSWORD: kommaskorrektus
+      POSTGRES_DB: kommaskorrektus
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d kommakorrektus"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kommaskorrektus"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -43,15 +43,15 @@ services:
       # Only for local tests and tools.
       - "12930:5432"
     volumes:
-      - kommakorrektus-db:/var/lib/postgresql/data
+      - kommaskorrektus-db:/var/lib/postgresql/data
 
-  # Database UI of the development stack. Add the server "db" (user postgres, password kommakorrektus).
+  # Database UI of the development stack. Add the server "db" (user postgres, password kommaskorrektus).
   pgadmin:
     image: dpage/pgadmin4
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@kommakorrektus.example.com
-      PGADMIN_DEFAULT_PASSWORD: kommakorrektus
+      PGADMIN_DEFAULT_EMAIL: admin@kommaskorrektus.example.com
+      PGADMIN_DEFAULT_PASSWORD: kommaskorrektus
       PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
     ports:
@@ -59,17 +59,17 @@ services:
     depends_on:
       - db
     volumes:
-      - kommakorrektus-pgadmin:/var/lib/pgadmin
+      - kommaskorrektus-pgadmin:/var/lib/pgadmin
 
 # An explicit subnet: on a PC with many stacks Docker runs out of its default address pools ("all predefined address pools
-# have been fully subnetted"). Override with KOMMAKORREKTUS_DEV_SUBNET if this range collides with something.
+# have been fully subnetted"). Override with KOMMASKORREKTUS_DEV_SUBNET if this range collides with something.
 networks:
   default:
     ipam:
       config:
-        - subnet: ${KOMMAKORREKTUS_DEV_SUBNET:-10.253.30.0/24}
+        - subnet: ${KOMMASKORREKTUS_DEV_SUBNET:-10.253.30.0/24}
 
 volumes:
-  kommakorrektus-data:
-  kommakorrektus-db:
-  kommakorrektus-pgadmin:
+  kommaskorrektus-data:
+  kommaskorrektus-db:
+  kommaskorrektus-pgadmin:

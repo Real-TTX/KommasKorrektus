@@ -1,0 +1,144 @@
+@using KommasKorrektus.Pages.Billing
+@model DocEditModelBase
+@*
+    The form of an offer or invoice draft, with the PDF next to it. Shared by /Invoices/Edit and /Offers/Edit. The lines are rows with data-name attributes: the script
+    (invoice-editor.js) numbers them as Input.Lines[i].X before every send, adds and removes rows and works out the totals as it is typed.
+*@
+@{
+    var previewUrl = Url.Page($"{Model.Base}/Edit", "Preview", new { id = Model.Id });
+    string Name(int i, string field) => $"Input.Lines[{i}].{field}";
+    var currencyCode = Model.Currency;
+    void LineRow(int i, DocEditModelBase.LineModel l)
+    {
+        <div class="kk-line" data-line>
+            <input type="hidden" data-name="Id" name="@Name(i, "Id")" value="@l.Id" />
+            <div class="kk-line__title">
+                <input class="mat-input" data-name="Title" name="@Name(i, "Title")" value="@l.Title" placeholder="Bezeichnung" aria-label="Bezeichnung" />
+                <textarea class="mat-textarea kk-line__desc" rows="1" data-name="Description" name="@Name(i, "Description")" placeholder="Beschreibung (optional)" aria-label="Beschreibung">@l.Description</textarea>
+            </div>
+            <label class="kk-line__f kk-line__qty"><span>Menge</span><input class="mat-input" type="number" step="any" data-name="Quantity" name="@Name(i, "Quantity")" value="@KommasKorrektus.Controls.FieldTagHelper.Format(l.Quantity)" /></label>
+            <label class="kk-line__f kk-line__unit"><span>Einheit</span><input class="mat-input" list="units" data-name="Unit" name="@Name(i, "Unit")" value="@l.Unit" /></label>
+            <label class="kk-line__f kk-line__price"><span>Einzelpreis</span><input class="mat-input" type="number" step="any" data-name="UnitPrice" name="@Name(i, "UnitPrice")" value="@KommasKorrektus.Controls.FieldTagHelper.Format(l.UnitPrice)" /></label>
+            <label class="kk-line__f kk-line__vat" data-vat><span>USt. %</span><input class="mat-input" type="number" step="any" data-name="VatRate" name="@Name(i, "VatRate")" value="@KommasKorrektus.Controls.FieldTagHelper.Format(l.VatRate)" /></label>
+            <label class="kk-line__f kk-line__disc"><span>Rabatt %</span><input class="mat-input" type="number" step="any" data-name="DiscountPercent" name="@Name(i, "DiscountPercent")" value="@KommasKorrektus.Controls.FieldTagHelper.Format(l.DiscountPercent)" /></label>
+            <div class="kk-line__net"><span class="kk-line__net-label">Betrag</span><output data-net>0,00 €</output></div>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon kk-line__remove" data-remove aria-label="Position entfernen" data-tip="Entfernen">@Ui.Icon("trash")</button>
+        </div>
+    }
+}
+
+<div class="kk-split">
+    <form class="mat-form kk-split__form" method="post" novalidate id="doc-form" data-preview-url="@previewUrl" data-currency="@currencyCode" data-invoice-editor>
+        <input type="hidden" name="Id" value="@Model.Id" />
+        <kk-summary />
+
+        <kk-card title="@(Model.Number is null ? "Empfänger" : $"{Model.Title} {Model.Number}")" icon="user">
+            <div class="mat-form__grid">
+                <div class="mat-field mat-field--full @(ViewData.ModelState.ContainsKey("Input.CustomerId") ? "is-invalid" : "")">
+                    <label class="mat-label" for="Input_CustomerId">Kunde <span class="mat-req" aria-hidden="true">*</span></label>
+                    <select class="mat-select" id="Input_CustomerId" name="Input.CustomerId" required data-msg-required="Bitte wähle den Kunden.">
+                        <option value="">Bitte wählen ...</option>
+                        @foreach (var o in Model.Customers) { <option value="@o.Value" selected="@(o.Value == Model.Input.CustomerId?.ToString())">@o.Text</option> }
+                    </select>
+                    <span class="mat-error" aria-live="polite">@(ViewData.ModelState.TryGetValue("Input.CustomerId", out var ce) && ce.Errors.Count > 0 ? ce.Errors[0].ErrorMessage : "")</span>
+                </div>
+                <div class="mat-field">
+                    <label class="mat-label" for="Input_ProjectId">Projekt</label>
+                    <select class="mat-select" id="Input_ProjectId" name="Input.ProjectId">
+                        <option value="">(kein Projekt)</option>
+                        @foreach (var p in Model.Projects) { <option value="@p.Id" data-customer="@p.CustomerId" selected="@(p.Id == Model.Input.ProjectId)">@p.Title</option> }
+                    </select>
+                </div>
+                <kk-select for="Input.TemplateId" label="Vorlage" items="Model.Templates" />
+                <kk-input for="Input.CustomerReference" label="Ihre Referenz" hint="Bestellnummer oder Kennzeichen des Kunden." />
+                <kk-input for="Input.BuyerReference" label="Leitweg-ID" hint="Nur für Rechnungen an Behörden (XRechnung)." />
+            </div>
+        </kk-card>
+
+        <kk-card title="Datum und Zahlung" icon="calendar">
+            <div class="mat-form__grid">
+                <kk-input for="Input.IssueDate" label="Datum" type="date" required="true" />
+                @if (Model.IsOffer)
+                {
+                    <kk-input for="Input.ValidUntil" label="Gültig bis" type="date" />
+                }
+                else
+                {
+                    <kk-input for="Input.ServiceFrom" label="Leistung von" type="date" hint="Der Zeitraum der Leistung steht auf der Rechnung." />
+                    <kk-input for="Input.ServiceTo" label="Leistung bis" type="date" />
+                    <kk-input for="Input.PaymentTermDays" label="Zahlungsziel in Tagen" type="number" min="0" max="365" />
+                    <kk-input for="Input.DueDate" label="Fällig am" type="date" />
+                }
+            </div>
+        </kk-card>
+
+        <kk-card title="Texte" icon="type">
+            <div class="mat-form__grid">
+                <kk-input for="Input.Subject" label="Betreff" full="true" />
+                <kk-textarea for="Input.IntroText" label="Einleitung" rows="4" full="true" hint="Platzhalter wie {{Anrede}} und {{Projekt}} werden beim Ausstellen ersetzt (Rechnungen > Textbausteine)." />
+            </div>
+        </kk-card>
+
+        <kk-card title="Positionen" icon="list">
+            <div class="kk-lines" id="lines" data-small="@(Model.Input.SmallBusiness ? "true" : "false")">
+                @for (var i = 0; i < Model.Input.Lines.Count; i++) { LineRow(i, Model.Input.Lines[i]); }
+            </div>
+            <template id="line-template">@{ LineRow(0, new DocEditModelBase.LineModel { VatRate = Model.SmallBusinessDefault ? 0 : 19 }); }</template>
+            <datalist id="units"><option value="Normseite"></option><option value="Wort"></option><option value="Stunde"></option><option value="pauschal"></option><option value="Tag"></option><option value="Stück"></option></datalist>
+
+            <div class="mat-row kk-lines__tools">
+                <button type="button" class="mat-btn mat-btn--secondary" id="add-line">@Ui.Icon("plus")<span>Position</span></button>
+                @if (Model.Products.Count > 0)
+                {
+                    <div class="mat-field kk-lines__product">
+                        <label class="mat-label mat-sr-only" for="product-picker">Produkt einfügen</label>
+                        <select class="mat-select" id="product-picker">
+                            <option value="">Produkt einfügen ...</option>
+                            @foreach (var p in Model.Products) { <option value="@p.Id" data-title="@p.Name" data-description="@p.Description" data-unit="@p.Unit" data-price="@KommasKorrektus.Controls.FieldTagHelper.Format(p.NetPrice)" data-vat="@KommasKorrektus.Controls.FieldTagHelper.Format(p.VatRate)">@p.Name (@Fmt.Money(p.NetPrice) je @p.Unit)</option> }
+                        </select>
+                    </div>
+                }
+                <button type="submit" asp-page-handler="Suggest" formnovalidate class="mat-btn mat-btn--ghost" data-tip="Preis und Umfang des Projekts als Positionen">@Ui.Icon("sparkles")<span>Aus Projekt</span></button>
+                @if (!Model.IsOffer)
+                {
+                    <button type="submit" asp-page-handler="AddTime" formnovalidate class="mat-btn mat-btn--ghost" data-tip="Noch nicht abgerechnete Arbeitszeit des Projekts">@Ui.Icon("clock")<span>Aufwand@(Model.TimeHours > 0 ? $" ({Fmt.Number(Model.TimeHours, 2)} h)" : "")</span></button>
+                }
+            </div>
+
+            <div class="mat-form__grid kk-lines__options">
+                <kk-input for="Input.DiscountPercent" label="Rabatt auf alles in Prozent" type="number" min="0" max="100" />
+                <kk-switch for="Input.SmallBusiness" label="Kleinunternehmer: keine Umsatzsteuer" />
+                <kk-switch for="Input.ReverseCharge" label="Reverse Charge: der Kunde schuldet die Steuer" show-if="Input.SmallBusiness" show-value="false" />
+            </div>
+
+            <div class="kk-totals" aria-live="polite">
+                <div class="kk-totals__row" data-discount-row hidden><span>Rabatt</span><output id="t-discount">0,00 €</output></div>
+                <div class="kk-totals__row"><span id="t-net-label">Nettobetrag</span><output id="t-net">0,00 €</output></div>
+                <div id="t-vat-rows"></div>
+                <div class="kk-totals__row kk-totals__row--gross" id="t-gross-row"><span>Gesamtbetrag</span><output id="t-gross">0,00 €</output></div>
+            </div>
+        </kk-card>
+
+        <kk-card title="Schluss" icon="edit">
+            <div class="mat-form__grid">
+                <kk-textarea for="Input.OutroText" label="Schlusstext" rows="4" full="true" />
+                <kk-textarea for="Input.InternalNote" label="Interne Notiz" rows="2" full="true" hint="Wird nicht gedruckt." />
+            </div>
+        </kk-card>
+
+        <kk-buttons back-href="@(Model.Id is { } id ? $"{Model.Base}/Details?id={id}" : Model.Base)" save-text="Entwurf speichern"
+                    delete-url="@(Model.Id is null ? null : Url.Page($"{Model.Base}/Edit", "Delete", new { id = Model.Id }))" delete-confirm="Diesen Entwurf löschen?">
+            <button type="submit" asp-page-handler="Issue" class="mat-btn mat-btn--secondary" data-confirm="@(Model.IsOffer ? "Das Angebot jetzt ausstellen? Es bekommt seine Nummer und kann danach nicht mehr geändert werden." : $"{Model.Title} jetzt ausstellen? Sie bekommt ihre Nummer und kann danach nicht mehr geändert werden. Korrekturen sind nur noch mit einer Gutschrift möglich.")" data-confirm-ok="Ausstellen">@Ui.Icon("check-circle")<span>Ausstellen</span></button>
+        </kk-buttons>
+    </form>
+
+    <aside class="kk-split__preview" aria-label="Vorschau">
+        <div class="mat-card">
+            <div class="mat-card__head">@Ui.Icon("eye")<span class="mat-card__title">Vorschau</span><span class="mat-card__sub" id="preview-state">aktuell</span></div>
+            <div class="mat-card__body kk-preview">
+                <iframe id="preview-frame" title="Vorschau als PDF" class="kk-preview__frame"></iframe>
+                <p class="mat-hint">So wird das Dokument gedruckt. <a href="#" id="preview-open" target="_blank" rel="noopener">Als PDF in einem neuen Tab öffnen</a></p>
+            </div>
+        </div>
+    </aside>
+</div>

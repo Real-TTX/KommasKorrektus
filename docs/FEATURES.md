@@ -1,6 +1,6 @@
 # Features
 
-Everything KommaKorrektus does, area by area. Names in *italics* are the labels in the (German) interface.
+Everything KommasKorrektus does, area by area. Names in *italics* are the labels in the (German) interface.
 
 ## Texts and versions
 
