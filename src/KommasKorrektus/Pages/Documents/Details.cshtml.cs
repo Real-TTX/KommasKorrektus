@@ -32,6 +32,9 @@ public sealed class DetailsModel(KkDbContext db, DocumentService documents, Conf
 
     public DocumentVersion Current { get; private set; } = null!;
 
+    /// <summary>The version the newest round began with (the original, or the latest file of the customer): the starting point of "what did I change".</summary>
+    public int RoundStart { get; private set; } = 1;
+
     public int TotalSeconds { get; private set; }
 
     public int TotalWordsEdited { get; private set; }
@@ -76,12 +79,13 @@ public sealed class DetailsModel(KkDbContext db, DocumentService documents, Conf
                 Version = new DocumentVersion
                 {
                     Id = v.Id, DocumentId = v.DocumentId, VersionNo = v.VersionNo, Label = v.Label, Origin = v.Origin, ParagraphCount = v.ParagraphCount, WordCount = v.WordCount,
-                    CharCount = v.CharCount, WordsAdded = v.WordsAdded, WordsRemoved = v.WordsRemoved, WordsChanged = v.WordsChanged, Comment = v.Comment, CreateDate = v.CreateDate, CreateUserId = v.CreateUserId,
+                    CharCount = v.CharCount, SourceFileId = v.SourceFileId, WordsAdded = v.WordsAdded, WordsRemoved = v.WordsRemoved, WordsChanged = v.WordsChanged, Comment = v.Comment, CreateDate = v.CreateDate, CreateUserId = v.CreateUserId,
                 },
                 Author = db.User.IgnoreQueryFilters().Where(u => u.Id == v.CreateUserId).Select(u => u.DisplayName).FirstOrDefault(),
             }).ToListAsync();
         Versions = [.. rows.Select(r => new VersionRow(r.Version, r.Author))];
         Current = Versions.First(v => v.Version.VersionNo == document.CurrentVersionNo).Version;
+        RoundStart = await documents.RoundStartAsync(document, document.CurrentVersionNo, HttpContext.RequestAborted);
 
         Comments = await db.DocumentComment.AsNoTracking().Where(c => c.DocumentId == Id).OrderBy(c => c.IsResolved).ThenBy(c => c.ParagraphIndex).ThenBy(c => c.CreateDate).ToListAsync();
 

@@ -568,6 +568,9 @@ namespace KommasKorrektus.Data.Migrations
                     b.Property<int>("ParagraphCount")
                         .HasColumnType("integer");
 
+                    b.Property<long?>("SourceFileId")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Text")
                         .IsRequired()
                         .HasColumnType("text");
@@ -594,6 +597,8 @@ namespace KommasKorrektus.Data.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SourceFileId");
 
                     b.HasIndex("DocumentId", "VersionNo")
                         .IsUnique();
@@ -2181,7 +2186,14 @@ namespace KommasKorrektus.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("KommasKorrektus.Data.Entities.StoredFile", "SourceFile")
+                        .WithMany()
+                        .HasForeignKey("SourceFileId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Document");
+
+                    b.Navigation("SourceFile");
                 });
 
             modelBuilder.Entity("KommasKorrektus.Data.Entities.HistoryEntry", b =>

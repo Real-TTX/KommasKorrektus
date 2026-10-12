@@ -153,7 +153,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         }
 
         var paragraphs = request.Paragraphs is { Length: > 0 } ? request.Paragraphs : [string.Empty];
-        var page = await layouts.ForTextAsync(document, paragraphs, editable: true, HttpContext.RequestAborted);
+        var page = await layouts.ForTextAsync(document, paragraphs, editable: true, document.CurrentVersionNo, HttpContext.RequestAborted);
         if (page.Layout.ParagraphCount != paragraphs.Length)
         {
             return new JsonResult(new { ok = false, reason = "Diese Fassung lässt sich nicht als Seite zeigen (eine Tabellenzelle ohne Absatz). Bitte im Textmodus weiterarbeiten." });

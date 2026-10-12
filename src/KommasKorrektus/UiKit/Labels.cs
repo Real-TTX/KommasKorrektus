@@ -167,6 +167,7 @@ public static class Labels
     {
         VersionOrigin.Import => "Original",
         VersionOrigin.Working => "In Arbeit",
+        VersionOrigin.Upload => "Datei vom Kunden",
         VersionOrigin.Restore => "Wiederhergestellt",
         _ => "Abgeschlossen",
     };

@@ -51,13 +51,15 @@ public sealed class LayoutService(DocumentService documents, IMemoryCache cache,
         return false;
     }
 
-    /// <summary>A text (the editor's, not yet saved) drawn on the page of the document.</summary>
-    public async Task<PagePayload> ForTextAsync(Document document, IReadOnlyList<string> paragraphs, bool editable, CancellationToken ct = default)
+    /// <summary>
+    /// A text (the editor's, not yet saved) drawn on the page of the document, in the formatting of the round the version <paramref name="versionNo"/> belongs to
+    /// (the file of the import, or of the latest file of the customer before it).
+    /// </summary>
+    public async Task<PagePayload> ForTextAsync(Document document, IReadOnlyList<string> paragraphs, bool editable, int versionNo, CancellationToken ct = default)
     {
-        var first = await documents.GetVersionAsync(document.Id, 1, ct) ?? throw new InvalidOperationException("Die erste Fassung fehlt.");
-        var firstParagraphs = DocumentService.ParagraphsOf(first);
-        var original = await FormattedOriginalAsync(document, firstParagraphs, ct);
-        var docx = DocxWriter.Write(original, firstParagraphs, paragraphs, RevisionMode.Accepted, "KommasKorrektus", clock.GetUtcNow().UtcDateTime);
+        var round = await documents.RoundOfAsync(document, versionNo, ct) ?? throw new InvalidOperationException("Die erste Fassung fehlt.");
+        var original = await FormattedOriginalAsync(document, round, ct);
+        var docx = DocxWriter.Write(original, round.Paragraphs, paragraphs, RevisionMode.Accepted, "KommasKorrektus", clock.GetUtcNow().UtcDateTime);
         return Wrap(DocxLayout.Render(docx, new LayoutOptions { Editable = editable }), original is not null);
     }
 
@@ -69,7 +71,7 @@ public sealed class LayoutService(DocumentService documents, IMemoryCache cache,
         {
             entry.SlidingExpiration = TimeSpan.FromMinutes(3);
             entry.AbsoluteExpirationRelativeToNow = PageLifetime;
-            return await ForTextAsync(document, DocumentService.ParagraphsOf(version), editable, ct);
+            return await ForTextAsync(document, DocumentService.ParagraphsOf(version), editable, version.VersionNo, ct);
         });
         return Fresh(page!);
     }
@@ -85,8 +87,8 @@ public sealed class LayoutService(DocumentService documents, IMemoryCache cache,
             entry.SlidingExpiration = TimeSpan.FromMinutes(3);
             entry.AbsoluteExpirationRelativeToNow = PageLifetime;
             var export = await documents.ExportAsync(document, fromNo, toNo, ExportFormat.DocxTracked, ChangesAuthor, ct);
-            var first = await documents.GetVersionAsync(document.Id, 1, ct);
-            var formatted = first is not null && await FormattedOriginalAsync(document, DocumentService.ParagraphsOf(first), ct) is not null;
+            var round = await documents.RoundOfAsync(document, toNo, ct);
+            var formatted = round is not null && await FormattedOriginalAsync(document, round, ct) is not null;
             // Only the changes between the two versions are changes here: revision marks the author's own file came with are taken as accepted.
             return Wrap(DocxLayout.Render(export.Bytes, new LayoutOptions { Mode = LayoutMode.Changes, ChangesBy = ChangesAuthor }), formatted);
         });
@@ -94,25 +96,24 @@ public sealed class LayoutService(DocumentService documents, IMemoryCache cache,
     }
 
     /// <summary>
-    /// The uploaded Word file when the page can take its formatting (its text is the text of version 1), else null. Whether the text matches is found out once
-    /// and remembered: it needs the whole file read.
+    /// The Word file of the round when the page can take its formatting (its text is the text of the version the round began with), else null. Whether the text
+    /// matches is found out once and remembered: it needs the whole file read.
     /// </summary>
-    private async Task<byte[]?> FormattedOriginalAsync(Document document, IReadOnlyList<string> firstParagraphs, CancellationToken ct)
+    private async Task<byte[]?> FormattedOriginalAsync(Document document, DocumentService.Round round, CancellationToken ct)
     {
-        var original = await documents.OriginalDocxAsync(document, ct);
-        if (original is null)
+        if (round.Docx is null)
         {
             return null;
         }
 
-        var key = $"kk:formatted:{document.Id}:{document.OriginalFileId}";
+        var key = $"kk:formatted:{document.Id}:{round.StartNo}:{document.OriginalFileId}";
         if (!cache.TryGetValue(key, out bool matches))
         {
-            matches = DocxReader.Matches(original, firstParagraphs);
+            matches = DocxReader.Matches(round.Docx, round.Paragraphs);
             cache.Set(key, matches, CssLifetime);
         }
 
-        return matches ? original : null;
+        return matches ? round.Docx : null;
     }
 
     private PagePayload Wrap(DocxLayoutResult layout, bool formatted)

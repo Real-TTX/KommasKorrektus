@@ -63,6 +63,7 @@ before driving the app.
   policy blocks them and the moved text takes the look of the paragraph it joins, which is what the export does
 - Page view, editing: native undo only works if the DOM is not rewritten behind the browser's back: list numbers that end up in the middle of a paragraph are hidden by a class,
   not removed. Formatting commands (`beforeinput` `format*`) are refused on purpose
+- **Rounds** (ping pong with the customer): a file the customer sends back is a version of its own (`VersionOrigin.Upload`, `DocumentVersion.SourceFileId`). The formatting of the page and of the Word export is not always the original: `DocumentService.RoundOfAsync` gives the file of the round a version belongs to (the latest version at or before it that came from a file), `RoundStartAsync` its number; the export without a starting version starts there
 - `U+2028` (`TextMetrics.LineBreak`) separates a line break inside a paragraph. Never write it as a literal in source; the
   Write tool turns `\uXXXX` escapes into the characters, so use `(char)0x2028`
 - QuestPDF: Community licence, `Settings.UseSystemFonts`, and the runtime image needs `libfontconfig1` and fonts (see the

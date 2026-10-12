@@ -183,6 +183,7 @@ public class KkDbContext(DbContextOptions<KkDbContext> options, ICurrentUser cur
         {
             e.HasIndex(x => new { x.DocumentId, x.VersionNo }).IsUnique();
             e.HasOne(x => x.Document).WithMany(x => x.Versions).HasForeignKey(x => x.DocumentId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.SourceFile).WithMany().HasForeignKey(x => x.SourceFileId).OnDelete(DeleteBehavior.SetNull);
         });
         b.Entity<DocumentComment>(e =>
         {

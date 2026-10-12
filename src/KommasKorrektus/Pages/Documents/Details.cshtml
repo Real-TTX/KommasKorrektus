@@ -54,6 +54,10 @@
                                     {
                                         <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Documents/Compare?id=@d.Id&from=@(ver.VersionNo - 1 < 1 ? 1 : ver.VersionNo - 1)&to=@ver.VersionNo" aria-label="Mit der Fassung davor vergleichen" data-tip="Vergleichen">@Ui.Icon("columns")</a>
                                     }
+                                    @if (ver.SourceFileId is not null)
+                                    {
+                                        <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Documents/Download?id=@d.Id&version=@ver.VersionNo" aria-label="Die Datei dieser Fassung herunterladen" data-tip="Datei herunterladen">@Ui.Icon("download")</a>
+                                    }
                                     @if (ver.VersionNo != newest)
                                     {
                                         <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="Diese Fassung wiederherstellen" data-tip="Wiederherstellen" data-confirm="Fassung @ver.VersionNo als neue Fassung wiederherstellen? Alle bisherigen Fassungen bleiben erhalten." data-confirm-ok="Wiederherstellen">@Ui.Icon("restore")</button>
@@ -72,7 +76,7 @@
             <input type="hidden" name="id" value="@d.Id" />
             <kk-card title="Zwei Fassungen vergleichen" icon="columns">
                 <div class="mat-form__grid">
-                    <div class="mat-field"><label class="mat-label" for="cmp-from">Von (alt)</label><select class="mat-select" id="cmp-from" name="from">@foreach (var o in options.AsEnumerable().Reverse()) { <option value="@o.Value" selected="@(o.Value == "1")">@o.Text</option> }</select></div>
+                    <div class="mat-field"><label class="mat-label" for="cmp-from">Von (alt)</label><select class="mat-select" id="cmp-from" name="from">@foreach (var o in options.AsEnumerable().Reverse()) { <option value="@o.Value" selected="@(o.Value == Model.RoundStart.ToString())">@o.Text</option> }</select></div>
                     <div class="mat-field"><label class="mat-label" for="cmp-to">Bis (neu)</label><select class="mat-select" id="cmp-to" name="to">@foreach (var o in options) { <option value="@o.Value" selected="@(o.Value == newest.ToString())">@o.Text</option> }</select></div>
                     <div class="mat-field mat-field--full">
                         <span class="mat-label">Ansicht</span>
@@ -93,7 +97,7 @@
             <kk-card title="Dokument ausgeben" icon="download">
                 <p class="mat-muted">Eine Datei mit den Änderungen zwischen zwei Fassungen, zum Beispiel für die Autorin oder den Autor. In Word nimmt man die Änderungen mit „Überprüfen > Annehmen“ einzeln oder alle auf einmal an.</p>
                 <div class="mat-form__grid">
-                    <div class="mat-field"><label class="mat-label" for="exp-from">Ausgangsfassung (alt)</label><select class="mat-select" id="exp-from" name="from">@foreach (var o in options.AsEnumerable().Reverse()) { <option value="@o.Value" selected="@(o.Value == "1")">@o.Text</option> }</select></div>
+                    <div class="mat-field"><label class="mat-label" for="exp-from">Ausgangsfassung (alt)</label><select class="mat-select" id="exp-from" name="from">@foreach (var o in options.AsEnumerable().Reverse()) { <option value="@o.Value" selected="@(o.Value == Model.RoundStart.ToString())">@o.Text</option> }</select></div>
                     <div class="mat-field"><label class="mat-label" for="exp-to">Zielfassung (neu)</label><select class="mat-select" id="exp-to" name="to">@foreach (var o in options) { <option value="@o.Value" selected="@(o.Value == newest.ToString())">@o.Text</option> }</select></div>
                     <div class="mat-field mat-field--full"><label class="mat-label" for="exp-format">Format</label><select class="mat-select" id="exp-format" name="format">@foreach (var f in formats) { <option value="@f.Value">@f.Text</option> }</select></div>
                 </div>
@@ -144,6 +148,7 @@
 <div class="mat-actions">
     <a class="mat-btn mat-btn--primary" href="/Documents/Editor?id=@d.Id">@Ui.Icon("pen")<span>Im Editor bearbeiten</span></a>
     <a class="mat-btn mat-btn--secondary" href="/Documents/Compare?id=@d.Id&from=@previous&to=@newest">@Ui.Icon("columns")<span>Letzte Änderungen</span></a>
+    <a class="mat-btn mat-btn--secondary" href="/Documents/NewVersion?id=@d.Id">@Ui.Icon("upload")<span>Datei vom Kunden</span></a>
     <a class="mat-btn mat-btn--secondary" href="/Documents/Download?id=@d.Id">@Ui.Icon("download")<span>Original</span></a>
     <a class="mat-btn mat-btn--secondary" href="/Documents/Edit?id=@d.Id">@Ui.Icon("edit")<span>Eigenschaften</span></a>
     <a class="mat-btn mat-btn--secondary" href="/Projects/Details?id=@Model.Project.Id&tab=documents">@Ui.Icon("back")<span>Zurück</span></a>

@@ -53,8 +53,8 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
         return extension is ".txt" or ".md" or ".text" ? DocumentKind.Text : throw new ImportException("Dieses Dateiformat kann ich nicht lesen. Bitte lade eine Word-Datei (.docx), ein PDF oder eine Textdatei (.txt) hoch.");
     }
 
-    /// <summary>Reads a file and makes a document with its first version (the text as the author delivered it). Saved by the caller's SaveChanges.</summary>
-    public async Task<ImportResult> ImportAsync(Project project, string title, string fileName, byte[] bytes, CancellationToken ct = default)
+    /// <summary>Reads a file: the kind, the paragraphs, and what the reading had to guess.</summary>
+    private static (DocumentKind Kind, IReadOnlyList<string> Paragraphs, List<string> Notes) ReadFile(string fileName, byte[] bytes)
     {
         if (bytes.Length == 0)
         {
@@ -96,14 +96,21 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
             throw new ImportException(notes.FirstOrDefault(n => n.Contains("keinen Text")) ?? "In der Datei steht kein Text.");
         }
 
-        var contentType = kind switch
-        {
-            DocumentKind.Docx => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            DocumentKind.Pdf => "application/pdf",
-            _ => "text/plain; charset=utf-8",
-        };
+        return (kind, paragraphs, notes);
+    }
 
-        var original = await files.SaveAsync(bytes, fileName, contentType, FileKind.Original, projectId: project.Id, customerId: project.CustomerId, ct: ct);
+    private static string ContentTypeOf(DocumentKind kind) => kind switch
+    {
+        DocumentKind.Docx => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        DocumentKind.Pdf => "application/pdf",
+        _ => "text/plain; charset=utf-8",
+    };
+
+    /// <summary>Reads a file and makes a document with its first version (the text as the author delivered it). Saved by the caller's SaveChanges.</summary>
+    public async Task<ImportResult> ImportAsync(Project project, string title, string fileName, byte[] bytes, CancellationToken ct = default)
+    {
+        var (kind, paragraphs, notes) = ReadFile(fileName, bytes);
+        var original = await files.SaveAsync(bytes, fileName, ContentTypeOf(kind), FileKind.Original, projectId: project.Id, customerId: project.CustomerId, ct: ct);
         var document = new Document
         {
             Project = project,
@@ -118,6 +125,33 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
         document.Versions.Add(NewVersion(1, paragraphs, VersionOrigin.Import, "Original", null, DiffStats.None));
         db.Document.Add(document);
         return new ImportResult(document, notes);
+    }
+
+    /// <summary>
+    /// A file the customer sent back is the next version of the document: its text becomes the version (compared with the one before, so that "what did the customer
+    /// change" is the comparison of the last two), the file is kept with it and is the base of the formatting from here on (a new round of the ping pong). The pass of the
+    /// editor that was open ends with it. Saved here.
+    /// </summary>
+    public async Task<SaveResult> AddFileVersionAsync(Document document, string fileName, byte[] bytes, string? label, string? comment, CancellationToken ct = default)
+    {
+        var (kind, paragraphs, notes) = ReadFile(fileName, bytes);
+        var latest = await db.DocumentVersion.FirstAsync(v => v.DocumentId == document.Id && v.VersionNo == document.CurrentVersionNo, ct);
+        var delta = DocumentDiff.Stats(DocumentDiff.Compare(TextMetrics.Paragraphs(latest.Text), paragraphs));
+        if (latest.Origin == VersionOrigin.Working)
+        {
+            Close(latest, null, null);
+        }
+
+        var customerId = await db.Project.AsNoTracking().Where(p => p.Id == document.ProjectId).Select(p => (long?)p.CustomerId).FirstOrDefaultAsync(ct);
+        var stored = await files.SaveAsync(bytes, fileName, ContentTypeOf(kind), FileKind.Original, projectId: document.ProjectId, customerId: customerId, ct: ct);
+        var remark = string.Join(' ', new[] { string.IsNullOrWhiteSpace(comment) ? null : comment.Trim(), notes.Count == 0 ? null : string.Join(' ', notes) }.Where(t => t is not null));
+        var version = NewVersion(latest.VersionNo + 1, paragraphs, VersionOrigin.Upload, string.IsNullOrWhiteSpace(label) ? "Datei vom Kunden" : label.Trim(), remark.Length == 0 ? null : remark, delta);
+        version.DocumentId = document.Id;
+        version.SourceFile = stored;
+        db.DocumentVersion.Add(version);
+        document.CurrentVersionNo = version.VersionNo;
+        await db.SaveChangesAsync(ct);
+        return new SaveResult(version, true, delta);
     }
 
     private static string DecodeText(byte[] bytes)
@@ -262,7 +296,7 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
         {
             case ExportFormat.DocxTracked:
             case ExportFormat.DocxClean:
-                var baseDocx = await BaseDocxAsync(document, fromNo, oldParagraphs, ct);
+                var baseDocx = await BaseDocxAsync(document, fromNo, toNo, oldParagraphs, ct);
                 var mode = format == ExportFormat.DocxTracked ? RevisionMode.Tracked : RevisionMode.Accepted;
                 var docx = DocxWriter.Write(baseDocx, oldParagraphs, newParagraphs, mode, author, date);
                 var suffix = format == ExportFormat.DocxTracked ? "mit Änderungen" : "bereinigt";
@@ -279,6 +313,52 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
 
             default:
                 return new ExportResult(System.Text.Encoding.UTF8.GetBytes(string.Join("\n\n", newParagraphs.Where(p => p.Length > 0)).Replace(TextMetrics.LineBreak, '\n')), $"{stem}.txt", "text/plain; charset=utf-8");
+        }
+    }
+
+    /// <summary>
+    /// A round of the ping pong between editor and customer: it begins with version 1 or with a file of the customer. <see cref="Docx"/> is that file when it is a Word file
+    /// (null: the page and the export of the round are plain), <see cref="Paragraphs"/> its text, which is the text of version <see cref="StartNo"/>.
+    /// </summary>
+    public sealed record Round(int StartNo, string[] Paragraphs, byte[]? Docx);
+
+    /// <summary>The round a version belongs to: the latest version at or before it that came from a file (version 1 is the file of the import).</summary>
+    public async Task<Round?> RoundOfAsync(Document document, int versionNo, CancellationToken ct = default)
+    {
+        var start = await db.DocumentVersion.AsNoTracking()
+            .Where(v => v.DocumentId == document.Id && v.VersionNo <= versionNo && (v.VersionNo == 1 || v.SourceFileId != null))
+            .OrderByDescending(v => v.VersionNo).FirstOrDefaultAsync(ct);
+        if (start is null)
+        {
+            return null;
+        }
+
+        var docx = start.VersionNo == 1 ? await OriginalDocxAsync(document, ct) : await DocxOfFileAsync(start.SourceFileId, ct);
+        return new Round(start.VersionNo, ParagraphsOf(start), docx);
+    }
+
+    /// <summary>The number of the version the round of <paramref name="versionNo"/> began with: what the editor changed in this round is everything since.</summary>
+    public async Task<int> RoundStartAsync(Document document, int versionNo, CancellationToken ct = default)
+        => await db.DocumentVersion.AsNoTracking()
+            .Where(v => v.DocumentId == document.Id && v.VersionNo <= versionNo && (v.VersionNo == 1 || v.SourceFileId != null))
+            .OrderByDescending(v => v.VersionNo).Select(v => v.VersionNo).FirstOrDefaultAsync(ct) is var no && no > 0 ? no : 1;
+
+    private async Task<byte[]?> DocxOfFileAsync(long? fileId, CancellationToken ct)
+    {
+        var stored = fileId is null ? null : await db.StoredFile.AsNoTracking().FirstOrDefaultAsync(f => f.Id == fileId, ct);
+        if (stored is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var bytes = await files.ReadAllAsync(stored, ct);
+            return bytes.Length >= 4 && bytes[0] == 0x50 && bytes[1] == 0x4B ? bytes : null;
+        }
+        catch (StorageException)
+        {
+            return null;
         }
     }
 
@@ -307,24 +387,17 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
     }
 
     /// <summary>
-    /// The Word file the export starts from: the uploaded original, brought to the starting version. A document that was not uploaded as Word has no
-    /// original to keep the formatting of, so the export makes a plain one (the caller passes null).
+    /// The Word file the export starts from: the file of the round the target version belongs to, brought to the starting version (its text with the changes
+    /// accepted, formatting kept). A round that did not come as Word has no file to keep the formatting of, so the export makes a plain one (null).
     /// </summary>
-    private async Task<byte[]?> BaseDocxAsync(Document document, int fromNo, IReadOnlyList<string> fromParagraphs, CancellationToken ct)
+    private async Task<byte[]?> BaseDocxAsync(Document document, int fromNo, int toNo, IReadOnlyList<string> fromParagraphs, CancellationToken ct)
     {
-        var original = await OriginalDocxAsync(document, ct);
-        if (original is null)
+        var round = await RoundOfAsync(document, toNo, ct);
+        if (round?.Docx is null)
         {
             return null;
         }
 
-        if (fromNo == 1)
-        {
-            return original;
-        }
-
-        // The original has the text of version 1; the starting version is that with the changes accepted, formatting kept.
-        var first = await GetVersionAsync(document.Id, 1, ct);
-        return first is null ? null : DocxWriter.Write(original, ParagraphsOf(first), fromParagraphs, RevisionMode.Accepted, "KommasKorrektus", clock.GetUtcNow().UtcDateTime);
+        return fromNo == round.StartNo ? round.Docx : DocxWriter.Write(round.Docx, round.Paragraphs, fromParagraphs, RevisionMode.Accepted, "KommasKorrektus", clock.GetUtcNow().UtcDateTime);
     }
 }

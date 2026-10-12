@@ -18,7 +18,8 @@ public sealed class ExportModel(KkDbContext db, DocumentService documents, ICurr
         }
 
         if (to <= 0 || to > document.CurrentVersionNo) { to = document.CurrentVersionNo; }
-        if (from <= 0 || from > document.CurrentVersionNo) { from = 1; }
+        // Without a starting version: what the editor changed in this round, that is everything since the file of the customer (or since the original).
+        if (from <= 0 || from > document.CurrentVersionNo) { from = await documents.RoundStartAsync(document, to, HttpContext.RequestAborted); }
 
         try
         {

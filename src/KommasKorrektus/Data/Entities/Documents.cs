@@ -48,6 +48,8 @@ public enum VersionOrigin
     Working,
     /// <summary>An older version that was put back.</summary>
     Restore,
+    /// <summary>A file the customer sent back: the next round of the ping pong between editor and customer. Its text is the version, the file is kept with it.</summary>
+    Upload,
 }
 
 /// <summary>
@@ -82,6 +84,14 @@ public class DocumentVersion : AuditedEntity
     public int WordsChanged { get; set; }
 
     public string? Comment { get; set; }
+
+    /// <summary>
+    /// The file this version came from (a file of the customer, <see cref="VersionOrigin.Upload"/>). It is the base of the formatting from this version on: the page
+    /// and the Word export of a version use the file of the latest round at or before it. Version 1 has <see cref="Document.OriginalFileId"/>.
+    /// </summary>
+    public long? SourceFileId { get; set; }
+
+    public StoredFile? SourceFile { get; set; }
 }
 
 /// <summary>A remark of the editor (or of the client, through a link) on a paragraph.</summary>
