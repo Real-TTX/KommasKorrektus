@@ -81,6 +81,15 @@ public sealed class ViewPreferenceTests : IClassFixture<AppFixture>
         var options = Options(await client.GetStringAsync($"/Documents/Editor?id={document.Id}"));
         Assert.Contains("\"reference\":true", options);
         Assert.Contains("\"side\":false", options);
+        Assert.Contains("\"showResolved\":false", options);
+
+        // whether the comments that are ticked off are shown is kept too, and the rest stays as it was
+        using var shown = new HttpRequestMessage(HttpMethod.Post, $"/Documents/Editor?id={document.Id}&handler=View") { Content = JsonContent.Create(new { showResolved = true }) };
+        shown.Headers.Add("RequestVerificationToken", await AppFixture.TokenAsync(client, $"/Documents/Editor?id={document.Id}"));
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(shown)).StatusCode);
+        options = Options(await client.GetStringAsync($"/Documents/Editor?id={document.Id}"));
+        Assert.Contains("\"showResolved\":true", options);
+        Assert.Contains("\"reference\":true", options);
     }
 
     [DatabaseFact]

@@ -88,6 +88,29 @@ else if (mode == "text")
     }
 </kk-card>
 
+@if (Model.UploadsAllowed)
+{
+    <kk-card title="Eine Datei zurückschicken" icon="upload" id="upload">
+        <form class="mat-form" method="post" enctype="multipart/form-data" asp-page="/Portal/Document" asp-page-handler="Upload" asp-route-id="@doc.Id" asp-route-mode="@Model.Mode" novalidate>
+            <p class="mat-muted">Hast du den Text überarbeitet? Schicke die Datei (Word, PDF oder Text) hier zurück: Dein Lektorat bekommt sie als nächste Fassung und sieht sofort, was du geändert oder kommentiert hast.</p>
+            <div class="mat-form__grid">
+                <div class="mat-field mat-field--full">
+                    <label class="mat-label" for="UploadedFile">Datei</label>
+                    <input class="mat-input" type="file" id="UploadedFile" name="UploadedFile" accept=".docx,.pdf,.txt,.md,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain" required data-msg-required="Bitte wähle eine Datei aus." />
+                    <span class="mat-hint">Bis @(DocumentService.MaxUploadBytes / 1024 / 1024) MB.</span>
+                </div>
+                <div class="mat-field mat-field--full">
+                    <label class="mat-label" for="UploadNote">Ein Wort dazu (optional)</label>
+                    <textarea class="mat-textarea" id="UploadNote" name="UploadNote" rows="3" maxlength="1000"></textarea>
+                </div>
+            </div>
+            <div class="mat-btn-row mat-btn-row--plain">
+                <button type="submit" class="mat-btn mat-btn--primary">@Ui.Icon("upload")<span>Datei senden</span></button>
+            </div>
+        </form>
+    </kk-card>
+}
+
 <kk-card title="Meine Anmerkungen" icon="message-square" id="comments">
     @if (Model.Comments.Count == 0)
     {

@@ -920,49 +920,81 @@
     return i;
   }
 
+  var showResolved = !!(data.options && data.options.showResolved);   // the comments that are ticked off stay available: shown when the person wants them
+  var doneRow = document.getElementById('comment-done-row');
+  var doneSwitch = document.getElementById('comment-show-resolved');
+
+  function resolve(c, resolved) {
+    fetch(location.pathname + '?id=' + data.documentId + '&handler=Resolve&commentId=' + c.id + '&resolved=' + resolved, { method: 'POST', headers: { 'RequestVerificationToken': token }, credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
+      .then(function (result) {
+        c.isResolved = resolved;
+        c.resolvedDate = resolved ? result.resolvedDate : '';
+        renderComments();
+      })
+      .catch(function () { toast('Der Kommentar lässt sich gerade nicht ändern.', 'error'); });
+  }
+
   function renderComments() {
     if (!commentList || !view) { return; }
     commentList.textContent = '';
     var open = data.comments.filter(function (c) { return !c.isResolved; });
+    var done = data.comments.filter(function (c) { return c.isResolved; });
     document.getElementById('comment-count').textContent = String(open.length);
     var marked = new Set();
+    var markedDone = new Set();
     data.comments.forEach(function (c) {
       c.at = relocate(c);
-      if (!c.isResolved) { marked.add(c.at); }
+      if (!c.isResolved) { marked.add(c.at); } else if (showResolved) { markedDone.add(c.at); }
     });
-    view.setCommentMarks(marked);
+    view.setCommentMarks(marked, markedDone);
+    if (doneRow) {
+      doneRow.hidden = done.length === 0;
+      document.getElementById('comment-done-count').textContent = String(done.length);
+      doneSwitch.checked = showResolved;
+    }
     if (open.length === 0) {
       var empty = el('p', 'mat-muted');
       empty.textContent = 'Keine offenen Kommentare.';
       commentList.appendChild(empty);
     }
-    open.forEach(function (c) {
-      var item = el('li', 'kk-comment');
-      item.setAttribute('data-comment', String(c.id));
-      var head = el('div', 'kk-comment__head');
-      var link = el('a');
-      link.href = '#p' + (c.at + 1);
-      link.textContent = 'Absatz ' + (c.at + 1);
-      link.addEventListener('click', function (e) {
-        e.preventDefault();
-        var target = view.element(c.at);
-        if (target) { target.scrollIntoView({ block: 'center' }); view.focusParagraph(c.at, 'end'); }
-      });
-      var done = el('button', 'mat-btn mat-btn--ghost mat-btn--sm');
-      done.type = 'button';
-      done.innerHTML = icon('check') + '<span>Erledigt</span>';
-      done.addEventListener('click', function () {
-        fetch(location.pathname + '?id=' + data.documentId + '&handler=Resolve&commentId=' + c.id + '&resolved=true', { method: 'POST', headers: { 'RequestVerificationToken': token }, credentials: 'same-origin' })
-          .then(function (r) { if (r.ok) { c.isResolved = true; renderComments(); } });
-      });
-      head.appendChild(link);
-      head.appendChild(done);
-      var body = el('p');
-      body.textContent = c.text;
-      var meta = el('small', 'mat-muted');
-      meta.textContent = (c.quote ? '„' + c.quote + '“ · ' : '') + c.author + (c.source === 'docx' ? ' (Word)' : c.source === 'pdf' ? ' (PDF)' : '') + ' · ' + c.created;
-      item.appendChild(head); item.appendChild(body); item.appendChild(meta);
-      commentList.appendChild(item);
+    open.forEach(function (c) { commentList.appendChild(commentItem(c)); });
+    if (showResolved) {
+      done.forEach(function (c) { commentList.appendChild(commentItem(c)); });
+    }
+  }
+
+  function commentItem(c) {
+    var item = el('li', c.isResolved ? 'kk-comment is-resolved' : 'kk-comment');
+    item.setAttribute('data-comment', String(c.id));
+    var head = el('div', 'kk-comment__head');
+    var link = el('a');
+    link.href = '#p' + (c.at + 1);
+    link.textContent = 'Absatz ' + (c.at + 1);
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      var target = view.element(c.at);
+      if (target) { target.scrollIntoView({ block: 'center' }); view.focusParagraph(c.at, 'end'); }
+    });
+    var done = el('button', 'mat-btn mat-btn--ghost mat-btn--sm');
+    done.type = 'button';
+    done.innerHTML = c.isResolved ? icon('undo') + '<span>Wieder öffnen</span>' : icon('check') + '<span>Erledigt</span>';
+    done.addEventListener('click', function () { resolve(c, !c.isResolved); });
+    head.appendChild(link);
+    head.appendChild(done);
+    var body = el('p');
+    body.textContent = c.text;
+    var meta = el('small', 'mat-muted');
+    meta.textContent = (c.quote ? '„' + c.quote + '“ · ' : '') + c.author + (c.source === 'docx' ? ' (Word)' : c.source === 'pdf' ? ' (PDF)' : '') + ' · ' + c.created + (c.isResolved ? ' · erledigt' + (c.resolvedDate ? ' am ' + c.resolvedDate : '') : '');
+    item.appendChild(head); item.appendChild(body); item.appendChild(meta);
+    return item;
+  }
+
+  if (doneSwitch) {
+    doneSwitch.addEventListener('change', function () {
+      showResolved = doneSwitch.checked;
+      post('View', { showResolved: showResolved }).catch(function () { /* it is only not remembered */ });
+      renderComments();
     });
   }
 
@@ -1025,7 +1057,8 @@
   /** A mark in the margin of the page was clicked: the panel opens at the first open comment of that paragraph. */
   function showComments(index) {
     showSide(true);
-    var first = data.comments.filter(function (c) { return !c.isResolved && c.at === index; })[0];
+    var first = data.comments.filter(function (c) { return !c.isResolved && c.at === index; })[0]
+      || (showResolved ? data.comments.filter(function (c) { return c.isResolved && c.at === index; })[0] : null);
     if (first) { flashComment(first.id); }
   }
 

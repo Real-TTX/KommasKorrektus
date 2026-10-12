@@ -30,6 +30,8 @@ public sealed class SecurityModel(ConfigStore config, ActivityLogger log, Public
         [Display(Name = "Freigabe-Link gilt für Tage")]
         public int ShareLinkDays { get; set; } = 14;
 
+        public bool AllowPortalUploads { get; set; }
+
         [Display(Name = "Öffentliche Adresse")]
         public string? PublicUrl { get; set; }
 
@@ -51,7 +53,7 @@ public sealed class SecurityModel(ConfigStore config, ActivityLogger log, Public
         Input = new InputModel
         {
             SessionDays = s.SessionDays, AllowEmailCodeLogin = s.AllowEmailCodeLogin, LoginCodeMinutes = s.LoginCodeMinutes, RequireTotpForAdmins = s.RequireTotpForAdmins,
-            InvitationDays = s.InvitationDays, ShareLinkDays = s.ShareLinkDays, PublicUrl = config.Current.Server.PublicUrl, ForceSecureCookie = config.Current.Server.ForceSecureCookie,
+            InvitationDays = s.InvitationDays, ShareLinkDays = s.ShareLinkDays, AllowPortalUploads = s.AllowPortalUploads, PublicUrl = config.Current.Server.PublicUrl, ForceSecureCookie = config.Current.Server.ForceSecureCookie,
         };
     }
 
@@ -78,6 +80,7 @@ public sealed class SecurityModel(ConfigStore config, ActivityLogger log, Public
             s.RequireTotpForAdmins = Input.RequireTotpForAdmins;
             s.InvitationDays = Input.InvitationDays;
             s.ShareLinkDays = Input.ShareLinkDays;
+            s.AllowPortalUploads = Input.AllowPortalUploads;
             c.Server.PublicUrl = url ?? "";
             c.Server.ForceSecureCookie = Input.ForceSecureCookie;
         });

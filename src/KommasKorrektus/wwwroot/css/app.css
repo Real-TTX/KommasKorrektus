@@ -123,6 +123,10 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 ::highlight(kk-added) { background-color: #d6f3dc; color: #0e5a24; }
 .kk-sheet .kk-lp.kk-gone { background-color: #fdeeee; color: #7a1a1d; text-decoration: line-through; text-decoration-color: #a4161a; }
 .kk-sheet .kk-lp.kk-new { background-color: #ecf9ef; }
+/* "Nur Änderungen" on the two pages: the runs of paragraphs that are the same are folded away, and a place says how many, a click opens it */
+.kk-sheet .kk-folded { display: none; }
+.kk-sheet .kk-fold { display: block; width: 100%; margin: 6px 0; padding: 4px 8px; border: 1px dashed #b8b8c4; border-radius: 4px; background: #f6f6fa; color: #5a5a68; font: 13px/1.6 system-ui, sans-serif; text-align: center; cursor: pointer; }
+.kk-sheet .kk-fold:hover { background: #ecebf5; color: #3a1d6e; }
 .kk-sheet .kk-lp.kk-changed { box-shadow: inset 3px 0 0 #e3b341; }
 .kk-refbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-2) var(--mat-space-3); padding-top: var(--mat-space-3); border-top: 1px solid var(--mat-border); }
 .kk-refbar__label { font-size: var(--mat-fs-sm); font-weight: 600; }
@@ -147,6 +151,10 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-comments { padding: 0; margin: 0 0 var(--mat-space-3); list-style: none; display: grid; gap: var(--mat-space-2); }
 .kk-comment { border: 1px solid var(--mat-border); border-radius: var(--mat-radius); padding: var(--mat-space-3); background: var(--mat-surface); }
 .kk-comment p { margin: var(--mat-space-1) 0; overflow-wrap: anywhere; }
+.kk-comments__done { margin-bottom: var(--mat-space-2); }
+.kk-comment.is-resolved { background: var(--mat-surface-2); }
+.kk-comment.is-resolved p { color: var(--mat-text-muted); text-decoration: line-through; text-decoration-color: var(--mat-border-strong, var(--mat-border)); }
+.kk-pmark--done { background: var(--mat-surface-2); color: var(--mat-text-muted); box-shadow: none; border: 1px solid var(--mat-border); }
 .kk-comment.is-current { border-color: var(--mat-accent); box-shadow: 0 0 0 2px var(--mat-accent-soft); }
 .kk-keys { display: grid; grid-template-columns: max-content 1fr; gap: var(--mat-space-2) var(--mat-space-5); margin: 0 0 var(--mat-space-4); align-items: center; }
 .kk-keys dt { white-space: nowrap; }

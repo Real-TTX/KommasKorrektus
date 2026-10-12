@@ -25,7 +25,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
 
     public sealed record LayoutRequest(string[] Paragraphs);
 
-    public sealed record ViewRequest(string? View, bool? Reference, bool? Side, string? ReferenceFrom, int? Zoom = null);
+    public sealed record ViewRequest(string? View, bool? Reference, bool? Side, string? ReferenceFrom, int? Zoom = null, bool? ShowResolved = null);
 
     public sealed record StyleRequest(string? Category, string? Term, string? Decision, string? Note);
 
@@ -79,7 +79,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         {
             documentId = document.Id,
             view = views.Editor,
-            options = new { reference = views.Options.Reference, side = views.Options.Side, referenceFrom = ViewPreferences.CleanReferenceFrom(views.Options.ReferenceFrom), zoom = ViewPreferences.CleanZoom(views.Options.Zoom) },
+            options = new { reference = views.Options.Reference, side = views.Options.Side, referenceFrom = ViewPreferences.CleanReferenceFrom(views.Options.ReferenceFrom), zoom = ViewPreferences.CleanZoom(views.Options.Zoom), showResolved = views.Options.ShowResolved },
             kind = document.Kind.ToString(),
             versionNo = version.VersionNo,
             versionName = VersionTitle,
@@ -89,7 +89,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
             autosaveMinChars = AutosaveMinChars,
             idleMinutes = IdleMinutes,
             // The names are the ones editor.js reads (camelCase): the serializer would keep the names of the properties.
-            comments = comments.Select(c => new { id = c.Id, paragraphIndex = c.ParagraphIndex, quote = c.Quote, text = c.Text, author = c.AuthorName ?? "Lektorat", source = c.Source, isResolved = c.IsResolved, created = Fmt.Moment(c.CreateDate, c.WrittenDate) }),
+            comments = comments.Select(c => new { id = c.Id, paragraphIndex = c.ParagraphIndex, quote = c.Quote, text = c.Text, author = c.AuthorName ?? "Lektorat", source = c.Source, isResolved = c.IsResolved, resolvedDate = Fmt.Moment(c.ResolvedDate), created = Fmt.Moment(c.CreateDate, c.WrittenDate) }),
             styles = styles.Select(s => new { term = s.Term, category = UiKit.Labels.Of(s.Category), decision = s.Decision }),
         });
 
@@ -253,7 +253,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
     public async Task<IActionResult> OnPostViewAsync([FromBody] ViewRequest request)
     {
         var saved = await ViewPreferences.SetEditorAsync(db, current.UserId, request.View, HttpContext.RequestAborted);
-        saved |= await ViewPreferences.SetOptionsAsync(db, current.UserId, request.Reference, request.Side, request.ReferenceFrom, request.Zoom, HttpContext.RequestAborted);
+        saved |= await ViewPreferences.SetOptionsAsync(db, current.UserId, request.Reference, request.Side, request.ReferenceFrom, request.Zoom, request.ShowResolved, HttpContext.RequestAborted);
         return saved ? new JsonResult(new { ok = true }) : BadRequest();
     }
 
@@ -341,6 +341,6 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         comment.IsResolved = resolved;
         comment.ResolvedDate = resolved ? clock.GetUtcNow().UtcDateTime : null;
         await db.SaveChangesAsync();
-        return new JsonResult(new { ok = true });
+        return new JsonResult(new { ok = true, resolvedDate = Fmt.Moment(comment.ResolvedDate) });
     }
 }

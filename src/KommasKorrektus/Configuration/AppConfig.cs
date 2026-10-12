@@ -205,6 +205,9 @@ public sealed class SecurityConfig
     /// <summary>Default life of a share link, in days.</summary>
     public int ShareLinkDays { get; set; } = 14;
 
+    /// <summary>Clients may send a file back through the portal (it becomes the next version of the document). Off until the administrator allows it.</summary>
+    public bool AllowPortalUploads { get; set; }
+
     [JsonIgnore]
     public int MaxFailedLogins => 5;
 }

@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using KommasKorrektus.Configuration;
 using KommasKorrektus.Core.Diff;
 using KommasKorrektus.Data;
 using KommasKorrektus.Data.Entities;
@@ -9,8 +10,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KommasKorrektus.Pages.Portal;
 
-/// <summary>A document of a client: the text, what was changed (one text, or old and new next to each other), the files to download, and remarks to the editor.</summary>
-public sealed class DocumentModel(KkDbContext db, ICurrentUser current, DocumentService documents, LayoutService layouts, ActivityLogger log) : PortalModelBase(db, current)
+/// <summary>A document of a client: the text, what was changed (one text, or old and new next to each other), the files to download, remarks to the editor, and (when it is allowed) a file sent back.</summary>
+[RequestSizeLimit(DocumentService.MaxUploadBytes + 1024 * 1024)]
+[RequestFormLimits(MultipartBodyLengthLimit = DocumentService.MaxUploadBytes + 1024 * 1024)]
+public sealed class DocumentModel(KkDbContext db, ICurrentUser current, DocumentService documents, LayoutService layouts, ActivityLogger log, ConfigStore config, ProjectService projects) : PortalModelBase(db, current)
 {
     private const int PageSize = 80;
 
@@ -36,6 +39,16 @@ public sealed class DocumentModel(KkDbContext db, ICurrentUser current, Document
     public string? Mode { get; set; }
 
     public CommentInput Input { get; set; } = new();
+
+    /// <summary>The file the client sends back, and a word to the editor.</summary>
+    [BindProperty]
+    public IFormFile? UploadedFile { get; set; }
+
+    [BindProperty]
+    public string? UploadNote { get; set; }
+
+    /// <summary>Whether the administrator lets clients send a file back (<see cref="SecurityConfig.AllowPortalUploads"/>).</summary>
+    public bool UploadsAllowed => config.Current.Security.AllowPortalUploads;
 
     public Document Document { get; private set; } = null!;
 
@@ -107,6 +120,56 @@ public sealed class DocumentModel(KkDbContext db, ICurrentUser current, Document
         await Db.SaveChangesAsync();
         await log.LogAsync("Anmerkung des Kunden", "Document", Document.Id, $"{Current.Name}: {Document.Title}");
         Flash("Danke, deine Anmerkung ist angekommen.");
+        return RedirectToPage(new { id = Id, mode = Mode, handler = (string?)null });
+    }
+
+    /// <summary>The client sends a file back: it becomes the next version of the document, with its comments, so the editor can compare it with the one before.</summary>
+    public async Task<IActionResult> OnPostUploadAsync()
+    {
+        // not allowed is "not found", as for everything a client may not do
+        if (!UploadsAllowed)
+        {
+            return NotFound();
+        }
+
+        var document = await Db.Document.Include(d => d.Project).FirstOrDefaultAsync(d => d.Id == Id && MyCustomerIds.Contains(d.Project!.CustomerId));
+        if (document is null)
+        {
+            return NotFound();
+        }
+
+        if (UploadedFile is null || UploadedFile.Length == 0 || UploadedFile.Length > DocumentService.MaxUploadBytes)
+        {
+            FlashError(UploadedFile is { Length: > DocumentService.MaxUploadBytes } ? $"Die Datei ist größer als {DocumentService.MaxUploadBytes / 1024 / 1024} MB." : "Bitte wähle eine Datei aus.");
+            return RedirectToPage(new { id = Id, mode = Mode, handler = (string?)null });
+        }
+
+        byte[] bytes;
+        await using (var stream = UploadedFile.OpenReadStream())
+        using (var buffer = new MemoryStream((int)UploadedFile.Length))
+        {
+            await stream.CopyToAsync(buffer, HttpContext.RequestAborted);
+            bytes = buffer.ToArray();
+        }
+
+        try
+        {
+            var note = string.IsNullOrWhiteSpace(UploadNote) ? null : UploadNote.Trim();
+            var result = await documents.AddFileVersionAsync(document, UploadedFile.FileName, bytes, null, note is null ? Current.Name : $"{Current.Name}: {note}", importComments: true, HttpContext.RequestAborted);
+            projects.AddHistory(document.Project!.CustomerId, $"Datei von {Current.Name} zu „{document.Title}“", $"Fassung {result.Version.VersionNo}: +{result.Delta.WordsAdded} −{result.Delta.WordsRemoved} Wörter", document.ProjectId, "Document", document.Id);
+            await Db.SaveChangesAsync();
+            await log.LogAsync("Datei vom Kunden im Portal", "Document", document.Id, $"{Current.Name}: Fassung {result.Version.VersionNo}");
+            Flash($"Danke, deine Datei ist angekommen (Fassung {result.Version.VersionNo}). Dein Lektorat sieht sie sofort.");
+        }
+        catch (ImportException ex)
+        {
+            FlashError(ex.Message);
+        }
+        catch (Storage.StorageException)
+        {
+            FlashError("Die Datei konnte gerade nicht abgelegt werden. Bitte versuche es später noch einmal.");
+        }
+
         return RedirectToPage(new { id = Id, mode = Mode, handler = (string?)null });
     }
 

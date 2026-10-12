@@ -18,7 +18,7 @@
             <button type="submit" name="mode" value="inline" class="mat-seg__btn" aria-pressed="@(Model.Inline ? "true" : "false")" data-tip="Nur der Text, die Änderungen darin">@Ui.Icon("file-text")<span>Ein Text</span></button>
         </div>
     </div>
-    <div class="mat-field" hidden="@Model.PagesView">
+    <div class="mat-field">
         <label class="mat-switch"><input type="checkbox" id="changes" name="changes" value="true" checked="@Model.Changes" data-submit-on-change /><span class="mat-switch__track"></span><span>Nur Änderungen</span></label>
         <input type="hidden" name="changes" value="false" />
     </div>
@@ -54,7 +54,7 @@
 }
 else if (Model.PagesView && Model.FromSheet is { } fromSheet && Model.ToSheet is { } toSheet)
 {
-    <div class="kk-pages" id="pages">
+    <div class="kk-pages" id="pages" data-changes="@(Model.Changes ? "true" : "false")">
         <div class="kk-pages__side"><h2 class="kk-pages__title">Fassung @Model.From <small class="mat-muted">früher: rot ist, was wegfällt</small></h2>@LayoutView.Plain(fromSheet, "old", Model.Zoom)</div>
         <div class="kk-pages__side"><h2 class="kk-pages__title">Fassung @Model.To <small class="mat-muted">neu: grün ist, was dazukam</small></h2>@LayoutView.Plain(toSheet, "new", Model.Zoom)</div>
     </div>

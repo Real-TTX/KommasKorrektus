@@ -37,7 +37,7 @@ documents in a volume or on a NAS (SMB).
 
 **Text and versions**
 - Import **DOCX** (formatting kept), **PDF** (paragraphs reconstructed) and **text**, with the comments and notes that are already in a
-  Word or PDF file; an editor with autosave, undo, find and
+  Word or PDF file (switchable); an editor with autosave, undo, find and
   replace, remarks per paragraph and a style sheet (names, spellings, terms) per project, in **two views**: *Text* (only the
   words, one field per paragraph) and *Seite* (the page in the layout of the original Word file: headings, emphasis, lists,
   tables, pictures, notes, written in directly)

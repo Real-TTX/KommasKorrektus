@@ -27,6 +27,11 @@ public sealed class NewVersionModel(KkDbContext db, DocumentService documents, P
     [BindProperty]
     public IFormFile? UploadedFile { get; set; }
 
+    /// <summary>Take the comments that are in the file along: what the customer wrote into it.</summary>
+    [BindProperty]
+    [Display(Name = "Kommentare der Datei übernehmen")]
+    public bool ImportComments { get; set; } = true;
+
     public Document Document { get; private set; } = null!;
 
     /// <summary>The number the new version will have.</summary>
@@ -65,7 +70,7 @@ public sealed class NewVersionModel(KkDbContext db, DocumentService documents, P
         {
             var document = await db.Document.Include(d => d.Project).FirstAsync(d => d.Id == Id);
             var previous = document.CurrentVersionNo;
-            var result = await documents.AddFileVersionAsync(document, UploadedFile.FileName, bytes, Label, Comment, HttpContext.RequestAborted);
+            var result = await documents.AddFileVersionAsync(document, UploadedFile.FileName, bytes, Label, Comment, ImportComments, HttpContext.RequestAborted);
             projects.AddHistory(document.Project!.CustomerId, $"Datei vom Kunden zu „{document.Title}“", $"Fassung {result.Version.VersionNo}: +{result.Delta.WordsAdded} −{result.Delta.WordsRemoved} Wörter", document.ProjectId, "Document", document.Id);
             await db.SaveChangesAsync();
             await log.LogAsync("Datei vom Kunden als Fassung", "Document", document.Id, $"Fassung {result.Version.VersionNo}");

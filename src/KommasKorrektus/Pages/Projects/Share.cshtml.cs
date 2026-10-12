@@ -53,6 +53,10 @@ public sealed class ShareModel(KkDbContext db, ShareService shares, MailService 
         [EmailAddress(ErrorMessage = "Das ist keine gültige E-Mail-Adresse.")]
         [Display(Name = "E-Mail-Adresse")]
         public string? RecipientEmail { get; set; }
+
+        /// <summary>Send the link by e-mail as soon as it is made (only when the link is new).</summary>
+        [Display(Name = "Gleich per E-Mail senden")]
+        public bool SendNow { get; set; }
     }
 
     [BindProperty(SupportsGet = true)]
@@ -171,7 +175,23 @@ public sealed class ShareModel(KkDbContext db, ShareService shares, MailService 
         projects.AddHistory(Project.CustomerId, $"Link „{created.Title}“ erstellt", $"gültig bis {Fmt.Date(created.ExpiresDate)}", Project.Id, "ShareLink", created.Id);
         await db.SaveChangesAsync();
         await log.LogAsync(created.UserId is null ? "Freigabe-Link erstellt" : "Freigabe an ein Konto erstellt", "ShareLink", created.Id, created.Title);
-        Flash("Der Link ist erstellt.");
+        if (Input.SendNow && !string.IsNullOrWhiteSpace(created.RecipientEmail))
+        {
+            var sent = await MailLinkAsync(created);
+            if (sent.Delivered)
+            {
+                Flash($"Der Link ist erstellt und per E-Mail an {created.RecipientEmail} unterwegs.");
+            }
+            else
+            {
+                FlashError("Der Link ist erstellt. " + MailProblem(sent));
+            }
+        }
+        else
+        {
+            Flash("Der Link ist erstellt.");
+        }
+
         return RedirectToPage(new { projectId = ProjectId, id = created.Id });
     }
 
@@ -189,26 +209,40 @@ public sealed class ShareModel(KkDbContext db, ShareService shares, MailService 
             return RedirectToPage(new { projectId = ProjectId, id = link.Id });
         }
 
+        var result = await MailLinkAsync(link);
+        if (result.Delivered)
+        {
+            Flash($"Der Link ist per E-Mail an {link.RecipientEmail} unterwegs.");
+        }
+        else
+        {
+            FlashError(MailProblem(result));
+        }
+
+        return RedirectToPage(new { projectId = ProjectId, id = link.Id });
+    }
+
+    /// <summary>Sends the link to its recipient (the address is there); a delivered mail is written down on the link.</summary>
+    private async Task<MailResult> MailLinkAsync(ShareLink link)
+    {
         var company = config.Current.Company;
         var text = $"Hallo{(link.RecipientName is null ? "" : " " + link.RecipientName)},\n\n" +
                    (string.IsNullOrWhiteSpace(link.Message) ? $"hier ist der Link zu „{link.Title}“." : link.Message) +
                    $"\n\n{shares.LinkOf(link)}\n\nDer Link ist bis {Fmt.Date(link.ExpiresDate)} gültig." +
                    (link.UserId is not null ? " Melde dich mit deinem Konto an, dann findest du es auch unter „Mit mir geteilt“." : link.PasswordHash is null ? "" : " Das Passwort bekommst du von mir getrennt.") +
                    $"\n\nHerzliche Grüße\n{current.Name}{(string.IsNullOrWhiteSpace(company.Name) ? "" : "\n" + company.Name)}";
-        var result = await mail.SendAsync(link.RecipientEmail, link.Title, text, MailKind.ShareLink);
+        var result = await mail.SendAsync(link.RecipientEmail!, link.Title, text, MailKind.ShareLink);
         if (result.Delivered)
         {
             link.SentDate = clock.GetUtcNow().UtcDateTime;
             await db.SaveChangesAsync();
-            Flash($"Der Link ist per E-Mail an {link.RecipientEmail} unterwegs.");
-        }
-        else
-        {
-            FlashError(result.Status == MailStatus.NotConfigured ? "Es ist noch kein E-Mail-Server eingerichtet. Kopiere den Link und schicke ihn selbst." : "Die E-Mail konnte nicht gesendet werden: " + result.Error);
         }
 
-        return RedirectToPage(new { projectId = ProjectId, id = link.Id });
+        return result;
     }
+
+    private static string MailProblem(MailResult result)
+        => result.Status == MailStatus.NotConfigured ? "Es ist noch kein E-Mail-Server eingerichtet. Kopiere den Link und schicke ihn selbst." : "Die E-Mail konnte nicht gesendet werden: " + result.Error;
 
     public async Task<IActionResult> OnPostRevokeAsync()
     {

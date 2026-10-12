@@ -66,6 +66,10 @@
         <div class="mat-form__grid">
             <kk-input for="Input.RecipientName" label="Name" />
             <kk-input for="Input.RecipientEmail" label="E-Mail-Adresse" type="email" inputmode="email" />
+            @if (link is null && Model.MailConfigured)
+            {
+                <kk-switch for="Input.SendNow" label="Gleich per E-Mail senden" full="true" hint="Die Empfängerin oder der Empfänger bekommt den Link sofort, mit deiner Nachricht. Mit einem Konto steht die Freigabe auch unter „Mit mir geteilt“." />
+            }
         </div>
     </kk-card>
 

@@ -17,12 +17,56 @@
     side.refresh(now.els, now.texts);
   }
 
+  // "Nur Änderungen": runs of paragraphs that are the same are folded away on both pages at once, one paragraph of context stays around a change; a click on the place
+  // opens that run on both sides. Paragraphs in a table stay (the table would be left with empty cells).
+  var changesOnly = (document.getElementById('pages') || document.body).getAttribute('data-changes') === 'true';
+  var CONTEXT = 1;
+
+  function fold() {
+    if (!changesOnly) { return; }
+    var rows = side.rows();
+    var i = 0;
+    while (i < rows.length) {
+      if (rows[i].kind !== 'same') { i += 1; continue; }
+      var j = i;
+      while (j < rows.length && rows[j].kind === 'same') { j += 1; }
+      var from = i === 0 ? i : i + CONTEXT;
+      var to = j === rows.length ? j : j - CONTEXT;
+      var run = rows.slice(from, to).filter(function (row) { return row.theirs && row.mine && !row.theirs.closest('td') && !row.mine.closest('td'); });
+      if (run.length >= 2) { foldRun(run); }
+      i = j;
+    }
+  }
+
+  function foldRun(run) {
+    var text = run.length + ' unveränderte Absätze';
+    var markers = [];
+    var open = function () {
+      run.forEach(function (row) { row.theirs.classList.remove('kk-folded'); row.mine.classList.remove('kk-folded'); });
+      markers.forEach(function (marker) { marker.remove(); });
+      side.realign();
+    };
+    [run[0].theirs, run[0].mine].forEach(function (first) {
+      var marker = document.createElement('button');
+      marker.type = 'button';
+      marker.className = 'kk-fold';
+      marker.textContent = text;
+      marker.setAttribute('aria-label', text + ' zeigen');
+      marker.addEventListener('click', open);
+      first.parentNode.insertBefore(marker, first);
+      markers.push(marker);
+    });
+    run.forEach(function (row) { row.theirs.classList.add('kk-folded'); row.mine.classList.add('kk-folded'); });
+  }
+
   function later() {
     if (frame) { return; }
     frame = requestAnimationFrame(function () { frame = 0; side.realign(); });
   }
 
   compare();
+  fold();
+  side.realign();
   window.addEventListener('resize', later);
   if (document.fonts && document.fonts.ready) { document.fonts.ready.then(later); }
   if (typeof ResizeObserver !== 'undefined') {

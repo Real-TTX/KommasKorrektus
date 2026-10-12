@@ -114,6 +114,8 @@
         <aside class="kk-editor__side" id="editor-side" aria-label="Kommentare und Stilblatt" hidden>
             <section>
                 <h2>Kommentare</h2>
+                @* Ticked off is not gone: the comments that are done can be shown again (and opened again), the choice is kept with the account. *@
+                <label class="mat-switch kk-comments__done" id="comment-done-row" hidden><input type="checkbox" id="comment-show-resolved" /><span class="mat-switch__track"></span><span>Erledigte zeigen (<span id="comment-done-count">0</span>)</span></label>
                 <ul class="kk-comments" id="comment-list"></ul>
             </section>
             <section>

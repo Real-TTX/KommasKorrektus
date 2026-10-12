@@ -67,6 +67,36 @@ public sealed class ShareToAccountTests : IClassFixture<AppFixture>
     }
 
     [DatabaseFact]
+    public async Task A_new_release_can_be_sent_by_mail_as_it_is_made()
+    {
+        await _app.EnsureAdminAsync();
+        var (customer, project, _) = await _app.CreateCustomerWithDocumentAsync("Sofort");
+        var anna = await _app.CreateUserAsync("anna-sofort@example.test", "Anna-Passwort-2026", UserRole.Client, customer.Id);
+        using var admin = await SignedInAsync("admin@example.test", "Admin-Passwort-2026");
+        var page = $"/Projects/Share?projectId={project.Id}";
+        var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = await AppFixture.TokenAsync(admin, page),
+            ["ProjectId"] = project.Id.ToString(),
+            ["Input.Title"] = "Sofort an Anna",
+            ["Input.Days"] = "7",
+            ["Input.UserId"] = anna.Id.ToString(),
+            ["Input.AllowDownload"] = "true",
+            ["Input.ShowChanges"] = "true",
+            ["Input.RecipientEmail"] = "anna-sofort@example.test",
+            ["Input.SendNow"] = "true",
+        });
+        Assert.Equal(HttpStatusCode.Redirect, (await admin.PostAsync(page, form)).StatusCode);
+
+        // the mail went out (here: only into the log, there is no mail server) with the link in it
+        var mails = await _app.WithScopeAsync(sp => sp.GetRequiredService<KkDbContext>().MailLog.AsNoTracking().Where(m => m.ToAddress == "anna-sofort@example.test").ToListAsync());
+        var mail = Assert.Single(mails);
+        Assert.Equal("Sofort an Anna", mail.Subject);
+        Assert.Equal(MailKind.ShareLink, mail.Kind);
+        Assert.Contains("/s/", mail.BodyText);
+    }
+
+    [DatabaseFact]
     public async Task Mit_mir_geteilt_lists_only_what_was_released_to_the_account()
     {
         await _app.EnsureAdminAsync();

@@ -17,6 +17,7 @@
                 <span class="mat-error" aria-live="polite">@(ViewData.ModelState.TryGetValue("UploadedFile", out var e) && e.Errors.Count > 0 ? e.Errors[0].ErrorMessage : "")</span>
             </div>
             <kk-input for="Title" label="Titel" full="true" hint="Leer: der Dateiname." />
+            <kk-switch for="ImportComments" label="Kommentare der Datei übernehmen" full="true" hint="Kommentare in einer Word-Datei und Notizen in einem PDF kommen als Kommentare ins Dokument, an den Absatz, zu dem sie gehören." />
         </div>
     </kk-card>
     <kk-buttons save-text="Hochladen und importieren" save-icon="upload" back-href="@back" />

@@ -29,6 +29,7 @@
   var toolsFrame = 0;
   var marks = null;       // the layer of the comment marks in the margin of the page
   var marked = new Set(); // the paragraphs with an open comment
+  var markedDone = new Set(); // the paragraphs with a comment that is ticked off, when those are shown
   var marksFrame = 0;
   var composing = false;
 
@@ -252,20 +253,22 @@
     var page = sheet.getBoundingClientRect();
     var left = Math.min(page.right - desk.left + 6, wrap.clientWidth - 30);
     var paragraphs = list();
-    marked.forEach(function (index) {
+    function bubbleFor(index, done) {
       var p = paragraphs[index];
       if (!p) { return; }
-      var bubble = el('button', 'kk-pmark');
+      var bubble = el('button', done ? 'kk-pmark kk-pmark--done' : 'kk-pmark');
       bubble.type = 'button';
-      bubble.setAttribute('aria-label', 'Kommentar zu Absatz ' + (index + 1) + ' zeigen');
-      bubble.setAttribute('data-tip', 'Kommentar zeigen');
-      bubble.innerHTML = core.icon('message-square');
+      bubble.setAttribute('aria-label', (done ? 'Erledigten Kommentar zu Absatz ' : 'Kommentar zu Absatz ') + (index + 1) + ' zeigen');
+      bubble.setAttribute('data-tip', done ? 'Erledigten Kommentar zeigen' : 'Kommentar zeigen');
+      bubble.innerHTML = core.icon(done ? 'check' : 'message-square');
       bubble.style.top = Math.max(0, p.getBoundingClientRect().top - desk.top) + 'px';
       bubble.style.left = left + 'px';
       bubble.addEventListener('mousedown', function (e) { e.preventDefault(); });
       bubble.addEventListener('click', function () { core.showComments(index); });
       marks.appendChild(bubble);
-    });
+    }
+    marked.forEach(function (index) { bubbleFor(index, false); });
+    markedDone.forEach(function (index) { if (!marked.has(index)) { bubbleFor(index, true); } });
   }
 
   function scheduleMarks() {
@@ -490,8 +493,9 @@
       return count;
     },
 
-    setCommentMarks: function (paragraphs) {
+    setCommentMarks: function (paragraphs, done) {
       marked = paragraphs;
+      markedDone = done || new Set();
       list().forEach(function (p, i) { p.classList.toggle('has-comment', paragraphs.has(i)); });
       scheduleMarks();
     },

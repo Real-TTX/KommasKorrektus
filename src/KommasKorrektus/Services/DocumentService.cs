@@ -53,8 +53,8 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
         return extension is ".txt" or ".md" or ".text" ? DocumentKind.Text : throw new ImportException("Dieses Dateiformat kann ich nicht lesen. Bitte lade eine Word-Datei (.docx), ein PDF oder eine Textdatei (.txt) hoch.");
     }
 
-    /// <summary>Reads a file: the kind, the paragraphs, and what the reading had to guess.</summary>
-    private static (DocumentKind Kind, IReadOnlyList<string> Paragraphs, List<string> Notes, IReadOnlyList<ImportedComment> Comments) ReadFile(string fileName, byte[] bytes)
+    /// <summary>Reads a file: the kind, the paragraphs, the comments that are in it (when they are wanted), and what the reading had to guess.</summary>
+    private static (DocumentKind Kind, IReadOnlyList<string> Paragraphs, List<string> Notes, IReadOnlyList<ImportedComment> Comments) ReadFile(string fileName, byte[] bytes, bool importComments = true)
     {
         if (bytes.Length == 0)
         {
@@ -71,7 +71,7 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
             {
                 case DocumentKind.Docx:
                     paragraphs = DocxReader.ReadParagraphs(bytes);
-                    comments = ReadWordComments(bytes, notes);
+                    comments = importComments ? ReadWordComments(bytes, notes) : [];
                     if (!Path.GetExtension(fileName).Equals(".docx", StringComparison.OrdinalIgnoreCase))
                     {
                         notes.Add("Die Datei ist ein Word-Dokument, hat aber eine andere Endung.");
@@ -81,7 +81,7 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
                 case DocumentKind.Pdf:
                     var pdf = PdfTextReader.Read(bytes);
                     paragraphs = pdf.Paragraphs;
-                    comments = pdf.Comments;
+                    comments = importComments ? pdf.Comments : [];
                     notes.AddRange(pdf.Notes);
                     break;
                 default:
@@ -159,9 +159,9 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
     };
 
     /// <summary>Reads a file and makes a document with its first version (the text as the author delivered it). Saved by the caller's SaveChanges.</summary>
-    public async Task<ImportResult> ImportAsync(Project project, string title, string fileName, byte[] bytes, CancellationToken ct = default)
+    public async Task<ImportResult> ImportAsync(Project project, string title, string fileName, byte[] bytes, bool importComments = true, CancellationToken ct = default)
     {
-        var (kind, paragraphs, notes, comments) = ReadFile(fileName, bytes);
+        var (kind, paragraphs, notes, comments) = ReadFile(fileName, bytes, importComments);
         var original = await files.SaveAsync(bytes, fileName, ContentTypeOf(kind), FileKind.Original, projectId: project.Id, customerId: project.CustomerId, ct: ct);
         var document = new Document
         {
@@ -185,9 +185,9 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
     /// change" is the comparison of the last two), the file is kept with it and is the base of the formatting from here on (a new round of the ping pong). The pass of the
     /// editor that was open ends with it. Saved here.
     /// </summary>
-    public async Task<SaveResult> AddFileVersionAsync(Document document, string fileName, byte[] bytes, string? label, string? comment, CancellationToken ct = default)
+    public async Task<SaveResult> AddFileVersionAsync(Document document, string fileName, byte[] bytes, string? label, string? comment, bool importComments = true, CancellationToken ct = default)
     {
-        var (kind, paragraphs, notes, comments) = ReadFile(fileName, bytes);
+        var (kind, paragraphs, notes, comments) = ReadFile(fileName, bytes, importComments);
         var latest = await db.DocumentVersion.FirstAsync(v => v.DocumentId == document.Id && v.VersionNo == document.CurrentVersionNo, ct);
         var delta = DocumentDiff.Stats(DocumentDiff.Compare(TextMetrics.Paragraphs(latest.Text), paragraphs));
         if (latest.Origin == VersionOrigin.Working)

@@ -127,7 +127,9 @@
      * Lines the paragraphs that belong together up. From the first look at the pairs and twice more should a margin not have done exactly what was asked: where the new
      * page lies lower than its counterpart by more than it did at the pair before, the old page gets room there, and the other way round.
      */
-    function align(pairs) {
+    function align(all) {
+      // what is folded away has no place on the page to line up
+      var pairs = all.filter(function (pair) { return !pair.mine.classList.contains('kk-folded') && !pair.theirs.classList.contains('kk-folded'); });
       if (pairs.length === 0) { return; }
       var theirSheet = pairs[0].theirs.closest('.kk-sheet');
       var mySheet = pairs[0].mine.closest('.kk-sheet');
@@ -175,12 +177,15 @@
       }
     }
 
+    /** Every row of the comparison, in the order of the pages: { o, n, kind, theirs, mine } (the elements are null where a side has none). */
+    function allRows() { return rows; }
+
     /** The places that changed, in the order of the pages: the new page's paragraph where there is one, else the old page's. */
     function changes() {
       return rows.filter(function (row) { return row.kind !== 'same'; }).map(function (row) { return { kind: row.kind, mine: row.mine, theirs: row.theirs, element: row.mine || row.theirs }; });
     }
 
-    return { setOld: setOld, refresh: refresh, realign: realign, clear: clear, changes: changes, old: function () { return old; } };
+    return { setOld: setOld, refresh: refresh, realign: realign, clear: clear, changes: changes, rows: allRows, old: function () { return old; } };
   }
 
   root.KkSideBySide = { create: create, paragraphsOf: paragraphsOf, canHighlight: canHighlight };

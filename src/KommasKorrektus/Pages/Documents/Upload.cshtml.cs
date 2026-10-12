@@ -22,6 +22,11 @@ public sealed class UploadModel(KkDbContext db, DocumentService documents, Proje
     [BindProperty]
     public IFormFile? UploadedFile { get; set; }
 
+    /// <summary>Take the comments and notes that are in the file along (Word comments, PDF notes).</summary>
+    [BindProperty]
+    [Display(Name = "Kommentare der Datei übernehmen")]
+    public bool ImportComments { get; set; } = true;
+
     public Project Project { get; private set; } = null!;
 
     public async Task<IActionResult> OnGetAsync() => await PrepareAsync() ? Page() : NotFound();
@@ -56,7 +61,7 @@ public sealed class UploadModel(KkDbContext db, DocumentService documents, Proje
         try
         {
             var project = await db.Project.FirstAsync(p => p.Id == ProjectId);
-            var result = await documents.ImportAsync(project, Title ?? "", UploadedFile.FileName, bytes, HttpContext.RequestAborted);
+            var result = await documents.ImportAsync(project, Title ?? "", UploadedFile.FileName, bytes, ImportComments, HttpContext.RequestAborted);
             await db.SaveChangesAsync();
             projects.AddHistory(project.CustomerId, $"Dokument „{result.Document.Title}“ hochgeladen", result.Document.FileName, project.Id, "Document", result.Document.Id);
             await db.SaveChangesAsync();
