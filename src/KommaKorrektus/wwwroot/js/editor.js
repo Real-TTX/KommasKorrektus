@@ -1,8 +1,12 @@
-/* The editor of KommaKorrektus: the text of a document as paragraphs, each a field of its own.
-   - Enter splits a paragraph, Backspace at the start joins it with the one before, Shift+Enter is a line break inside a paragraph.
+/* The editor of KommaKorrektus: the text of a document, written in one of two views.
+   - Text: one field per paragraph, nothing but the words (this file).
+   - Seite: the page with the formatting of the original Word file, written in directly (editor-page.js).
+   Both work on the same text; the formatting is never changed, it stays in the original and comes back in the export.
+   Everything else is shared and lives here:
    - Everything is saved as versions: an autosave while somebody types, a version when asked (Ctrl+S).
    - The editor reports how long it was used (seconds with activity, keys pressed); a long pause is a pause, the server cuts the time there.
-   - Undo and redo work across paragraphs (the fields of the browser only know their own text).
+   - Search and replace, remarks on paragraphs, the style sheet.
+   A view is an object with the same few functions (see "the views"); editor-page.js registers the second one.
    No library, no build step; the data comes as JSON in #editor-data. */
 (function () {
   'use strict';
@@ -22,6 +26,8 @@
   var base = new Set(data.paragraphs);
   var baseVersion = data.versionNo;
   var sizeSupported = window.CSS && CSS.supports && CSS.supports('field-sizing', 'content');
+  var views = {};       // name -> view
+  var view = null;      // the view that is shown
 
   // ------------------------------------------------------------------------------------------------ helpers
   function el(tag, cls) { var e = document.createElement(tag); if (cls) { e.className = cls; } return e; }
@@ -34,11 +40,20 @@
     for (var i = 0; i < tokens.length; i += 1) { if (/[\p{L}\p{N}]/u.test(tokens[i])) { n += 1; } }
     return n;
   }
-  function textareaOf(p) { return p.firstElementChild.nextElementSibling; }
-  function paragraphs() { return Array.prototype.slice.call(parasElement.children); }
-  function snapshot() { return paragraphs().map(function (p) { return fromDisplay(textareaOf(p).value); }); }
   function icon(name) { return '<svg class="mat-icon" aria-hidden="true" focusable="false"><use href="#mat-i-' + name + '"></use></svg>'; }
   function toast(message, tone) { if (window.MatUi) { window.MatUi.toast(message, { tone: tone }); } }
+  function showWordCount(n) { wordsElement.textContent = n.toLocaleString('de-DE'); }
+
+  /** The text of the document as it is now: the paragraphs of the view that is shown. */
+  function snapshot() { return view.texts(); }
+
+  // ================================================================================================ the text view
+  // One field per paragraph. Enter splits a paragraph, Backspace at the start joins it with the one before, Shift+Enter is a line break inside a paragraph.
+  // Undo and redo work across paragraphs (the fields of the browser only know their own text).
+
+  function textareaOf(p) { return p.firstElementChild.nextElementSibling; }
+  function paragraphs() { return Array.prototype.slice.call(parasElement.children); }
+  function textSnapshot() { return paragraphs().map(function (p) { return fromDisplay(textareaOf(p).value); }); }
 
   function autosize(ta) {
     if (sizeSupported) { return; }
@@ -46,7 +61,6 @@
     ta.style.height = ta.scrollHeight + 'px';
   }
 
-  // ------------------------------------------------------------------------------------------------ the paragraphs
   var totalWords = 0;
   var wordsOf = new WeakMap();
 
@@ -93,7 +107,7 @@
     wordsOf.set(ta, n);
   }
 
-  function showWords() { wordsElement.textContent = totalWords.toLocaleString('de-DE'); }
+  function showWords() { showWordCount(totalWords); }
 
   function build(list) {
     var fragment = document.createDocumentFragment();
@@ -117,7 +131,7 @@
     ta.setSelectionRange(at, at);
   }
 
-  // ------------------------------------------------------------------------------------------------ undo and redo
+  // ---- undo and redo
   var undoStack = [];
   var redoStack = [];
   var lastSnapshot = null;
@@ -132,7 +146,7 @@
   /** Ends a burst of typing: what was there before becomes one step of the undo list. */
   function checkpoint() {
     clearTimeout(burstTimer);
-    var now = snapshot();
+    var now = textSnapshot();
     if (lastSnapshot && !same(lastSnapshot, now)) {
       undoStack.push(lastSnapshot);
       if (undoStack.length > 100) { undoStack.shift(); }
@@ -148,7 +162,7 @@
   }
 
   function restore(list) {
-    var current = snapshot();
+    var current = textSnapshot();
     var first = 0;
     while (first < list.length && first < current.length && list[first] === current[first]) { first += 1; }
     build(list);
@@ -162,137 +176,26 @@
   function undo() {
     checkpoint();
     if (undoStack.length === 0) { return; }
-    redoStack.push(snapshot());
+    redoStack.push(textSnapshot());
     restore(undoStack.pop());
   }
 
   function redo() {
     checkpoint();
     if (redoStack.length === 0) { return; }
-    undoStack.push(snapshot());
+    undoStack.push(textSnapshot());
     restore(redoStack.pop());
   }
 
   function updateUndoButtons() {
     var u = document.getElementById('editor-undo');
     var r = document.getElementById('editor-redo');
+    if (!view || view.name !== 'text') { if (u) { u.disabled = false; } if (r) { r.disabled = false; } return; }
     if (u) { u.disabled = undoStack.length === 0 && !burstTimer; }
     if (r) { r.disabled = redoStack.length === 0; }
   }
 
-  // ------------------------------------------------------------------------------------------------ saving
-  var dirty = false;
-  var saving = false;
-  var saveTimer = null;
-  var maxTimer = null;
-  var pendingKind = null;
-  var session = { added: 0, removed: 0, replaced: 0 };
-
-  function setStatus(kind, text) {
-    statusElement.className = 'kk-editor__status is-' + kind;
-    statusElement.textContent = text;
-  }
-
-  function markDirty() {
-    dirty = true;
-    setStatus('dirty', 'Nicht gespeichert');
-    if (data.autosaveSeconds > 0) {
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(function () { save('auto'); }, data.autosaveSeconds * 1000);
-      if (!maxTimer) { maxTimer = setTimeout(function () { save('auto'); }, Math.max(60, data.autosaveSeconds * 4) * 1000); }
-    }
-  }
-
-  function post(handler, body) {
-    return fetch(location.pathname + '?id=' + data.documentId + '&handler=' + handler, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
-      credentials: 'same-origin',
-      body: JSON.stringify(body)
-    }).then(function (response) {
-      if (!response.ok) { throw new Error('HTTP ' + response.status); }
-      return response.json();
-    });
-  }
-
-  function save(kind, options) {
-    var o = options || {};
-    if (saving) { pendingKind = pendingKind === 'manual' ? 'manual' : kind; return Promise.resolve(); }
-    if (kind === 'auto' && !dirty) { return Promise.resolve(); }
-    checkpoint();
-    clearTimeout(saveTimer);
-    clearTimeout(maxTimer);
-    maxTimer = null;
-    saving = true;
-    setStatus('saving', 'Speichert ...');
-    var text = snapshot().join('\n');
-    return post('Save', {
-      text: text, kind: kind, label: o.label || null, comment: o.comment || null,
-      activeSeconds: takeActive(), keystrokes: takeKeys(), baseVersion: baseVersion, force: !!o.force
-    }).then(function (result) {
-      saving = false;
-      if (result.conflict) {
-        setStatus('error', 'Konflikt: neuere Fassung von jemand anderem');
-        return window.MatUi.confirm(result.message, { title: 'Neuere Fassung vorhanden', ok: 'Trotzdem speichern', danger: true }).then(function (yes) {
-          if (yes) { return save(kind, { force: true, label: o.label, comment: o.comment }); }
-          return null;
-        });
-      }
-      baseVersion = result.versionNo;
-      dirty = snapshot().join('\n') !== text;
-      session.added += result.added; session.removed += result.removed; session.replaced += result.replaced;
-      showSession();
-      setStatus(dirty ? 'dirty' : 'saved', dirty ? 'Nicht gespeichert' : 'Gespeichert um ' + result.savedAt + ' (Fassung ' + result.versionNo + ')');
-      if (kind === 'manual') { toast('Fassung ' + result.versionNo + ' ist gespeichert.'); }
-      var versionLabel = document.getElementById('editor-version');
-      if (versionLabel) { versionLabel.textContent = 'Fassung ' + result.versionNo; }
-      if (dirty) { markDirty(); }
-      return result;
-    }).catch(function (error) {
-      saving = false;
-      setStatus('error', 'Speichern fehlgeschlagen (' + error.message + ')');
-      if (kind === 'manual') { toast('Speichern fehlgeschlagen. Der Text bleibt in diesem Fenster.', 'error'); }
-      // Time that was not reported goes into the next report.
-      activeSeconds += lostActive; keys += lostKeys;
-      return null;
-    }).then(function (result) {
-      if (pendingKind) { var next = pendingKind; pendingKind = null; return save(next); }
-      return result;
-    });
-  }
-
-  function showSession() {
-    sessionElement.textContent = '+' + session.added + ' neu, ' + session.replaced + ' ersetzt, −' + session.removed + ' entfernt';
-  }
-
-  // ------------------------------------------------------------------------------------------------ working time
-  var lastActivity = 0;
-  var activeSeconds = 0;
-  var keys = 0;
-  var lostActive = 0;
-  var lostKeys = 0;
-
-  function touch() { lastActivity = Date.now(); }
-
-  function takeActive() { lostActive = activeSeconds; activeSeconds = 0; return lostActive; }
-  function takeKeys() { lostKeys = keys; keys = 0; return lostKeys; }
-
-  setInterval(function () {
-    if (document.visibilityState === 'visible' && Date.now() - lastActivity < 30000) { activeSeconds += 1; }
-  }, 1000);
-
-  setInterval(function () {
-    if (!dirty && !saving && activeSeconds > 0) {
-      post('Track', { activeSeconds: takeActive(), keystrokes: takeKeys() }).catch(function () { activeSeconds += lostActive; keys += lostKeys; });
-    }
-  }, 30000);
-
-  ['keydown', 'pointerdown', 'wheel', 'touchstart'].forEach(function (name) {
-    document.addEventListener(name, function () { touch(); }, { passive: true, capture: true });
-  });
-  document.addEventListener('keydown', function () { keys += 1; }, true);
-
-  // ------------------------------------------------------------------------------------------------ editing
+  // ---- editing
   parasElement.addEventListener('input', function (event) {
     var ta = event.target;
     if (!ta || ta.tagName !== 'TEXTAREA') { return; }
@@ -424,17 +327,285 @@
     checkpoint();
   });
 
+  parasElement.addEventListener('click', function (event) {
+    var button = event.target.closest ? event.target.closest('.kk-p__comment') : null;
+    if (!button) { return; }
+    var wrap = button.parentElement;
+    var ta = textareaOf(wrap);
+    var quote = ta.selectionEnd > ta.selectionStart ? ta.value.slice(ta.selectionStart, ta.selectionEnd) : ta.value.slice(0, 60);
+    openComment(paragraphs().indexOf(wrap), quote);
+  });
+
+  // The field the person was last in: a button of the find panel takes the focus, but the selection in the field stays.
+  var lastField = null;
+  parasElement.addEventListener('focusin', function (event) { if (event.target.tagName === 'TEXTAREA') { lastField = event.target; } });
+
+  function currentField() {
+    var active = document.activeElement;
+    if (active && active.tagName === 'TEXTAREA' && parasElement.contains(active)) { return active; }
+    return lastField && parasElement.contains(lastField) ? lastField : null;
+  }
+
+  var textView = {
+    name: 'text',
+    prepare: function (texts) { return texts; },
+    mount: function (texts, anchor) {
+      parasElement.className = 'kk-editor__paper';
+      build(texts);
+      undoStack = [];
+      redoStack = [];
+      lastSnapshot = textSnapshot();
+      if (anchor) {
+        var wraps = paragraphs();
+        var target = wraps[Math.min(anchor.index, wraps.length - 1)];
+        if (target) {
+          if (anchor.focus) { focusParagraph(target, Math.min(anchor.offset || 0, textareaOf(target).value.length)); }
+          target.scrollIntoView({ block: anchor.focus ? 'center' : 'start' });
+        }
+      }
+    },
+    unmount: function () { clearTimeout(burstTimer); burstTimer = null; parasElement.textContent = ''; },
+    texts: textSnapshot,
+    count: function () { return parasElement.children.length; },
+    textAt: function (i) { var p = parasElement.children[i]; return p ? textareaOf(p).value : ''; },
+    element: function (i) { return parasElement.children[i]; },
+    focusParagraph: function (i, position) { var p = parasElement.children[i]; if (p) { focusParagraph(p, position); } },
+    /** Where the person is: the paragraph, or the first one on the screen when nothing has the focus. */
+    anchor: function () {
+      var active = document.activeElement;
+      var list = paragraphs();
+      if (active && active.tagName === 'TEXTAREA' && parasElement.contains(active)) {
+        return { index: list.indexOf(active.parentElement), offset: active.selectionStart, focus: true };
+      }
+      for (var i = 0; i < list.length; i += 1) { if (list[i].getBoundingClientRect().bottom > 140) { return { index: i, offset: 0, focus: false }; } }
+      return { index: 0, offset: 0, focus: false };
+    },
+    activePosition: function () {
+      var field = currentField();
+      if (!field) { return null; }
+      return { index: paragraphs().indexOf(field.parentElement), start: field.selectionStart, end: field.selectionEnd };
+    },
+    select: function (i, start, end) {
+      var p = parasElement.children[i];
+      if (!p) { return; }
+      var ta = textareaOf(p);
+      ta.focus();
+      ta.setSelectionRange(start, end);
+      p.scrollIntoView({ block: 'center' });
+    },
+    selectedText: function () {
+      var field = currentField();
+      return field && field.selectionEnd > field.selectionStart ? field.value.slice(field.selectionStart, field.selectionEnd) : '';
+    },
+    replaceSelection: function (text) {
+      var ta = currentField();
+      if (!ta) { return; }
+      ta.focus();
+      checkpoint();
+      ta.setRangeText(text, ta.selectionStart, ta.selectionEnd, 'end');
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+      checkpoint();
+    },
+    replaceAll: function (re, text) {
+      checkpoint();
+      var count = 0;
+      paragraphs().forEach(function (p) {
+        var ta = textareaOf(p);
+        var replaced = ta.value.replace(re, function () { count += 1; return text; });
+        if (replaced !== ta.value) {
+          ta.value = replaced;
+          recount(ta);
+          markChanged(p, fromDisplay(replaced));
+          autosize(ta);
+        }
+      });
+      showWords();
+      if (count > 0) { checkpoint(); }
+      return count;
+    },
+    setCommentMarks: function (marked) {
+      paragraphs().forEach(function (p, i) { p.classList.toggle('has-comment', marked.has(i)); });
+    },
+    undo: undo,
+    redo: redo,
+    keys: true
+  };
+
+  // ================================================================================================ the views
+  // A view has: name; prepare(texts) (may be asynchronous: gets what it needs before anything on the screen changes); mount(prepared, anchor); unmount();
+  // texts() (the paragraphs as they are now, with U+2028 for a line break inside one); count(); textAt(i) (the paragraph for searching: line break as \n);
+  // element(i); focusParagraph(i, 'end' | number); anchor() ({index, offset, focus}); activePosition() ({index, start, end} or null); select(i, start, end);
+  // selectedText(); replaceSelection(text); replaceAll(regexp, text) (the number of replacements); setCommentMarks(set of indexes); undo(); redo();
+  // keys (true when the view takes Ctrl+Z / Ctrl+Y itself; false when the browser does).
+  views.text = textView;
+
+  var VIEW_KEY = 'kk.editor.view';
+
+  function storedView() {
+    try { return window.localStorage.getItem(VIEW_KEY); } catch (e) { return null; }
+  }
+
+  function rememberView(name) {
+    try { window.localStorage.setItem(VIEW_KEY, name); } catch (e) { /* private mode: the view is simply not remembered */ }
+  }
+
+  function showView(name) {
+    Array.prototype.forEach.call(host.querySelectorAll('[data-view]'), function (button) {
+      button.setAttribute('aria-pressed', button.getAttribute('data-view') === name ? 'true' : 'false');
+    });
+    host.setAttribute('data-view', name);
+    host.classList.toggle('is-page', name === 'page');
+  }
+
+  /** Changes to another view. The text goes along: what is typed and not yet saved is on the other page too. */
+  function setView(name, texts) {
+    var next = views[name];
+    if (!next || next === view) { return Promise.resolve(true); }
+    parasElement.setAttribute('aria-busy', 'true');
+    host.classList.add('is-busy');
+    return Promise.resolve(next.prepare(texts || snapshot())).then(function (prepared) {
+      var anchor = view ? view.anchor() : null;
+      if (view) { view.unmount(); }
+      view = next;
+      next.mount(prepared, anchor);
+      showView(name);
+      rememberView(name);
+      renderComments();
+      updateUndoButtons();
+      return true;
+    }).catch(function (error) {
+      toast(error && error.message ? error.message : 'Die Ansicht lässt sich nicht aufbauen.', 'error');
+      return false;
+    }).then(function (ok) {
+      parasElement.removeAttribute('aria-busy');
+      host.classList.remove('is-busy');
+      return ok;
+    });
+  }
+
+  // ================================================================================================ saving
+  var dirty = false;
+  var saving = false;
+  var saveTimer = null;
+  var maxTimer = null;
+  var pendingKind = null;
+  var session = { added: 0, removed: 0, replaced: 0 };
+
+  function setStatus(kind, text) {
+    statusElement.className = 'kk-editor__status is-' + kind;
+    statusElement.textContent = text;
+  }
+
+  function markDirty() {
+    dirty = true;
+    setStatus('dirty', 'Nicht gespeichert');
+    if (data.autosaveSeconds > 0) {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(function () { save('auto'); }, data.autosaveSeconds * 1000);
+      if (!maxTimer) { maxTimer = setTimeout(function () { save('auto'); }, Math.max(60, data.autosaveSeconds * 4) * 1000); }
+    }
+  }
+
+  function post(handler, body) {
+    return fetch(location.pathname + '?id=' + data.documentId + '&handler=' + handler, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
+      credentials: 'same-origin',
+      body: JSON.stringify(body)
+    }).then(function (response) {
+      if (!response.ok) { throw new Error('HTTP ' + response.status); }
+      return response.json();
+    });
+  }
+
+  function save(kind, options) {
+    var o = options || {};
+    if (saving) { pendingKind = pendingKind === 'manual' ? 'manual' : kind; return Promise.resolve(); }
+    if (kind === 'auto' && !dirty) { return Promise.resolve(); }
+    if (view.checkpoint) { view.checkpoint(); } else if (view.name === 'text') { checkpoint(); }
+    clearTimeout(saveTimer);
+    clearTimeout(maxTimer);
+    maxTimer = null;
+    saving = true;
+    setStatus('saving', 'Speichert ...');
+    var text = snapshot().join('\n');
+    return post('Save', {
+      text: text, kind: kind, label: o.label || null, comment: o.comment || null,
+      activeSeconds: takeActive(), keystrokes: takeKeys(), baseVersion: baseVersion, force: !!o.force
+    }).then(function (result) {
+      saving = false;
+      if (result.conflict) {
+        setStatus('error', 'Konflikt: neuere Fassung von jemand anderem');
+        return window.MatUi.confirm(result.message, { title: 'Neuere Fassung vorhanden', ok: 'Trotzdem speichern', danger: true }).then(function (yes) {
+          if (yes) { return save(kind, { force: true, label: o.label, comment: o.comment }); }
+          return null;
+        });
+      }
+      baseVersion = result.versionNo;
+      dirty = snapshot().join('\n') !== text;
+      session.added += result.added; session.removed += result.removed; session.replaced += result.replaced;
+      showSession();
+      setStatus(dirty ? 'dirty' : 'saved', dirty ? 'Nicht gespeichert' : 'Gespeichert um ' + result.savedAt + ' (Fassung ' + result.versionNo + ')');
+      if (kind === 'manual') { toast('Fassung ' + result.versionNo + ' ist gespeichert.'); }
+      var versionLabel = document.getElementById('editor-version');
+      if (versionLabel) { versionLabel.textContent = 'Fassung ' + result.versionNo; }
+      if (dirty) { markDirty(); }
+      return result;
+    }).catch(function (error) {
+      saving = false;
+      setStatus('error', 'Speichern fehlgeschlagen (' + error.message + ')');
+      if (kind === 'manual') { toast('Speichern fehlgeschlagen. Der Text bleibt in diesem Fenster.', 'error'); }
+      // Time that was not reported goes into the next report.
+      activeSeconds += lostActive; keys += lostKeys;
+      return null;
+    }).then(function (result) {
+      if (pendingKind) { var next = pendingKind; pendingKind = null; return save(next); }
+      return result;
+    });
+  }
+
+  function showSession() {
+    sessionElement.textContent = '+' + session.added + ' neu, ' + session.replaced + ' ersetzt, −' + session.removed + ' entfernt';
+  }
+
+  // ================================================================================================ working time
+  var lastActivity = 0;
+  var activeSeconds = 0;
+  var keys = 0;
+  var lostActive = 0;
+  var lostKeys = 0;
+
+  function touch() { lastActivity = Date.now(); }
+
+  function takeActive() { lostActive = activeSeconds; activeSeconds = 0; return lostActive; }
+  function takeKeys() { lostKeys = keys; keys = 0; return lostKeys; }
+
+  setInterval(function () {
+    if (document.visibilityState === 'visible' && Date.now() - lastActivity < 30000) { activeSeconds += 1; }
+  }, 1000);
+
+  setInterval(function () {
+    if (!dirty && !saving && activeSeconds > 0) {
+      post('Track', { activeSeconds: takeActive(), keystrokes: takeKeys() }).catch(function () { activeSeconds += lostActive; keys += lostKeys; });
+    }
+  }, 30000);
+
+  ['keydown', 'pointerdown', 'wheel', 'touchstart'].forEach(function (name) {
+    document.addEventListener(name, function () { touch(); }, { passive: true, capture: true });
+  });
+  document.addEventListener('keydown', function () { keys += 1; }, true);
+
   document.addEventListener('keydown', function (event) {
     var mod = event.ctrlKey || event.metaKey;
     if (!mod) { return; }
     var key = event.key.toLowerCase();
     if (key === 's') { event.preventDefault(); save('manual'); }
-    else if (key === 'z' && !event.shiftKey) { event.preventDefault(); undo(); }
-    else if (key === 'y' || (key === 'z' && event.shiftKey)) { event.preventDefault(); redo(); }
     else if (key === 'h') { event.preventDefault(); openReplace(); }
+    else if (view && view.keys && key === 'z' && !event.shiftKey) { event.preventDefault(); view.undo(); }
+    else if (view && view.keys && (key === 'y' || (key === 'z' && event.shiftKey))) { event.preventDefault(); view.redo(); }
   });
 
-  // ------------------------------------------------------------------------------------------------ search and replace
+  // ================================================================================================ search and replace
   var replaceDialog = document.getElementById('editor-replace');
   var findInput = document.getElementById('replace-find');
   var withInput = document.getElementById('replace-with');
@@ -454,17 +625,16 @@
     var re = pattern();
     if (!re) { replaceInfo.textContent = ''; return 0; }
     var n = 0;
-    paragraphs().forEach(function (p) { var m = textareaOf(p).value.match(re); if (m) { n += m.length; } });
-    replaceInfo.textContent = n === 0 ? 'Keine Treffer' : n + (n === 1 ? ' Treffer' : ' Treffer');
+    for (var i = 0; i < view.count(); i += 1) { var m = view.textAt(i).match(re); if (m) { n += m.length; } }
+    replaceInfo.textContent = n === 0 ? 'Keine Treffer' : n + ' Treffer';
     return n;
   }
 
   function openReplace() {
-    var selection = window.getSelection ? String(window.getSelection()) : '';
-    var active = document.activeElement;
-    if (active && active.tagName === 'TEXTAREA' && active.selectionEnd > active.selectionStart) { selection = active.value.slice(active.selectionStart, active.selectionEnd); }
-    if (selection && selection.length < 80) { findInput.value = selection; }
-    window.MatUi.dialog.open(replaceDialog);
+    var selection = view.selectedText() || (window.getSelection ? String(window.getSelection()) : '');
+    if (selection && selection.length < 80 && selection.indexOf('\n') < 0) { findInput.value = selection; }
+    // Not modal: a modal dialog makes the rest of the page unreachable, and replacing in the page view needs the focus on the page.
+    if (!replaceDialog.open) { replaceDialog.show(); }
     findInput.focus();
     findInput.select();
     countMatches();
@@ -473,19 +643,16 @@
   function findNext(fromCurrent) {
     var re = pattern();
     if (!re) { return false; }
-    var list = paragraphs();
-    var active = document.activeElement;
-    var startIndex = active && active.tagName === 'TEXTAREA' ? list.indexOf(active.parentElement) : 0;
-    var startAt = active && active.tagName === 'TEXTAREA' ? (fromCurrent ? active.selectionEnd : active.selectionStart) : 0;
-    for (var step = 0; step <= list.length; step += 1) {
-      var i = (startIndex + step) % list.length;
-      var ta = textareaOf(list[i]);
+    var n = view.count();
+    var active = view.activePosition();
+    var startIndex = active ? active.index : 0;
+    var startAt = active ? (fromCurrent ? active.end : active.start) : 0;
+    for (var step = 0; step <= n; step += 1) {
+      var i = (startIndex + step) % n;
       re.lastIndex = step === 0 ? startAt : 0;
-      var m = re.exec(ta.value);
+      var m = re.exec(view.textAt(i));
       if (m) {
-        ta.focus();
-        ta.setSelectionRange(m.index, m.index + m[0].length);
-        list[i].scrollIntoView({ block: 'center' });
+        view.select(i, m.index, m.index + m[0].length);
         return true;
       }
     }
@@ -493,18 +660,13 @@
   }
 
   function replaceCurrent() {
-    var ta = document.activeElement;
     var re = pattern();
-    if (re && ta && ta.tagName === 'TEXTAREA' && ta.selectionEnd > ta.selectionStart) {
-      var selected = ta.value.slice(ta.selectionStart, ta.selectionEnd);
+    var position = view.activePosition();
+    if (re && position && position.end > position.start) {
+      var selected = view.textAt(position.index).slice(position.start, position.end);
       re.lastIndex = 0;
       var m = re.exec(selected);
-      if (m && m[0].length === selected.length) {
-        checkpoint();
-        ta.setRangeText(withInput.value, ta.selectionStart, ta.selectionEnd, 'end');
-        ta.dispatchEvent(new Event('input', { bubbles: true }));
-        checkpoint();
-      }
+      if (m && m[0].length === selected.length) { view.replaceSelection(withInput.value); }
     }
     if (!findNext(true)) { replaceInfo.textContent = 'Keine weiteren Treffer'; }
   }
@@ -512,24 +674,13 @@
   function replaceAll() {
     var re = pattern();
     if (!re) { return; }
-    checkpoint();
-    var count = 0;
-    paragraphs().forEach(function (p) {
-      var ta = textareaOf(p);
-      var replaced = ta.value.replace(re, function () { count += 1; return withInput.value; });
-      if (replaced !== ta.value) {
-        ta.value = replaced;
-        recount(ta);
-        markChanged(p, fromDisplay(replaced));
-        autosize(ta);
-      }
-    });
-    showWords();
-    if (count > 0) { markDirty(); checkpoint(); }
+    var count = view.replaceAll(re, withInput.value);
+    if (count > 0) { markDirty(); }
     replaceInfo.textContent = count + (count === 1 ? ' Ersetzung' : ' Ersetzungen');
   }
 
   if (replaceDialog) {
+    replaceDialog.addEventListener('keydown', function (event) { if (event.key === 'Escape') { event.preventDefault(); window.MatUi.dialog.close(replaceDialog); } });
     findInput.addEventListener('input', countMatches);
     caseInput.addEventListener('change', countMatches);
     wholeInput.addEventListener('change', countMatches);
@@ -538,35 +689,36 @@
     document.getElementById('replace-all').addEventListener('click', replaceAll);
   }
 
-  // ------------------------------------------------------------------------------------------------ comments and the style sheet
+  // ================================================================================================ comments and the style sheet
   var side = document.getElementById('editor-side');
   var commentList = document.getElementById('comment-list');
   var commentDialog = document.getElementById('editor-comment');
   var commentText = document.getElementById('comment-text');
   var commentFor = document.getElementById('comment-for');
-  var commentTarget = null;
+  var commentIndex = 0;
+  var commentQuote = '';
 
+  /** Where a remark is now: the paragraph it was written on, or the one that has the words it quotes when the text has moved. */
   function relocate(c) {
-    var list = paragraphs();
-    var i = Math.min(c.paragraphIndex, list.length - 1);
-    if (c.quote && list[i] && textareaOf(list[i]).value.indexOf(c.quote) < 0) {
-      for (var j = 0; j < list.length; j += 1) { if (textareaOf(list[j]).value.indexOf(c.quote) >= 0) { return j; } }
+    var n = view.count();
+    var i = Math.min(c.paragraphIndex, n - 1);
+    if (c.quote && n > 0 && view.textAt(i).indexOf(c.quote) < 0) {
+      for (var j = 0; j < n; j += 1) { if (view.textAt(j).indexOf(c.quote) >= 0) { return j; } }
     }
     return i;
   }
 
   function renderComments() {
-    if (!commentList) { return; }
+    if (!commentList || !view) { return; }
     commentList.textContent = '';
     var open = data.comments.filter(function (c) { return !c.isResolved; });
     document.getElementById('comment-count').textContent = String(open.length);
-    paragraphs().forEach(function (p) { p.classList.remove('has-comment'); });
+    var marked = new Set();
     data.comments.forEach(function (c) {
-      var index = relocate(c);
-      c.at = index;
-      var wrap = paragraphs()[index];
-      if (wrap && !c.isResolved) { wrap.classList.add('has-comment'); }
+      c.at = relocate(c);
+      if (!c.isResolved) { marked.add(c.at); }
     });
+    view.setCommentMarks(marked);
     if (open.length === 0) {
       var empty = el('p', 'mat-muted');
       empty.textContent = 'Keine offenen Kommentare.';
@@ -578,7 +730,11 @@
       var link = el('a');
       link.href = '#p' + (c.at + 1);
       link.textContent = 'Absatz ' + (c.at + 1);
-      link.addEventListener('click', function (e) { e.preventDefault(); var w = paragraphs()[c.at]; if (w) { w.scrollIntoView({ block: 'center' }); focusParagraph(w, 'end'); } });
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        var target = view.element(c.at);
+        if (target) { target.scrollIntoView({ block: 'center' }); view.focusParagraph(c.at, 'end'); }
+      });
       var done = el('button', 'mat-btn mat-btn--ghost mat-btn--sm');
       done.type = 'button';
       done.innerHTML = icon('check') + '<span>Erledigt</span>';
@@ -597,25 +753,21 @@
     });
   }
 
-  parasElement.addEventListener('click', function (event) {
-    var button = event.target.closest ? event.target.closest('.kk-p__comment') : null;
-    if (!button) { return; }
-    commentTarget = button.parentElement;
-    var ta = textareaOf(commentTarget);
-    var quote = ta.selectionEnd > ta.selectionStart ? ta.value.slice(ta.selectionStart, ta.selectionEnd) : ta.value.slice(0, 60);
-    commentDialog.setAttribute('data-quote', quote);
-    commentFor.textContent = 'Absatz ' + commentTarget.dataset.n + ': „' + quote.slice(0, 60) + (quote.length > 60 ? '…' : '') + '“';
+  /** The dialog for a remark on a paragraph; the views call it from their own comment buttons. */
+  function openComment(index, quote) {
+    commentIndex = index;
+    commentQuote = quote;
+    commentFor.textContent = 'Absatz ' + (index + 1) + ': „' + quote.slice(0, 60) + (quote.length > 60 ? '…' : '') + '“';
     commentText.value = '';
     window.MatUi.dialog.open(commentDialog);
     commentText.focus();
-  });
+  }
 
   if (commentDialog) {
     document.getElementById('comment-save').addEventListener('click', function () {
       var text = commentText.value.trim();
-      if (!text || !commentTarget) { return; }
-      var index = paragraphs().indexOf(commentTarget);
-      post('Comment', { paragraphIndex: index, quote: commentDialog.getAttribute('data-quote'), text: text }).then(function (c) {
+      if (!text) { return; }
+      post('Comment', { paragraphIndex: commentIndex, quote: commentQuote, text: text }).then(function (c) {
         data.comments.push({ id: c.id, paragraphIndex: c.paragraphIndex, quote: c.quote, text: c.text, author: c.author, isResolved: false, created: c.created });
         renderComments();
         window.MatUi.dialog.close(commentDialog);
@@ -654,7 +806,7 @@
     });
   }
 
-  // ------------------------------------------------------------------------------------------------ the bar
+  // ================================================================================================ the bar
   function wire(id, handler) { var b = document.getElementById(id); if (b) { b.addEventListener('click', handler); } }
   wire('editor-save', function () { save('manual'); });
   wire('editor-name', function () {
@@ -662,9 +814,26 @@
       if (label !== null) { save('manual', { label: label }); }
     });
   });
-  wire('editor-undo', undo);
-  wire('editor-redo', redo);
+  wire('editor-undo', function () { view.undo(); });
+  wire('editor-redo', function () { view.redo(); });
   wire('editor-find', openReplace);
+
+  // The uploaded PDF next to the text (a PDF has no layout to rebuild, so the original itself is the page to look at).
+  var originalButton = document.getElementById('editor-original');
+  var originalPane = document.getElementById('editor-original-pane');
+  if (originalButton && originalPane) {
+    originalButton.addEventListener('click', function () {
+      originalPane.hidden = !originalPane.hidden;
+      host.classList.toggle('has-original', !originalPane.hidden);
+      originalButton.setAttribute('aria-pressed', originalPane.hidden ? 'false' : 'true');
+      var frame = originalPane.querySelector('iframe');
+      if (!originalPane.hidden && frame && !frame.getAttribute('src')) { frame.setAttribute('src', frame.getAttribute('data-src')); }
+    });
+  }
+
+  Array.prototype.forEach.call(host.querySelectorAll('[data-view]'), function (button) {
+    button.addEventListener('click', function () { setView(button.getAttribute('data-view')); });
+  });
 
   window.addEventListener('beforeunload', function (event) {
     if (dirty) { event.preventDefault(); event.returnValue = ''; }
@@ -674,15 +843,52 @@
     if (document.visibilityState === 'hidden' && dirty) { save('auto'); }
   });
 
-  // ------------------------------------------------------------------------------------------------ start
-  build(data.paragraphs);
-  lastSnapshot = snapshot();
-  renderComments();
-  setStatus('saved', 'Fassung ' + data.versionNo + ' geöffnet');
-  showSession();
-  updateUndoButtons();
-  if (location.hash && /^#p\d+$/.test(location.hash)) {
-    var target = document.getElementById(location.hash.slice(1));
-    if (target) { target.scrollIntoView({ block: 'center' }); focusParagraph(target, 0); }
+  // ================================================================================================ start
+  /** What the other view needs from this one. */
+  window.KkEditor = {
+    data: data,
+    host: host,
+    parasElement: parasElement,
+    LS: LS,
+    base: base,
+    el: el,
+    icon: icon,
+    toast: toast,
+    post: post,
+    touch: touch,
+    markDirty: markDirty,
+    countWords: countWords,
+    showWordCount: showWordCount,
+    openComment: openComment,
+    toDisplay: toDisplay,
+    renderComments: renderComments,
+    updateUndoButtons: updateUndoButtons,
+    texts: snapshot,
+    registerView: function (page) {
+      views[page.name] = page;
+      var button = host.querySelector('[data-view="' + page.name + '"]');
+      if (button) { button.disabled = false; }
+    }
+  };
+
+  function start() {
+    var wanted = storedView();
+    var first = wanted && wanted !== 'text' && views[wanted] ? wanted : 'text';
+    view = null;
+    // The view the person used last; the text view when that cannot be drawn (the text is always there).
+    setView(first, data.paragraphs).then(function (ok) {
+      return ok || first === 'text' ? ok : setView('text', data.paragraphs);
+    }).then(function () {
+      setStatus('saved', 'Fassung ' + data.versionNo + ' geöffnet');
+      showSession();
+    }).then(function () {
+      if (location.hash && /^#p\d+$/.test(location.hash)) {
+        var target = document.getElementById(location.hash.slice(1));
+        if (target) { target.scrollIntoView({ block: 'center' }); view.focusParagraph(parseInt(location.hash.slice(2), 10) - 1, 0); }
+      }
+    });
   }
+
+  // The other view loads after this file: it registers itself first, then the editor starts (the page is parsed, so all scripts have run).
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', start); } else { start(); }
 })();

@@ -7,17 +7,18 @@
 
 <div class="mat-row mat-row--between kk-share__bar">
     <a class="mat-btn mat-btn--ghost" href="/Portal/Project?id=@Model.Project.Id">@Ui.Icon("back")<span>Zum Projekt</span></a>
-    @if (Model.HasChanges)
-    {
-        <div class="mat-seg" role="group" aria-label="Ansicht">
+    <div class="mat-seg" role="group" aria-label="Ansicht">
+        @if (Model.HasChanges)
+        {
             <a class="mat-seg__btn" href="/Portal/Document?id=@doc.Id&mode=changes" aria-pressed="@(mode == "changes" ? "true" : "false")">@Ui.Icon("file-text")<span>Mit Änderungen</span></a>
             <a class="mat-seg__btn" href="/Portal/Document?id=@doc.Id&mode=side" aria-pressed="@(mode == "side" ? "true" : "false")">@Ui.Icon("columns")<span>Alt und neu</span></a>
-            <a class="mat-seg__btn" href="/Portal/Document?id=@doc.Id&mode=text" aria-pressed="@(mode == "text" ? "true" : "false")">@Ui.Icon("eye")<span>Nur der Text</span></a>
-        </div>
-    }
+        }
+        <a class="mat-seg__btn" href="/Portal/Document?id=@doc.Id&mode=text" aria-pressed="@(mode == "text" ? "true" : "false")">@Ui.Icon("eye")<span>Nur der Text</span></a>
+        <a class="mat-seg__btn" href="/Portal/Document?id=@doc.Id&mode=page" aria-pressed="@(mode == "page" ? "true" : "false")" data-tip="Die Seite so, wie das Original aussieht">@Ui.Icon("file")<span>Seite</span></a>
+    </div>
 </div>
 
-@if (mode != "text")
+@if (Model.ShowsChanges)
 {
     <div class="mat-card kk-diff__stats">
         <div class="mat-card__body mat-row mat-row--between">
@@ -38,12 +39,24 @@
     {
         <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("check-circle")</span><div class="mat-empty__title">Keine Unterschiede</div><p>Der Text ist wie das Original.</p></div>
     }
-    else
+    else if (mode != "page")
     {
         @DiffView.Render(Model.Items, mode == "changes", "Original", $"Fassung {Model.Version.VersionNo}")
     }
 }
-else
+
+@if (mode == "page" && Model.Sheet is { } sheet)
+{
+    if (!Model.ShowsChanges || Model.Stats.HasChanges)
+    {
+        @LayoutView.Render(sheet, Model.PageItems, withNotes: Model.Pager.Page >= (int)Math.Ceiling(Model.Pager.Total / (double)Model.Pager.PageSize), diff: Model.ShowsChanges)
+        if (!sheet.Formatted)
+        {
+            <p class="mat-hint">Das Original ist keine Word-Datei: Die Seite zeigt den Text einfach, ohne Formatierung.</p>
+        }
+    }
+}
+else if (mode == "text")
 {
     <div class="mat-card">
         <div class="mat-card__body kk-reading">
@@ -111,4 +124,5 @@ else
 
 @section Scripts {
     <script src="~/js/diff.js" asp-append-version="true"></script>
+    <script src="~/js/sheet.js" asp-append-version="true"></script>
 }

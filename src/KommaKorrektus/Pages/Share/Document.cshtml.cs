@@ -10,11 +10,13 @@ using Microsoft.EntityFrameworkCore;
 namespace KommaKorrektus.Pages.Share;
 
 /// <summary>One document behind a share link: the text, the changes (old and new, or in one text), remarks and the approval, as far as the link allows.</summary>
-public sealed class DocumentModel(ShareService shares, ICurrentUser current, KkDbContext db, DocumentService documents, TimeProvider clock) : ShareModelBase(shares, current)
+public sealed class DocumentModel(ShareService shares, ICurrentUser current, KkDbContext db, DocumentService documents, LayoutService layouts, TimeProvider clock) : ShareModelBase(shares, current)
 {
     private const int MaxComments = 200;
 
     private const int PageSize = 80;
+
+    private const int PageBlocks = 40;
 
     public sealed class CommentInput
     {
@@ -81,7 +83,15 @@ public sealed class DocumentModel(ShareService shares, ICurrentUser current, KkD
 
     public bool HasChanges => Link.ShowChanges && Version.VersionNo > BaseVersionNo;
 
-    public string ViewMode => !HasChanges ? "text" : Mode is "side" or "text" ? Mode : "changes";
+    /// <summary>"page" (the layout of the original, with the changes in it when the link shows them), "text", "changes" or "side".</summary>
+    public string ViewMode => Mode == "page" ? "page" : !HasChanges ? "text" : Mode is "side" or "text" ? Mode : "changes";
+
+    /// <summary>Whether the view is about changes (so it has the numbers and the steps from change to change).</summary>
+    public bool ShowsChanges => ViewMode is "changes" or "side" || (ViewMode == "page" && HasChanges);
+
+    public PagePayload? Sheet { get; private set; }
+
+    public List<LayoutItem> PageItems { get; private set; } = [];
 
     public bool CanComment => Link.AllowComments && Comments.Count < MaxComments;
 
@@ -203,6 +213,13 @@ public sealed class DocumentModel(ShareService shares, ICurrentUser current, KkD
             (Diff, Stats) = await documents.CompareAsync(document, BaseVersionNo, version.VersionNo, HttpContext.RequestAborted);
         }
 
+        if (ViewMode == "page")
+        {
+            Sheet = HasChanges && Stats.HasChanges
+                ? await layouts.ForChangesAsync(document, BaseVersionNo, version.VersionNo, HttpContext.RequestAborted)
+                : await layouts.ForVersionAsync(document, version, editable: false, HttpContext.RequestAborted);
+        }
+
         SlicePage();
 
         Comments = await db.DocumentComment.AsNoTracking().Where(c => c.DocumentId == document.Id && c.ShareLinkId == Link.Id).OrderBy(c => c.CreateDate).ToListAsync(HttpContext.RequestAborted);
@@ -212,6 +229,16 @@ public sealed class DocumentModel(ShareService shares, ICurrentUser current, KkD
     /// <summary>Cuts the view into pages: a long text is read page by page, and only the paragraphs of the page go into the markup.</summary>
     private void SlicePage()
     {
+        if (Sheet is not null)
+        {
+            // The page is longer than the paragraphs it holds (pictures, tables): fewer blocks to a page.
+            var blocks = LayoutView.Items(Sheet.Layout.Blocks, onlyChanges: false);
+            var number = Math.Min(Math.Max(1, ListQuery.Page(Request)), Math.Max(1, (int)Math.Ceiling(blocks.Count / (double)PageBlocks)));
+            PageItems = blocks.Skip((number - 1) * PageBlocks).Take(PageBlocks).ToList();
+            Pager = new PagerModel { Page = number, PageSize = PageBlocks, Total = blocks.Count, Url = n => Url.Page("/Share/Document", new { token = Token, id = Id, mode = ViewMode, page = n })! };
+            return;
+        }
+
         var all = ViewMode == "text" ? null : DiffView.Items(Diff, ViewMode == "side");
         var total = all?.Count ?? Paragraphs.Length;
         var page = Math.Min(Math.Max(1, ListQuery.Page(Request)), Math.Max(1, (int)Math.Ceiling(total / (double)PageSize)));

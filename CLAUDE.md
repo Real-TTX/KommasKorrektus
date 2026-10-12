@@ -18,7 +18,8 @@ before driving the app.
 
 ## Layout
 
-- `src/KommaKorrektus.Core`: no web dependencies. Diff engine (`Diff/`), DOCX and PDF reading / writing (`Documents/`),
+- `src/KommaKorrektus.Core`: no web dependencies. Diff engine (`Diff/`), DOCX and PDF reading / writing (`Documents/`), the page view
+  renderer DOCX -> HTML (`Documents/Layout/`),
   invoice maths, PDF, ZUGFeRD, XRechnung (`Billing/`), TOTP and password hashing (`Security/`), text metrics (`Writing/`)
 - `src/KommaKorrektus`: the web app. `Pages/<Area>/` (Razor Pages), `Services/`, `Controls/` (tag helpers `kk-*`), `UiKit/` (table,
   toolbar, pager, shell), `Data/` (EF model, migrations), `Storage/` (volume and SMB), `wwwroot/` (css, js, the MatDesign toolkit in `ui/`)
@@ -48,6 +49,16 @@ before driving the app.
 
 ## Gotchas
 
+- **Page view** (`Documents/Layout/`, `Services/LayoutService.cs`, `js/editor-page.js`): the page is the Word file the **export** makes (original + new text via `DocxWriter`, accepted) drawn as HTML, so what is shown is what the export holds.
+  The text of every paragraph in the markup must be exactly `ParagraphItems` text (`LayoutTests` checks it): pictures, note marks and list numbers are `data-opaque` and carry no text
+  (their content comes from CSS `attr()`). The renderer reuses `ParagraphItems`, never its own reading. The editor page is **one** contenteditable; the server refuses a text whose
+  paragraph count differs from the page (`OnPostLayoutAsync`), the client stays in the text view then
+- **CSP and the page view**: no `style` attributes in the markup. Formatting is classes named by a hash of their declarations, delivered as a stylesheet (`/layout/{key}.css`, anonymous,
+  kept in `IMemoryCache`); a stylesheet that is not in the cache any more is a 404, so the page that links it must be fresh. `white-space: pre-wrap` sits on `.kk-sheet`, not on `.kk-lp`:
+  otherwise Chrome adds style attributes (blocked, with a console error) when it joins paragraphs. Joining paragraphs of a different look still makes it *try* inline styles; the
+  policy blocks them and the moved text takes the look of the paragraph it joins, which is what the export does
+- Page view, editing: native undo only works if the DOM is not rewritten behind the browser's back: list numbers that end up in the middle of a paragraph are hidden by a class,
+  not removed. Formatting commands (`beforeinput` `format*`) are refused on purpose
 - `U+2028` (`TextMetrics.LineBreak`) separates a line break inside a paragraph. Never write it as a literal in source; the
   Write tool turns `\uXXXX` escapes into the characters, so use `(char)0x2028`
 - QuestPDF: Community licence, `Settings.UseSystemFonts`, and the runtime image needs `libfontconfig1` and fonts (see the

@@ -10,9 +10,11 @@ using Microsoft.EntityFrameworkCore;
 namespace KommaKorrektus.Pages.Portal;
 
 /// <summary>A document of a client: the text, what was changed (one text, or old and new next to each other), the files to download, and remarks to the editor.</summary>
-public sealed class DocumentModel(KkDbContext db, ICurrentUser current, DocumentService documents, ActivityLogger log) : PortalModelBase(db, current)
+public sealed class DocumentModel(KkDbContext db, ICurrentUser current, DocumentService documents, LayoutService layouts, ActivityLogger log) : PortalModelBase(db, current)
 {
     private const int PageSize = 80;
+
+    private const int PageBlocks = 40;
 
     public sealed class CommentInput
     {
@@ -59,7 +61,15 @@ public sealed class DocumentModel(KkDbContext db, ICurrentUser current, Document
 
     public bool HasChanges => Version.VersionNo > 1;
 
-    public string ViewMode => !HasChanges ? "text" : Mode is "side" or "text" ? Mode : "changes";
+    /// <summary>"page" (the layout of the original, with the changes in it when there are some), "text", "changes" or "side".</summary>
+    public string ViewMode => Mode == "page" ? "page" : !HasChanges ? "text" : Mode is "side" or "text" ? Mode : "changes";
+
+    /// <summary>Whether the view is about changes (so it has the numbers and the steps from change to change).</summary>
+    public bool ShowsChanges => ViewMode is "changes" or "side" || (ViewMode == "page" && HasChanges);
+
+    public PagePayload? Sheet { get; private set; }
+
+    public List<LayoutItem> PageItems { get; private set; } = [];
 
     public async Task<IActionResult> OnGetAsync() => await LoadAsync() ? Page() : NotFound();
 
@@ -125,6 +135,19 @@ public sealed class DocumentModel(KkDbContext db, ICurrentUser current, Document
             (Diff, Stats) = await documents.CompareAsync(document, 1, version.VersionNo, HttpContext.RequestAborted);
         }
 
+        if (ViewMode == "page")
+        {
+            Sheet = HasChanges && Stats.HasChanges
+                ? await layouts.ForChangesAsync(document, 1, version.VersionNo, HttpContext.RequestAborted)
+                : await layouts.ForVersionAsync(document, version, editable: false, HttpContext.RequestAborted);
+            var blocks = LayoutView.Items(Sheet.Layout.Blocks, onlyChanges: false);
+            var number = Math.Min(Math.Max(1, ListQuery.Page(Request)), Math.Max(1, (int)Math.Ceiling(blocks.Count / (double)PageBlocks)));
+            PageItems = blocks.Skip((number - 1) * PageBlocks).Take(PageBlocks).ToList();
+            Pager = new PagerModel { Page = number, PageSize = PageBlocks, Total = blocks.Count, Url = p => Url.Page("/Portal/Document", new { id = Id, mode = ViewMode, page = p })! };
+            await LoadCommentsAsync(document);
+            return true;
+        }
+
         var all = ViewMode == "text" ? null : DiffView.Items(Diff, ViewMode == "side");
         var total = all?.Count ?? Paragraphs.Length;
         var page = Math.Min(Math.Max(1, ListQuery.Page(Request)), Math.Max(1, (int)Math.Ceiling(total / (double)PageSize)));
@@ -133,9 +156,14 @@ public sealed class DocumentModel(KkDbContext db, ICurrentUser current, Document
         PageParagraphs = all is null ? Paragraphs.Skip(FirstParagraph).Take(PageSize).ToArray() : [];
         Pager = new PagerModel { Page = page, PageSize = PageSize, Total = total, Url = p => Url.Page("/Portal/Document", new { id = Id, mode = ViewMode, page = p })! };
 
+        await LoadCommentsAsync(document);
+        return true;
+    }
+
+    private async Task LoadCommentsAsync(Document document)
+    {
         var userId = Current.UserId;
         Comments = await Db.DocumentComment.AsNoTracking().Where(c => c.DocumentId == document.Id && c.AuthorUserId == userId).OrderBy(c => c.CreateDate).ToListAsync();
-        return true;
     }
 
     private static string Excerpt(string paragraph)

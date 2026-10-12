@@ -87,6 +87,11 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-editor.has-side .kk-editor__body { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: var(--mat-space-4); align-items: start; }
 .kk-editor__paper { background: var(--mat-surface); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-lg); padding: var(--mat-space-5) var(--mat-space-4); max-width: 58rem; margin-inline: auto; }
 .kk-editor.has-side .kk-editor__paper { margin-inline: 0; max-width: none; }
+.kk-editor.has-original .kk-editor__body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--mat-space-4); align-items: start; }
+.kk-editor.has-original.has-side .kk-editor__body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 22rem; }
+.kk-editor.has-original .kk-editor__paper { margin-inline: 0; max-width: none; }
+.kk-editor__original { position: sticky; top: 6rem; height: calc(100vh - 8rem); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-lg); overflow: hidden; background: var(--mat-surface); }
+.kk-editor__original iframe { width: 100%; height: 100%; border: 0; }
 .kk-editor__side { position: sticky; top: 6rem; max-height: calc(100vh - 8rem); overflow-y: auto; }
 .kk-editor__side h2 { font-size: var(--mat-fs-lg); margin: 0 0 var(--mat-space-2); }
 .kk-editor__side section { margin-bottom: var(--mat-space-5); }
@@ -110,6 +115,77 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-reading__no { display: inline-block; min-width: 2rem; margin-right: var(--mat-space-2); color: var(--mat-text-muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
 .kk-comment__quote { margin: var(--mat-space-1) 0; padding-left: var(--mat-space-3); border-left: 3px solid var(--mat-border); color: var(--mat-text-muted); overflow-wrap: anywhere; }
 
+/* ---- The page: a document drawn as it is on paper (editor, comparison, pages of authors and clients) ----
+   The markup comes from the server with the formatting of the Word file as classes (the policy of the site forbids style attributes); these are the
+   rules that do not depend on the document. The paper is white and its ink dark in every theme, as paper is: its few literal colours are meant. */
+.kk-desk { position: relative; overflow-x: auto; padding: var(--mat-space-4) 0; }
+.kk-desk__note { margin: 0 0 var(--mat-space-3); }
+.kk-sheet { white-space: pre-wrap; box-sizing: border-box; position: relative; margin: 0 auto; background: #fff; color: #1a1a1f; color-scheme: light; box-shadow: var(--mat-shadow-2); border-radius: 2px; overflow-wrap: break-word; font: 11pt/1.2 Calibri, Carlito, "Segoe UI", sans-serif; }
+.kk-sheet[contenteditable="true"] { outline: none; cursor: text; }
+/* A faint line where a page of the original would end (the width of the text area is the page minus its margins; the breaks Word really makes depend on its fonts). */
+.kk-sheet::before { content: ""; position: absolute; inset: var(--kk-page-top, 0) 0 0 0; pointer-events: none; background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--kk-page-inner-h, 100000px) - 1px), rgba(26, 26, 31, .14) calc(var(--kk-page-inner-h, 100000px) - 1px), rgba(26, 26, 31, .14) var(--kk-page-inner-h, 100000px)); }
+/* The white space is kept (a tab, a line break inside a paragraph) by the sheet, not by each paragraph: when the browser joins two paragraphs it adds a style
+   attribute for every property a paragraph sets itself, and the policy of the site refuses those. */
+.kk-lp { margin: 0; overflow-wrap: break-word; min-height: 1em; scroll-margin-top: 8rem; }
+.kk-lp.kk-cs-b { padding-top: 0; }
+.kk-lp.kk-cs-a { padding-bottom: 0; }
+.kk-lp.kk-pbb { border-top: 1px dashed rgba(26, 26, 31, .3); }
+.kk-lp.is-changed { box-shadow: -9px 0 0 -6px var(--mat-accent); }
+.kk-lp.has-comment { background-color: rgba(255, 213, 79, .3); }
+.kk-lp.is-current { outline: 2px solid var(--mat-accent); outline-offset: 2px; }
+.kk-lm { display: inline-block; text-indent: 0; white-space: pre; user-select: none; }
+.kk-lm::before { content: attr(data-m); }
+.kk-lm--stray, .kk-lm--off { display: none; }
+.kk-fnr { font-size: .7em; line-height: 0; vertical-align: super; color: #2f5496; user-select: none; }
+.kk-fnr::before { content: attr(data-m); }
+.kk-img { max-width: 100%; height: auto; vertical-align: bottom; }
+.kk-img--block { display: block; margin: .3em auto; }
+.kk-img--left { float: left; margin: 0 .6em .3em 0; }
+.kk-img--right { float: right; margin: 0 0 .3em .6em; }
+.kk-obj { display: inline-block; min-width: 1.6em; min-height: 1.2em; vertical-align: middle; border: 1px dashed #9a9aa6; border-radius: 2px; text-align: center; color: #9a9aa6; font-size: 9pt; line-height: 1.2; }
+.kk-obj::before { content: "▣"; }
+.kk-pb { display: block; height: 0; margin: .4em 0; border-top: 1px dashed rgba(26, 26, 31, .35); user-select: none; }
+.kk-a { cursor: text; }
+a.kk-a { cursor: pointer; }
+.kk-lt { border-collapse: collapse; table-layout: fixed; max-width: 100%; margin: 0; }
+.kk-lt td { vertical-align: top; overflow-wrap: anywhere; }
+.kk-lt td.kk-gap { border: 0; padding: 0; }
+.kk-notes { margin-top: 2em; padding-top: .8em; border-top: 1px solid rgba(26, 26, 31, .3); font-size: .9em; }
+.kk-notes__title { margin: 0 0 .5em; font-size: 1em; font-weight: 600; }
+.kk-note { display: flex; gap: .5em; }
+.kk-note__no { flex: 0 0 1.6em; text-align: right; font-weight: 600; color: #2f5496; }
+.kk-note__body { flex: 1; min-width: 0; }
+.kk-sheet ins { background: #d6f3dc; color: #0e5a24; text-decoration: underline; }
+.kk-sheet del { background: #fde0e0; color: #a4161a; text-decoration: line-through; }
+.kk-sheet .kk-lp.is-inserted { background-color: #ecf9ef; }
+.kk-sheet .kk-lp.is-deleted { background-color: #fdeeee; }
+.kk-sheet ::selection { background: rgba(164, 59, 208, .25); }
+
+/* The page on the pages that only read it: on a desk, with the number of each paragraph faint in the margin (a remark names a paragraph by it). */
+.kk-desk--read { background: var(--mat-surface-2); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-lg); padding: var(--mat-space-4) var(--mat-space-3); }
+.kk-sheet--read .kk-lp[data-no] { position: relative; }
+.kk-sheet--read .kk-lp[data-no]::before { content: attr(data-no); position: absolute; right: calc(100% + .4rem); top: var(--kk-pt, 0); font: 10px/1.9 ui-monospace, Consolas, monospace; color: #9a9aa6; text-indent: 0; user-select: none; pointer-events: none; }
+.kk-sheet--read td .kk-lp::before { display: none; }
+.kk-sheet details.kk-diff__gap { margin: .6em 0; }
+.kk-sheet details.kk-diff__gap > summary { cursor: pointer; padding: .3em .7em; border-radius: 4px; background: #f0f0f5; color: #55555f; font: 12px/1.6 "Segoe UI", sans-serif; user-select: none; }
+.kk-sheet details.kk-diff__gap > summary:hover { color: #7a1fa0; }
+
+/* The page view of the editor: the paper on a desk, with the number of the paragraph and its comment button at the margin. */
+.kk-editor__paper.is-page { background: var(--mat-surface-2); max-width: none; padding: var(--mat-space-3) var(--mat-space-2); }
+.kk-editor.has-side .kk-editor__paper.is-page { max-width: none; }
+.kk-editor.is-busy .kk-editor__paper { opacity: .55; pointer-events: none; transition: opacity .15s; }
+.kk-ptools { position: absolute; z-index: 2; display: flex; align-items: center; gap: 4px; user-select: none; }
+.kk-ptools[hidden] { display: none; }
+.kk-ptools__no { font-family: var(--mat-mono); font-size: var(--mat-fs-xs); color: #6b6b75; }
+.kk-ptools__comment { width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border: 0; border-radius: var(--mat-radius); background: var(--mat-surface); color: var(--mat-text-muted); cursor: pointer; box-shadow: var(--mat-shadow-1); }
+.kk-ptools__comment:hover { color: var(--mat-accent-text); }
+
+/* Find and replace is a panel beside the text, not a dialog over it: replacing needs the page in reach. */
+#editor-replace:not(:modal) { position: fixed; inset: 6.5rem 1.25rem auto auto; margin: 0; z-index: 30; width: min(380px, calc(100vw - 2rem)); height: auto; }
+@media (max-width: 640px) {
+  #editor-replace:not(:modal) { inset: auto 0 0 0; width: 100%; max-height: 70dvh; border-radius: var(--mat-radius-lg) var(--mat-radius-lg) 0 0; }
+}
+
 /* ---- The page behind a share link: a plain page, a head with the sender, a card for what cannot be shown ---- */
 .kk-share__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--mat-space-5); }
 .kk-share__brand { display: flex; align-items: center; gap: var(--mat-space-3); }
@@ -124,8 +200,9 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-bare > * + * { margin-top: var(--mat-space-4); }
 .kk-bare > .kk-share__head + * { margin-top: 0; }
 @media (max-width: 900px) {
-  .kk-editor.has-side .kk-editor__body { grid-template-columns: 1fr; }
+  .kk-editor.has-side .kk-editor__body, .kk-editor.has-original .kk-editor__body, .kk-editor.has-original.has-side .kk-editor__body { grid-template-columns: 1fr; }
   .kk-editor__side { position: static; max-height: none; }
+  .kk-editor__original { position: static; height: 70vh; }
   .kk-editor__state { align-items: flex-start; }
   .kk-p { padding-left: 2rem; }
   .kk-p__no { width: 1.5rem; }

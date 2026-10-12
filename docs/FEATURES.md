@@ -7,12 +7,13 @@ Everything KommaKorrektus does, area by area. Names in *italics* are the labels 
 | | |
 |---|---|
 | **Import** | DOCX (paragraphs, also in tables), PDF (text PDFs; paragraphs rebuilt from line spacing and font size, hyphenation at line ends joined), plain text and Markdown (UTF-8 with or without mark, Windows-1252 as a fallback). Up to 150 MB. Notes about what the import had to guess are kept with the document |
-| **Editor** | One text field per paragraph, numbered; a paragraph that changed has a dot. Enter splits, Backspace at the start joins, line breaks inside a paragraph are kept. Undo / redo, find and replace (also across paragraphs), word and character count, **Fassung benennen** to label a version. Shortcuts: `Ctrl+S`, `Ctrl+Z`, `Ctrl+Y`, `Ctrl+H` |
+| **Editor** | Two views, one text: **Text** and **Seite** (see below). In the text view: one text field per paragraph, numbered; a paragraph that changed has a dot. Enter splits, Backspace at the start joins, line breaks inside a paragraph are kept. Undo / redo, find and replace (also across paragraphs), word and character count, **Fassung benennen** to label a version. Shortcuts: `Ctrl+S`, `Ctrl+Z`, `Ctrl+Y`, `Ctrl+H` |
+| **Page view** | *Seite* shows the text on a page in the layout of the uploaded Word file: styles (headings, quotes, alignment, indents, line spacing), the formatting of words (bold, italic, colour, size, font), numbered and bulleted lists, tables (widths, borders, shading, merged cells), pictures, footnotes and endnotes, links. It is **written in directly**: the whole page is one editable field, so selecting across paragraphs, cut, copy, paste, spelling and the browser's own undo work as in any editor. Only the text changes: formatting commands, dropping text and deleting across table cells or over a picture are refused (the export could not carry them), and the original's formatting stays and comes back in the export (a word you insert takes the formatting of the word before it, as in the export). A paragraph made with Enter looks as the export will make it. A faint line marks where a page of the original would end. The view you used last is remembered; a text that cannot be drawn on a page falls back to the text view. A PDF or text file has no layout to keep: *Seite* shows a plain page, and a PDF can be shown next to the text (eye icon). Not shown: headers and footers, text boxes, columns, page borders, Word's own comments |
 | **Autosave** | After 20 seconds without typing (adjustable, 0 = off) as an autosave version. The next autosave of the same person updates it; a manual save turns it into the saved version. No change, no new version |
 | **Versions** | Numbered per document, with origin (import, saved, autosave, restore), label, author, date, words added / removed / changed against the version before. **Restore** puts an old version back *as a new version*, nothing is overwritten |
 | **Remarks** | Per paragraph, with the quoted words, resolved or open; authors can be staff, clients (portal) or anonymous visitors (share link) |
 | **Style sheet** | Per project: characters, places, spellings, terms and rules, so that the same name is spelled the same everywhere |
-| **Comparison** | Any two versions. Paragraphs are paired (insertions, deletions, modifications, moves recognised by similarity), words diffed with Myers' algorithm. *Nebeneinander* (old / new) or *Ein Dokument* (deleted struck through, new underlined), *Nur Änderungen* folds unchanged paragraphs, `n` / `p` or the buttons jump from change to change. Long texts are paged |
+| **Comparison** | Any two versions. Paragraphs are paired (insertions, deletions, modifications, moves recognised by similarity), words diffed with Myers' algorithm. *Nebeneinander* (old / new) or *Ein Dokument* (deleted struck through, new underlined), *Seite* shows the changes inside the formatted text of the original (also for authors and clients), *Nur Änderungen* folds unchanged paragraphs, `n` / `p` or the buttons jump from change to change. Long texts are paged |
 | **Export** | DOCX **with tracked changes** (`w:ins` / `w:del`, author = your company name, written into the original file so formatting stays), DOCX clean (changes accepted), PDF proof sheet, PDF side by side, PDF clean, plain text. Any two versions can be chosen |
 
 ## Working time
@@ -67,7 +68,7 @@ Everything KommaKorrektus does, area by area. Names in *italics* are the labels 
 
 - **Anonymous link** (`/s/<token>`) for a whole project or one document, optionally fixed to one version. Valid for a
   chosen number of days (default 14), can be taken back, or extended (saving the link restarts the period)
-- **What the visitor may do** is chosen per link: see the changes (old / new) or only the clean text, download Word and
+- **What the visitor may do** is chosen per link: see the changes (old / new) or only the clean text, or the page in the layout of the original (*Seite*; with the changes in it when the link shows them, never with the old words when it does not), download Word and
   PDF, write remarks (name required), approve ("Passt so, freigeben"). Approval records name and date and is shown on
   the editor's side
 - **Password** (optional): checked once, remembered in a signed cookie for 4 hours; after 10 wrong tries in 15 minutes the
@@ -85,7 +86,7 @@ Everything KommaKorrektus does, area by area. Names in *italics* are the labels 
   listed and ended (one or all) in *Sicherheit* and by an administrator, expire after a number of days
 - **Invitations**: for staff or for a client of a customer; a link that works once, expires, can be taken back, is sent
   by mail or copied. Somebody who already has an account accepts it after signing in and only gets the new access
-- **Client portal**: *Meine Projekte* (status, deadline), documents with the changes (one text or side by side), Word and
+- **Client portal**: *Meine Projekte* (status, deadline), documents with the changes (one text, side by side, or as a page in the layout of the original), Word and
   PDF downloads, remarks to the editor, *Rechnungen & Angebote* with the PDFs. Strictly limited to the customers the account
   was given; anything else is "not found"
 
@@ -112,4 +113,4 @@ Everything KommaKorrektus does, area by area. Names in *italics* are the labels 
   appear when needed
 - Phone layout for every page (tables become cards), scrollbars only while scrolling, keyboard shortcuts where they help
 - German, with German number, date and money formats (the culture is fixed, formatting goes through one helper)
-- Strict content security policy: no inline scripts or styles, no external resources
+- Strict content security policy: no inline scripts or styles, no external resources (the page view too: the formatting of a page is a stylesheet made for it and fetched like any file)

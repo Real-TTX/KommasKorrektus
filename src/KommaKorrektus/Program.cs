@@ -75,6 +75,7 @@ builder.Services.AddScoped<ProjectService>();
 builder.Services.AddScoped<BillingService>();
 builder.Services.AddScoped<FileStoreService>();
 builder.Services.AddScoped<DocumentService>();
+builder.Services.AddScoped<LayoutService>();
 builder.Services.AddScoped<ShareService>();
 builder.Services.AddScoped<BackupStoreFactory>();
 builder.Services.AddScoped<DatabaseArchive>();
@@ -190,6 +191,18 @@ app.MapGet("/health", async (KkDbContext db) =>
 {
     await db.Database.CanConnectAsync();
     return Results.Text("ok");
+}).AllowAnonymous();
+
+// The stylesheet of a page view (see LayoutService): formatting only, named by a hash of its content, so anybody who has the page may have it (a reader behind a share link too).
+app.MapGet("/layout/{file}", (string file, HttpContext http, LayoutService layouts) =>
+{
+    if (!file.EndsWith(".css", StringComparison.Ordinal) || file.Length != 36 || !layouts.TryCss(file[..32], out var css))
+    {
+        return Results.NotFound();
+    }
+
+    http.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+    return Results.Text(css, "text/css", System.Text.Encoding.UTF8);
 }).AllowAnonymous();
 
 app.MapPost("/api/theme", async (HttpContext http, IAntiforgery antiforgery, KkDbContext db, SignInService signIn, ICurrentUser user) =>

@@ -14,13 +14,15 @@ namespace KommaKorrektus.Pages.Documents;
 /// The editor: the text of a document as paragraphs that can be written in. The browser saves it as an autosave while somebody types and as a version
 /// when asked; it also reports how long it was used. Comments on paragraphs are kept here too.
 /// </summary>
-public sealed class EditorModel(KkDbContext db, DocumentService documents, TimeTrackingService tracking, ConfigStore config, ICurrentUser current, TimeProvider clock, ActivityLogger log) : PageModelBase
+public sealed class EditorModel(KkDbContext db, DocumentService documents, LayoutService layouts, TimeTrackingService tracking, ConfigStore config, ICurrentUser current, TimeProvider clock, ActivityLogger log) : PageModelBase
 {
     public sealed record SaveRequest(string Text, string Kind, string? Label, string? Comment, int ActiveSeconds, int Keystrokes, int BaseVersion, bool Force);
 
     public sealed record TrackRequest(int ActiveSeconds, int Keystrokes);
 
     public sealed record CommentRequest(int ParagraphIndex, string? Quote, string Text);
+
+    public sealed record LayoutRequest(string[] Paragraphs);
 
     [BindProperty(SupportsGet = true)]
     public long Id { get; set; }
@@ -56,6 +58,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, TimeT
         DataJson = JsonSerializer.Serialize(new
         {
             documentId = document.Id,
+            kind = document.Kind.ToString(),
             versionNo = version.VersionNo,
             paragraphs = DocumentService.ParagraphsOf(version),
             autosaveSeconds = AutosaveSeconds,
@@ -109,6 +112,36 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, TimeT
             removed = result.Delta.WordsRemoved,
             replaced = result.Delta.WordsChanged,
             savedAt = Fmt.Time(clock.GetUtcNow().UtcDateTime),
+        });
+    }
+
+    /// <summary>
+    /// The text of the editor drawn as a page: the formatting of the uploaded Word file around the text as it is now (saved or not). The page can only be written
+    /// in when every paragraph of the text has its place on it; a text for which that is not so is refused and stays in the text view.
+    /// </summary>
+    public async Task<IActionResult> OnPostLayoutAsync([FromBody] LayoutRequest request)
+    {
+        var document = await db.Document.AsNoTracking().FirstOrDefaultAsync(d => d.Id == Id);
+        if (document is null)
+        {
+            return NotFound();
+        }
+
+        var paragraphs = request.Paragraphs is { Length: > 0 } ? request.Paragraphs : [string.Empty];
+        var page = await layouts.ForTextAsync(document, paragraphs, editable: true, HttpContext.RequestAborted);
+        if (page.Layout.ParagraphCount != paragraphs.Length)
+        {
+            return new JsonResult(new { ok = false, reason = "Diese Fassung lässt sich nicht als Seite zeigen (eine Tabellenzelle ohne Absatz). Bitte im Textmodus weiterarbeiten." });
+        }
+
+        return new JsonResult(new
+        {
+            ok = true,
+            html = page.Html,
+            css = page.CssUrl,
+            pageClass = page.Layout.PageClass,
+            width = page.Layout.PageWidthPx,
+            formatted = page.Formatted,
         });
     }
 

@@ -270,11 +270,8 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
         }
     }
 
-    /// <summary>
-    /// The Word file the export starts from: the uploaded original, brought to the starting version. A document that was not uploaded as Word has no
-    /// original to keep the formatting of, so the export makes a plain one (the caller passes null).
-    /// </summary>
-    private async Task<byte[]?> BaseDocxAsync(Document document, int fromNo, IReadOnlyList<string> fromParagraphs, CancellationToken ct)
+    /// <summary>The Word file as it was uploaded; null when the document did not come as Word or the file cannot be read (the page and the export then make a plain one).</summary>
+    public async Task<byte[]?> OriginalDocxAsync(Document document, CancellationToken ct = default)
     {
         if (document.Kind != DocumentKind.Docx || document.OriginalFileId is null)
         {
@@ -287,12 +284,24 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
             return null;
         }
 
-        byte[] original;
         try
         {
-            original = await files.ReadAllAsync(stored, ct);
+            return await files.ReadAllAsync(stored, ct);
         }
         catch (StorageException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The Word file the export starts from: the uploaded original, brought to the starting version. A document that was not uploaded as Word has no
+    /// original to keep the formatting of, so the export makes a plain one (the caller passes null).
+    /// </summary>
+    private async Task<byte[]?> BaseDocxAsync(Document document, int fromNo, IReadOnlyList<string> fromParagraphs, CancellationToken ct)
+    {
+        var original = await OriginalDocxAsync(document, ct);
+        if (original is null)
         {
             return null;
         }

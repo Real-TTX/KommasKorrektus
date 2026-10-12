@@ -10,9 +10,11 @@ using Microsoft.EntityFrameworkCore;
 namespace KommaKorrektus.Pages.Documents;
 
 /// <summary>Old and new in one view: next to each other, or as one document with the changes in the text.</summary>
-public sealed class CompareModel(KkDbContext db, DocumentService documents) : PageModelBase
+public sealed class CompareModel(KkDbContext db, DocumentService documents, LayoutService layouts) : PageModelBase
 {
     private const int PageSize = 80;
+
+    private const int PageBlocks = 40;
 
     [BindProperty(SupportsGet = true)]
     public long Id { get; set; }
@@ -42,6 +44,20 @@ public sealed class CompareModel(KkDbContext db, DocumentService documents) : Pa
 
     public bool Inline => Mode == "inline";
 
+    /// <summary>One document in the layout of the original, with the changes in the text.</summary>
+    public bool PageView => Mode == "page";
+
+    public PagePayload? Sheet { get; private set; }
+
+    public List<LayoutItem> PageItems { get; private set; } = [];
+
+    private List<T> Slice<T>(List<T> all, int size, out int page)
+    {
+        page = Math.Max(1, ListQuery.Page(Request));
+        page = Math.Min(page, Math.Max(1, (int)Math.Ceiling(all.Count / (double)size)));
+        return all.Skip((page - 1) * size).Take(size).ToList();
+    }
+
     public async Task<IActionResult> OnGetAsync()
     {
         var document = await db.Document.AsNoTracking().Include(d => d.Project).FirstOrDefaultAsync(d => d.Id == Id);
@@ -61,7 +77,7 @@ public sealed class CompareModel(KkDbContext db, DocumentService documents) : Pa
             From = Math.Max(1, To - 1);
         }
 
-        Mode = Mode == "inline" ? "inline" : "side";
+        Mode = Mode is "inline" or "page" ? Mode : "side";
         var title = $"Vergleich: {document.Title}";
         Head(title, $"Fassung {From} → Fassung {To}", ("Projekte", "/Projects"), (document.Project!.Title, $"/Projects/Details?id={document.ProjectId}&tab=documents"), (document.Title, $"/Documents/Details?id={document.Id}"), ("Vergleich", null));
         ViewData["ActiveHref"] = "/Projects";
@@ -72,13 +88,19 @@ public sealed class CompareModel(KkDbContext db, DocumentService documents) : Pa
 
         var (diff, stats) = await documents.CompareAsync(document, From, To, HttpContext.RequestAborted);
         Stats = stats;
-        var all = DiffView.Items(diff, Changes);
+        if (PageView && stats.HasChanges)
+        {
+            // The page is longer than the paragraphs it holds (pictures, tables): fewer blocks to a page.
+            Sheet = await layouts.ForChangesAsync(document, From, To, HttpContext.RequestAborted);
+            var blocks = LayoutView.Items(Sheet.Layout.Blocks, Changes);
+            PageItems = Slice(blocks, PageBlocks, out var pageNo);
+            Pager = new PagerModel { Page = pageNo, PageSize = PageBlocks, Total = blocks.Count, Url = p => Url.Page("/Documents/Compare", new { id = Id, from = From, to = To, mode = Mode, changes = Changes, page = p })! };
+            return Page();
+        }
 
-        var page = Math.Max(1, ListQuery.Page(Request));
-        var pages = Math.Max(1, (int)Math.Ceiling(all.Count / (double)PageSize));
-        page = Math.Min(page, pages);
-        Items = all.Skip((page - 1) * PageSize).Take(PageSize).ToList();
-        Pager = new PagerModel { Page = page, PageSize = PageSize, Total = all.Count, Url = p => Url.Page("/Documents/Compare", new { id = Id, from = From, to = To, mode = Mode, changes = Changes, page = p })! };
+        var all = DiffView.Items(diff, Changes);
+        Items = Slice(all, PageSize, out var number);
+        Pager = new PagerModel { Page = number, PageSize = PageSize, Total = all.Count, Url = p => Url.Page("/Documents/Compare", new { id = Id, from = From, to = To, mode = Mode, changes = Changes, page = p })! };
         return Page();
     }
 }

@@ -36,12 +36,16 @@ documents in a volume or on a NAS (SMB).
 ## At a glance
 
 **Text and versions**
-- Import **DOCX** (formatting kept), **PDF** (paragraphs reconstructed) and **text**; paragraph-by-paragraph editor with
-  autosave, undo, find and replace, remarks per paragraph and a style sheet (names, spellings, terms) per project
+- Import **DOCX** (formatting kept), **PDF** (paragraphs reconstructed) and **text**; an editor with autosave, undo, find and
+  replace, remarks per paragraph and a style sheet (names, spellings, terms) per project, in **two views**: *Text* (only the
+  words, one field per paragraph) and *Seite* (the page in the layout of the original Word file: headings, emphasis, lists,
+  tables, pictures, notes, written in directly)
 - **Every save is a version**; an autosave of the same person updates the previous autosave, a manual save promotes it:
   one working session leaves one version, not twenty. Restoring an old version creates a new one
 - **Comparison** at word level: side by side or as one text, only the changes (with a paragraph of context) or
   everything, jump from change to change (`n` / `p`)
+- The **page view** is in the comparison, the version view and for authors and clients as well: the changes inside the
+  formatted text. A PDF can be shown next to the text
 - Export: **DOCX with tracked changes** (in the original file, formatting untouched), clean DOCX, PDF proof sheet
   (struck-through / underlined), PDF side by side, plain text
 
@@ -84,7 +88,8 @@ documents in a volume or on a NAS (SMB).
 | | |
 |---|---|
 | ![Start page](docs/images/dashboard.png) **Start**: open projects, tasks, invoices, deadlines | ![A project](docs/images/project-details.png) **A project**: status, work done, tasks, documents, links |
-| ![The editor](docs/images/editor.png) **Editor**: paragraph by paragraph, saved as versions | ![Comparison side by side](docs/images/compare-side.png) **Comparison**: old and new next to each other |
+| ![The editor](docs/images/editor.png) **Editor, text view**: paragraph by paragraph, saved as versions | ![The editor as a page](docs/images/editor-page.png) **Editor, page view**: the layout of the Word file, written in directly |
+| ![Comparison side by side](docs/images/compare-side.png) **Comparison**: old and new next to each other | ![The changes on the page](docs/images/compare-page.png) **Comparison as a page**: the changes in the formatted text |
 | ![Invoice with live preview](docs/images/invoice-edit.png) **Invoice**: live PDF preview next to the form | ![Invoice details](docs/images/invoice-details.png) **Issued**: frozen, with payments and e-invoice |
 | ![The page behind a share link](docs/images/share-document.png) **Share link**: changes, downloads, remarks, approval | ![The client portal](docs/images/portal-document.png) **Client portal**: only the customer's own projects |
 | ![Backup](docs/images/admin-backup.png) **Backup**: plans, targets, restore | ![Storage on a NAS](docs/images/admin-storage.png) **NAS**: documents on an SMB share |
