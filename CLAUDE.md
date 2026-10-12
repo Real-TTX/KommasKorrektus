@@ -29,7 +29,7 @@ before driving the app.
 
 - **Database**: PostgreSQL, tables PascalCase, `Id` BIGINT, audit columns `CreateDate/CreateUserId/UpdateDate/UpdateUserId`
   (filled by `KkDbContext.SaveChanges`), `UpdateState` (0 deleted, 1 created, 2 updated) for soft delete (`ISoftDeletable`),
-  a `Token` uuid for anything that acts as a secret key (`UserSession`, `ShareLink`, `Invitation`). JSON is for configuration
+  a enums are stored as **text**, so renaming an enum member needs a data migration (see `WorkingVersions`); a `Token` uuid for anything that acts as a secret key (`UserSession`, `ShareLink`, `Invitation`). JSON is for configuration
   (`/data/config/app.json`); logic lives in the database. **No automatic EF retry** (`EnableRetryOnFailure` breaks the issue
   transaction and the "no gaps" numbering)
 - **UI**: lists = toolbar (search, filter, sort) above, table, pager directly below, actions below on the left; create / edit on
