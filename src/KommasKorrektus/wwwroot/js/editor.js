@@ -685,6 +685,7 @@
     KeyX: function () { var b = document.getElementById('editor-export'); if (b) { b.click(); } },
     KeyV: function () { toggleFocus(); },
     KeyR: function () { toggleReference(); },
+    KeyS: function () { openStyle(); },
     KeyH: function () { openKeys(); },
     ArrowDown: function () { jumpComment(1); },
     ArrowUp: function () { jumpComment(-1); }
@@ -990,7 +991,9 @@
   }
 
   var styleList = document.getElementById('style-list');
-  if (styleList) {
+  function renderStyles() {
+    if (!styleList) { return; }
+    styleList.textContent = '';
     if (data.styles.length === 0) {
       var none = el('p', 'mat-muted');
       none.textContent = 'Das Stilblatt dieses Projekts ist noch leer.';
@@ -1007,6 +1010,40 @@
       item.appendChild(small);
       styleList.appendChild(item);
     });
+  }
+  renderStyles();
+
+  // An entry for the style sheet while writing: the marked word is the term, the person says what is decided about it.
+  var styleDialog = document.getElementById('editor-style');
+  var styleTerm = document.getElementById('style-term');
+  var styleDecision = document.getElementById('style-decision');
+  var styleCategory = document.getElementById('style-category');
+  var styleError = document.getElementById('style-error');
+
+  function openStyle() {
+    if (!styleDialog) { return; }
+    var marked = view.selectedText() || (window.getSelection ? String(window.getSelection()) : '');
+    styleTerm.value = marked && marked.length <= 100 && marked.indexOf('\n') < 0 ? marked.trim() : '';
+    styleDecision.value = '';
+    styleError.textContent = '';
+    window.MatUi.dialog.open(styleDialog);
+    (styleTerm.value ? styleDecision : styleTerm).focus();
+  }
+
+  if (styleDialog) {
+    document.getElementById('style-save').addEventListener('click', function () {
+      var term = styleTerm.value.trim();
+      if (!term) { styleError.textContent = 'Bitte gib den Eintrag ein.'; styleTerm.focus(); return; }
+      post('Style', { category: styleCategory.value, term: term, decision: styleDecision.value, note: null }).then(function (r) {
+        var existing = data.styles.filter(function (s) { return s.term.toLowerCase() === r.term.toLowerCase(); })[0];
+        if (existing) { existing.category = r.category; existing.decision = r.decision; } else { data.styles.push({ term: r.term, category: r.category, decision: r.decision }); }
+        renderStyles();
+        window.MatUi.dialog.close(styleDialog);
+        showSide(true);
+        toast(r.created ? 'Ins Stilblatt eingetragen.' : 'Der Eintrag im Stilblatt ist geändert.');
+      }).catch(function () { styleError.textContent = 'Der Eintrag konnte nicht gespeichert werden.'; });
+    });
+    styleDialog.addEventListener('keydown', function (event) { if (event.key === 'Enter' && event.target !== document.getElementById('style-save') && event.target.tagName === 'INPUT') { event.preventDefault(); document.getElementById('style-save').click(); } });
   }
 
   // ================================================================================================ the bar
@@ -1140,6 +1177,7 @@
   wire('editor-find', toggleFind);
   wire('editor-keys-open', openKeys);
   wire('editor-focus', toggleFocus);
+  wire('style-add', openStyle);
   wire('editor-reference-toggle', function () { toggleReference(); });
 
   // An export is made of the saved text: what is typed and not yet saved goes first, then the file comes.

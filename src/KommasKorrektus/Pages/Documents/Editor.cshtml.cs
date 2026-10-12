@@ -27,6 +27,8 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
 
     public sealed record ViewRequest(string? View);
 
+    public sealed record StyleRequest(string? Category, string? Term, string? Decision, string? Note);
+
     [BindProperty(SupportsGet = true)]
     public long Id { get; set; }
 
@@ -258,6 +260,39 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         db.DocumentComment.Add(comment);
         await db.SaveChangesAsync();
         return new JsonResult(new { ok = true, comment.Id, comment.ParagraphIndex, comment.Quote, comment.Text, author = comment.AuthorName, isResolved = false, created = Fmt.Moment(comment.CreateDate) });
+    }
+
+    /// <summary>An entry for the style sheet of the project, made while writing: the word that is marked, and what is decided about it.</summary>
+    public async Task<IActionResult> OnPostStyleAsync([FromBody] StyleRequest request)
+    {
+        var term = request.Term?.Trim() ?? string.Empty;
+        if (term.Length == 0 || term.Length > 200)
+        {
+            return BadRequest(new { ok = false, message = "Bitte gib den Eintrag ein (bis 200 Zeichen)." });
+        }
+
+        var document = await db.Document.AsNoTracking().FirstOrDefaultAsync(d => d.Id == Id);
+        if (document is null)
+        {
+            return NotFound();
+        }
+
+        var category = Enum.TryParse<StyleCategory>(request.Category, out var parsed) ? parsed : StyleCategory.Spelling;
+        var decision = string.IsNullOrWhiteSpace(request.Decision) ? null : request.Decision.Trim();
+        var existing = await db.StyleEntry.FirstOrDefaultAsync(s => s.ProjectId == document.ProjectId && s.Term.ToLower() == term.ToLower());
+        var created = existing is null;
+        var entry = existing ?? new StyleEntry { ProjectId = document.ProjectId, Term = term };
+        entry.Category = category;
+        entry.Decision = decision ?? entry.Decision;
+        entry.Note = string.IsNullOrWhiteSpace(request.Note) ? entry.Note : request.Note.Trim();
+        if (created)
+        {
+            db.StyleEntry.Add(entry);
+        }
+
+        await db.SaveChangesAsync();
+        await log.LogAsync(created ? "Stilblatt-Eintrag angelegt" : "Stilblatt-Eintrag geändert", "StyleEntry", entry.Id, term);
+        return new JsonResult(new { ok = true, created, term = entry.Term, category = UiKit.Labels.Of(entry.Category), decision = entry.Decision });
     }
 
     public async Task<IActionResult> OnPostResolveAsync(long commentId, bool resolved)

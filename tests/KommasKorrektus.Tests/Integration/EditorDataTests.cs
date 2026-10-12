@@ -1,7 +1,10 @@
+using System.Net;
+using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using KommasKorrektus.Data;
 using KommasKorrektus.Data.Entities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace KommasKorrektus.Tests.Integration;
@@ -49,5 +52,41 @@ public sealed class EditorDataTests : IClassFixture<AppFixture>
         Assert.Equal("Rabenwald", style.GetProperty("term").GetString());
         Assert.Equal("zusammen", style.GetProperty("decision").GetString());
         Assert.True(style.TryGetProperty("category", out _));
+    }
+
+    [DatabaseFact]
+    public async Task A_word_can_be_put_into_the_style_sheet_while_writing()
+    {
+        await _app.EnsureAdminAsync();
+        var (_, project, document) = await _app.CreateCustomerWithDocumentAsync("Stilblatt");
+        using var client = _app.NewClient();
+        await AppFixture.LoginAsync(client, "admin@example.test", "Admin-Passwort-2026");
+
+        async Task<HttpResponseMessage> PostAsync(object body)
+        {
+            var token = await AppFixture.TokenAsync(client, $"/Documents/Editor?id={document.Id}");
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"/Documents/Editor?id={document.Id}&handler=Style") { Content = JsonContent.Create(body) };
+            request.Headers.Add("RequestVerificationToken", token);
+            return await client.SendAsync(request);
+        }
+
+        var first = await PostAsync(new { category = "Character", term = "Rabenwald", decision = "ein Wort", note = (string?)null });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var created = (await first.Content.ReadFromJsonAsync<JsonElement>());
+        Assert.True(created.GetProperty("created").GetBoolean());
+        Assert.Equal("Figur", created.GetProperty("category").GetString());
+
+        // the same term again (other case) is the same entry, changed
+        var again = await PostAsync(new { category = "Spelling", term = "rabenwald", decision = "zusammen", note = (string?)null });
+        Assert.False((await again.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("created").GetBoolean());
+        var rows = await _app.WithScopeAsync(sp => sp.GetRequiredService<KkDbContext>().StyleEntry.AsNoTracking().Where(e => e.ProjectId == project.Id).ToListAsync());
+        var entry = Assert.Single(rows);
+        Assert.Equal(StyleCategory.Spelling, entry.Category);
+        Assert.Equal("zusammen", entry.Decision);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await PostAsync(new { category = "Spelling", term = "  ", decision = (string?)null, note = (string?)null })).StatusCode);
+
+        var html = await client.GetStringAsync($"/Documents/Editor?id={document.Id}");
+        Assert.Contains("\"term\":\"Rabenwald\"", html);
     }
 }
