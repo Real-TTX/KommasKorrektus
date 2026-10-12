@@ -143,8 +143,11 @@ public sealed partial class PageViewTests : IClassFixture<AppFixture>
         Assert.Contains("dicker", version);
         Assert.Contains("Fußnoten", version);
 
-        var text = await AppFixture.TextAsync(editor, $"/Documents/Version?id={document.Id}&no=2");
+        // The view is remembered with the account: the page that was asked for just now is what a version opens as, until text is asked for.
+        Assert.Contains("kk-sheet", await AppFixture.TextAsync(editor, $"/Documents/Version?id={document.Id}&no=2"));
+        var text = await AppFixture.TextAsync(editor, $"/Documents/Version?id={document.Id}&no=2&view=text");
         Assert.DoesNotContain("kk-sheet", text);
+        Assert.DoesNotContain("kk-sheet", await AppFixture.TextAsync(editor, $"/Documents/Version?id={document.Id}&no=2"));
     }
 
     [DatabaseFact]
