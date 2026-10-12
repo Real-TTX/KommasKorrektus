@@ -181,6 +181,12 @@ public sealed class TrackingConfig
     /// long (at least ten seconds) while somebody types without a pause. Saving does not make versions, so it can be done often.
     /// </summary>
     public int AutosaveSeconds { get; set; } = 3;
+
+    /// <summary>
+    /// The autosave waits until this many characters differ from the saved text (0 = every change counts). A few changed characters are saved anyway after
+    /// a minute, and when the page is left, so nothing is lost; what the threshold spares is a save for every comma.
+    /// </summary>
+    public int AutosaveMinChars { get; set; } = 10;
 }
 
 public sealed class SecurityConfig

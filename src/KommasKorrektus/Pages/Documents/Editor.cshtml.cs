@@ -38,6 +38,8 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
 
     public int AutosaveSeconds => config.Current.Tracking.AutosaveSeconds;
 
+    public int AutosaveMinChars => config.Current.Tracking.AutosaveMinChars;
+
     public int IdleMinutes => config.Current.Tracking.IdleMinutes;
 
     /// <summary>What the bar says about the version: "working" (saves go into it), "closed" (the next change begins a new one), or nothing (the original, a restored one).</summary>
@@ -76,9 +78,11 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
             state = StateOf(version),
             paragraphs = DocumentService.ParagraphsOf(version),
             autosaveSeconds = AutosaveSeconds,
+            autosaveMinChars = AutosaveMinChars,
             idleMinutes = IdleMinutes,
-            comments = comments.Select(c => new { c.Id, c.ParagraphIndex, c.Quote, c.Text, author = c.AuthorName ?? "Lektorat", c.IsResolved, created = Fmt.Moment(c.CreateDate) }),
-            styles = styles.Select(s => new { s.Term, category = UiKit.Labels.Of(s.Category), s.Decision }),
+            // The names are the ones editor.js reads (camelCase): the serializer would keep the names of the properties.
+            comments = comments.Select(c => new { id = c.Id, paragraphIndex = c.ParagraphIndex, quote = c.Quote, text = c.Text, author = c.AuthorName ?? "Lektorat", isResolved = c.IsResolved, created = Fmt.Moment(c.CreateDate) }),
+            styles = styles.Select(s => new { term = s.Term, category = UiKit.Labels.Of(s.Category), decision = s.Decision }),
         });
 
         Head($"Editor: {document.Title}", null, ("Projekte", "/Projects"), (document.Project.Title, $"/Projects/Details?id={document.ProjectId}&tab=documents"), (document.Title, $"/Documents/Details?id={document.Id}"), ("Editor", null));

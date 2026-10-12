@@ -70,7 +70,10 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 }
 
 /* ---- The editor ---- */
-.kk-editor__bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-3) var(--mat-space-5); padding: var(--mat-space-3) var(--mat-space-4); position: sticky; top: 0; z-index: 5; }
+.kk-editor__bar { display: flex; flex-direction: column; gap: var(--mat-space-3); padding: var(--mat-space-3) var(--mat-space-4); position: sticky; top: 0; z-index: 5; }
+.kk-editor__head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--mat-space-1) var(--mat-space-5); }
+.kk-editor__sep { width: 1px; height: 1.5rem; background: var(--mat-border); margin-inline: var(--mat-space-1); }
+.kk-editor__phone { display: none; }
 .kk-editor__title { min-width: 0; flex: 1 1 14rem; }
 .kk-editor__title h1 { font-size: var(--mat-fs-xl); margin: 0; overflow-wrap: anywhere; }
 .kk-editor__title p { margin: 0; font-size: var(--mat-fs-sm); }
@@ -81,6 +84,15 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-editor__status.is-saving { color: var(--mat-text-muted); }
 .kk-editor__status.is-error { color: var(--mat-danger-text); }
 .kk-editor__actions { display: flex; flex-wrap: wrap; gap: var(--mat-space-2); align-items: center; }
+/* The search: a bar under the buttons, not a dialog on top of the text. */
+.kk-find { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-2) var(--mat-space-4); padding-top: var(--mat-space-3); border-top: 1px solid var(--mat-border); }
+.kk-find__fields { display: flex; gap: var(--mat-space-2); flex: 1 1 22rem; min-width: 0; }
+.kk-find__fields .mat-input { flex: 1 1 8rem; width: auto; min-width: 0; }
+.kk-find__buttons { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-1); }
+.kk-find__options { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-1) var(--mat-space-3); font-size: var(--mat-fs-sm); }
+.kk-find__options .mat-check { min-height: 0; }
+.kk-find__close { margin-left: auto; }
+.mat-menu__item[aria-pressed="true"] { color: var(--mat-accent-text); }
 .kk-editor__body { margin-top: var(--mat-space-4); }
 .kk-editor.has-side .kk-editor__body { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: var(--mat-space-4); align-items: start; }
 .kk-editor__paper { background: var(--mat-surface); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-lg); padding: var(--mat-space-5) var(--mat-space-4); max-width: 58rem; margin-inline: auto; }
@@ -201,9 +213,23 @@ a.kk-a { cursor: pointer; }
 .kk-share__bar + .kk-diff__stats, .kk-share__bar + .mat-card { margin-top: 0; }
 .kk-bare > * + * { margin-top: var(--mat-space-4); }
 .kk-bare > .kk-share__head + * { margin-top: 0; }
+@media (max-width: 640px) {
+  /* A phone: the bar scrolls away with the page (the text needs the room), the buttons keep to two short rows, the long words become the short ones. */
+  .kk-editor__bar { position: static; padding: var(--mat-space-3); }
+  .kk-editor__title h1 { font-size: var(--mat-fs-lg); }
+  #editor-close { display: none; }
+  .kk-editor__phone { display: flex; }
+  .kk-editor__actions .mat-seg__btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .kk-editor__sep { display: none; }
+  .kk-find__fields { flex-direction: column; flex-basis: 100%; }
+  .kk-find__fields .mat-input { flex: 0 0 auto; width: 100%; }
+  .kk-find__close { position: absolute; top: .5rem; right: .5rem; }
+  .kk-find { position: relative; }
+}
 @media (max-width: 900px) {
   .kk-editor.has-side .kk-editor__body, .kk-editor.has-original .kk-editor__body, .kk-editor.has-original.has-side .kk-editor__body { grid-template-columns: 1fr; }
-  .kk-editor__side { position: static; max-height: none; }
+  /* The panel with the comments comes first when it is open: below a long text nobody would find it. */
+  .kk-editor__side { position: static; order: -1; max-height: 55vh; overflow-y: auto; }
   .kk-editor__original { position: static; height: 70vh; }
   .kk-editor__state { align-items: flex-start; }
   .kk-p { padding-left: 2rem; }
@@ -267,6 +293,14 @@ a.kk-a { cursor: pointer; }
 
 /* ---- Administration ---- */
 .kk-mailtext { margin: var(--mat-space-4) 0 0; padding: var(--mat-space-4); border: 1px solid var(--mat-border); border-radius: var(--mat-radius); background: var(--mat-surface-2); white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: var(--mat-fs-sm); }
+
+/* ---- Full screen of the editor: the menu, the breadcrumb and the footer step aside, the text gets the whole window ---- */
+html.kk-focus .mat-app { grid-template-columns: minmax(0, 1fr); }
+html.kk-focus .mat-nav, html.kk-focus .mat-topbar, html.kk-focus .mat-footer, html.kk-focus .mat-backdrop { display: none; }
+html.kk-focus .mat-page { padding-top: var(--mat-space-3); padding-bottom: var(--mat-space-4); gap: var(--mat-space-3); }
+html.kk-focus .kk-editor__body { margin-top: var(--mat-space-3); }
+html.kk-focus .kk-editor__paper { max-width: 72rem; }
+html.kk-focus .kk-editor__side, html.kk-focus .kk-editor__original { top: 5.5rem; max-height: calc(100vh - 7rem); }
 
 /* ---- Fields that line up by their controls ----
    A field is a label, a control, a hint and the space for an error. In a form grid every field takes the same four rows (a subgrid), so the

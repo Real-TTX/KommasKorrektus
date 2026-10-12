@@ -72,6 +72,7 @@
                 <div class="mat-form__grid">
                     <kk-input for="Tracking.IdleMinutes" label="Pause, ab der die Arbeitszeit anhält (Minuten)" type="number" min="1" max="60" hint="Wer im Editor so lange nichts tippt, bekommt die Zeit nicht angerechnet. Der nächste Tastendruck startet einen neuen Block." />
                     <kk-input for="Tracking.AutosaveSeconds" label="Automatisch speichern nach Sekunden ohne Tippen" type="number" min="0" max="600" hint="Der Editor speichert, sobald du so lange nicht tippst (empfohlen: 3), und beim Verlassen der Seite. Das legt keine neuen Fassungen an. 0 schaltet es aus." />
+                    <kk-input for="Tracking.AutosaveMinChars" label="Schwelle: erst ab so vielen geänderten Zeichen" type="number" min="0" max="5000" hint="Das automatische Speichern wartet, bis sich so viele Zeichen vom gespeicherten Text unterscheiden (empfohlen: 10). Eine kleinere Änderung wird nach einer Minute und beim Verlassen der Seite trotzdem gespeichert. 0: jede Änderung." />
                 </div>
             </kk-card>
         </kk-tab>

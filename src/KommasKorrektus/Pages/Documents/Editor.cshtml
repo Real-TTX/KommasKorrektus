@@ -9,33 +9,50 @@
     <script type="application/json" id="editor-data">@Html.Raw(Model.DataJson)</script>
 
     <div class="kk-editor__bar mat-card">
-        <div class="kk-editor__title">
-            <h1>@d.Title</h1>
-            <p class="mat-muted"><a href="/Projects/Details?id=@d.ProjectId&tab=documents">@d.Project!.Title</a> · <span id="editor-version">Fassung @Model.Version.VersionNo@(Model.Version.Origin switch { VersionOrigin.Working => " · in Arbeit", VersionOrigin.Manual => " · abgeschlossen", _ => "" })</span> · <span id="editor-words">0</span> Wörter</p>
-        </div>
-        <div class="kk-editor__state">
-            <span id="editor-status" class="kk-editor__status is-saved" aria-live="polite" role="status">Geöffnet</span>
-            <small class="mat-muted" id="editor-session"></small>
+        <div class="kk-editor__head">
+            <div class="kk-editor__title">
+                <h1>@d.Title</h1>
+                <p class="mat-muted"><a href="/Projects/Details?id=@d.ProjectId&tab=documents">@d.Project!.Title</a> · <span id="editor-version">Fassung @Model.Version.VersionNo@(Model.Version.Origin switch { VersionOrigin.Working => " · in Arbeit", VersionOrigin.Manual => " · abgeschlossen", _ => "" })</span> · <span id="editor-words">0</span> Wörter</p>
+            </div>
+            <div class="kk-editor__state">
+                <span id="editor-status" class="kk-editor__status is-saved" aria-live="polite" role="status">Geöffnet</span>
+                <small class="mat-muted" id="editor-session"></small>
+            </div>
         </div>
         <div class="kk-editor__actions">
             <div class="mat-seg" role="group" aria-label="Ansicht">
-                <button type="button" class="mat-seg__btn" data-view="text" aria-pressed="true" data-tip="Nur der Text, ohne Ablenkung durch das Layout (Alt+W wechselt)">@Ui.Icon("type")<span>Text</span></button>
-                <button type="button" class="mat-seg__btn" data-view="page" aria-pressed="false" disabled data-tip="Die Seite mit der Formatierung des Originals (Alt+W wechselt)">@Ui.Icon("file")<span>Seite</span></button>
+                <button type="button" class="mat-seg__btn" data-view="text" aria-pressed="true" data-tip="Nur der Text (Alt+W)">@Ui.Icon("type")<span>Text</span></button>
+                <button type="button" class="mat-seg__btn" data-view="page" aria-pressed="false" disabled data-tip="Die Seite wie im Original (Alt+W)">@Ui.Icon("file")<span>Seite</span></button>
             </div>
             <button type="button" class="mat-btn mat-btn--primary" id="editor-save" data-tip="Speichern: die Fassung bleibt in Arbeit (Strg+S)">@Ui.Icon("save")<span>Speichern</span></button>
-            <button type="button" class="mat-btn mat-btn--secondary" id="editor-close" data-tip="Den Durchgang beenden: die nächste Änderung beginnt eine neue Fassung (Alt+A)">@Ui.Icon("check-circle")<span>Durchgang abschließen</span></button>
+            <button type="button" class="mat-btn mat-btn--secondary" id="editor-close" data-tip="Den Durchgang beenden (Alt+A)">@Ui.Icon("check-circle")<span>Durchgang abschließen</span></button>
+            <span class="kk-editor__sep" aria-hidden="true"></span>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-undo" aria-label="Rückgängig (Strg+Z)" data-tip="Rückgängig" disabled>@Ui.Icon("undo")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-redo" aria-label="Wiederholen (Strg+Y)" data-tip="Wiederholen" disabled>@Ui.Icon("redo")</button>
-            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-find" aria-label="Suchen und ersetzen (Strg+H)" data-tip="Suchen und ersetzen">@Ui.Icon("search")</button>
-            @if (d.Kind == DocumentKind.Pdf && d.OriginalFileId is not null)
-            {
-                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-original" aria-pressed="false" aria-label="Das Original-PDF daneben zeigen" data-tip="Das Original-PDF daneben zeigen">@Ui.Icon("eye")</button>
-            }
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-find" aria-pressed="false" aria-label="Suchen und ersetzen (Strg+H)" data-tip="Suchen und ersetzen (Strg+H)">@Ui.Icon("search")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-side-toggle" aria-pressed="false" aria-label="Kommentare und Stilblatt (Alt+L)" data-tip="Kommentare und Stilblatt (Alt+L)">@Ui.Icon("message-square")<span class="mat-badge mat-badge--soft" id="comment-count">0</span></button>
-            <a class="mat-btn mat-btn--ghost mat-btn--icon" href="/Documents/Compare?id=@d.Id&from=@(Math.Max(1, d.CurrentVersionNo - 1))&to=@d.CurrentVersionNo" aria-label="Änderungen ansehen" data-tip="Änderungen ansehen">@Ui.Icon("columns")</a>
-            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-export" data-menu-toggle="editor-export-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Exportieren (Alt+X)" data-tip="Exportieren: Word oder PDF (Alt+X)">@Ui.Icon("download")</button>
-            <a class="mat-btn mat-btn--ghost mat-btn--icon" href="/Documents/Details?id=@d.Id" aria-label="Zur Dokumentseite" data-tip="Fassungen und weitere Exporte">@Ui.Icon("history")</a>
-            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-keys-open" aria-label="Tastenkürzel (Alt+H)" data-tip="Tastenkürzel (Alt+H)">@Ui.Icon("help-circle")</button>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-focus" aria-pressed="false" aria-label="Vollbild: Menü und Kopfzeile ausblenden (Alt+V)" data-tip="Vollbild: mehr Platz zum Schreiben (Alt+V)"><span data-focus-icon="off">@Ui.Icon("maximize")</span><span data-focus-icon="on" hidden>@Ui.Icon("minimize")</span></button>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-export" data-menu-toggle="editor-export-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Exportieren (Alt+X)" data-tip="Exportieren (Alt+X)">@Ui.Icon("download")</button>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-more" data-menu-toggle="editor-more-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Mehr" data-tip="Mehr">@Ui.Icon("more-vertical")</button>
+        </div>
+
+        <div class="kk-find" id="editor-find-bar" role="search" aria-label="Suchen und ersetzen" hidden>
+            <div class="kk-find__fields">
+                <input class="mat-input mat-input--sm" id="replace-find" placeholder="Suchen" aria-label="Suchen" autocomplete="off" />
+                <input class="mat-input mat-input--sm" id="replace-with" placeholder="Ersetzen durch" aria-label="Ersetzen durch" autocomplete="off" />
+            </div>
+            <div class="kk-find__buttons">
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" id="replace-prev" aria-label="Voriger Treffer (Umschalt+F3)" data-tip="Voriger Treffer (Umschalt+F3)">@Ui.Icon("arrow-up")</button>
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" id="replace-next" aria-label="Nächster Treffer (F3)" data-tip="Nächster Treffer (F3)">@Ui.Icon("arrow-down")</button>
+                <button type="button" class="mat-btn mat-btn--secondary mat-btn--sm" id="replace-one">Ersetzen</button>
+                <button type="button" class="mat-btn mat-btn--secondary mat-btn--sm" id="replace-all">Alle ersetzen</button>
+            </div>
+            <div class="kk-find__options">
+                <label class="mat-check"><input type="checkbox" id="replace-case" /><span class="mat-check__text">Groß/klein</span></label>
+                <label class="mat-check"><input type="checkbox" id="replace-whole" /><span class="mat-check__text">Ganze Wörter</span></label>
+                <span class="mat-hint" id="replace-info" aria-live="polite"></span>
+            </div>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm kk-find__close" id="replace-close" aria-label="Suche schließen (Esc)" data-tip="Schließen (Esc)">@Ui.Icon("x")</button>
         </div>
     </div>
 
@@ -48,6 +65,18 @@
         <a class="mat-menu__item" role="menuitem" data-export href="/Documents/Export?id=@d.Id&format=@nameof(ExportFormat.Text)">@Ui.Icon("download")<span>Nur Text</span></a>
         <div class="mat-menu__sep" role="separator"></div>
         <a class="mat-menu__item" role="menuitem" href="/Documents/Details?id=@d.Id&tab=export">@Ui.Icon("sliders")<span>Weitere Optionen …</span></a>
+    </div>
+
+    <div class="mat-menu" id="editor-more-menu" role="menu" aria-label="Mehr" hidden>
+        <a class="mat-menu__item" role="menuitem" href="/Documents/Compare?id=@d.Id&from=@(Math.Max(1, d.CurrentVersionNo - 1))&to=@d.CurrentVersionNo">@Ui.Icon("columns")<span>Änderungen ansehen</span></a>
+        <a class="mat-menu__item" role="menuitem" href="/Documents/Details?id=@d.Id">@Ui.Icon("history")<span>Fassungen und Dokumentseite</span></a>
+        @if (d.Kind == DocumentKind.Pdf && d.OriginalFileId is not null)
+        {
+            <button type="button" class="mat-menu__item" role="menuitem" id="editor-original" aria-pressed="false">@Ui.Icon("eye")<span>Das Original-PDF daneben zeigen</span></button>
+        }
+        <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-close-menu">@Ui.Icon("check-circle")<span>Durchgang abschließen</span></button>
+        <div class="mat-menu__sep" role="separator"></div>
+        <button type="button" class="mat-menu__item" role="menuitem" id="editor-keys-open">@Ui.Icon("help-circle")<span>Tastenkürzel (Alt+H)</span></button>
     </div>
 
     <div class="kk-editor__body">
@@ -70,28 +99,6 @@
             </section>
         </aside>
     </div>
-
-    <dialog class="mat-dialog mat-dialog--sm" id="editor-replace" aria-labelledby="replace-title">
-        <div class="mat-dialog__form">
-            <div class="mat-dialog__head">@Ui.Icon("search")<h2 class="mat-dialog__title" id="replace-title">Suchen und ersetzen</h2><button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-dialog__close" data-dialog-close aria-label="Schließen">@Ui.Icon("x")</button></div>
-            <div class="mat-dialog__body mat-form">
-                <div class="mat-field"><label class="mat-label" for="replace-find">Suchen</label><input class="mat-input" id="replace-find" autocomplete="off" /></div>
-                <div class="mat-field"><label class="mat-label" for="replace-with">Ersetzen durch</label><input class="mat-input" id="replace-with" autocomplete="off" /></div>
-                <label class="mat-switch"><input type="checkbox" id="replace-case" /><span class="mat-switch__track"></span><span>Groß- und Kleinschreibung beachten</span></label>
-                <label class="mat-switch"><input type="checkbox" id="replace-whole" /><span class="mat-switch__track"></span><span>Nur ganze Wörter</span></label>
-                <p class="mat-hint" id="replace-info" aria-live="polite"></p>
-            </div>
-            <div class="mat-dialog__foot">
-                <div class="mat-btn-row mat-btn-row--plain">
-                    <button type="button" class="mat-btn mat-btn--primary" id="replace-next">@Ui.Icon("search")<span>Weitersuchen</span></button>
-                    <button type="button" class="mat-btn mat-btn--secondary" id="replace-one">Ersetzen</button>
-                    <button type="button" class="mat-btn mat-btn--secondary" id="replace-all">Alle ersetzen</button>
-                    <span class="mat-btn-row__spacer"></span>
-                    <button type="button" class="mat-btn mat-btn--ghost mat-btn--end" data-dialog-close>Schließen</button>
-                </div>
-            </div>
-        </div>
-    </dialog>
 
     <dialog class="mat-dialog mat-dialog--sm" id="editor-comment" aria-labelledby="comment-title">
         <div class="mat-dialog__form">
@@ -121,6 +128,7 @@
                     <dt><kbd>Alt</kbd> + <kbd>L</kbd></dt><dd>Kommentare und Stilblatt ein- oder ausblenden</dd>
                     <dt><kbd>Alt</kbd> + <kbd>W</kbd></dt><dd>Zwischen Text und Seite wechseln</dd>
                     <dt><kbd>Alt</kbd> + <kbd>X</kbd></dt><dd>Exportieren (Word, PDF, Text)</dd>
+                    <dt><kbd>Alt</kbd> + <kbd>V</kbd></dt><dd>Vollbild: Menü und Kopfzeile aus- und einblenden (<kbd>Esc</kbd> beendet es)</dd>
                     <dt><kbd>Strg</kbd> + <kbd>H</kbd></dt><dd>Suchen und ersetzen</dd>
                     <dt><kbd>F3</kbd> / <kbd>Umschalt</kbd> + <kbd>F3</kbd></dt><dd>Nächster / voriger Treffer</dd>
                     <dt><kbd>Strg</kbd> + <kbd>Z</kbd> / <kbd>Y</kbd></dt><dd>Rückgängig / wiederholen</dd>

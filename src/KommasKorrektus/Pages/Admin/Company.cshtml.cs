@@ -19,7 +19,7 @@ public sealed class CompanyModel(ConfigStore config, ActivityLogger log) : PageM
     public async Task OnGetAsync()
     {
         Company = Clone(config.Current.Company);
-        Tracking = new TrackingConfig { IdleMinutes = config.Current.Tracking.IdleMinutes, AutosaveSeconds = config.Current.Tracking.AutosaveSeconds };
+        Tracking = new TrackingConfig { IdleMinutes = config.Current.Tracking.IdleMinutes, AutosaveSeconds = config.Current.Tracking.AutosaveSeconds, AutosaveMinChars = config.Current.Tracking.AutosaveMinChars };
         await PrepareAsync();
     }
 
@@ -39,6 +39,7 @@ public sealed class CompanyModel(ConfigStore config, ActivityLogger log) : PageM
             c.Company = Company;
             c.Tracking.IdleMinutes = Tracking.IdleMinutes;
             c.Tracking.AutosaveSeconds = Tracking.AutosaveSeconds;
+            c.Tracking.AutosaveMinChars = Tracking.AutosaveMinChars;
         });
         await log.LogAsync("Firmendaten geändert", "Company");
         Flash("Die Firmendaten sind gespeichert.");
@@ -56,6 +57,11 @@ public sealed class CompanyModel(ConfigStore config, ActivityLogger log) : PageM
         if (Tracking.AutosaveSeconds is < 0 or > 600)
         {
             ModelState.AddModelError("Tracking.AutosaveSeconds", "Das automatische Speichern liegt zwischen 0 und 600 Sekunden.");
+        }
+
+        if (Tracking.AutosaveMinChars is < 0 or > 5000)
+        {
+            ModelState.AddModelError("Tracking.AutosaveMinChars", "Die Schwelle liegt zwischen 0 und 5000 Zeichen.");
         }
 
         if (string.IsNullOrWhiteSpace(c.Name))

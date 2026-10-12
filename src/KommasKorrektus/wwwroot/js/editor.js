@@ -512,16 +512,54 @@
   var autosaves = data.autosaveSeconds > 0;
   function dirtyText() { return autosaves ? 'Wird automatisch gespeichert …' : 'Nicht gespeichert'; }
 
+  // The text as the server has it, and since when the window holds something it has not: the threshold of the autosave measures against them.
+  var savedText = data.paragraphs.join('\n');
+  var dirtySince = 0;
+  var PATIENCE_MS = 60000;      // a change below the threshold is saved anyway after this long
+  var BIG_DELETION = 150;       // an autosave does not take away more than this many characters ...
+  var BIG_SHARE = 0.3;          // ... and more than this share of the text without being asked: that is saved by hand
+
+  /** How much differs from the saved text: what lies between the common beginning and the common end, as characters taken away and put in. */
+  function difference(now) {
+    var a = savedText;
+    var n = Math.min(a.length, now.length);
+    var start = 0;
+    while (start < n && a.charCodeAt(start) === now.charCodeAt(start)) { start += 1; }
+    var end = 0;
+    while (end < n - start && a.charCodeAt(a.length - 1 - end) === now.charCodeAt(now.length - 1 - end)) { end += 1; }
+    return { removed: a.length - start - end, added: now.length - start - end };
+  }
+
   // Saving goes into the version being worked on, so it can be done often: a few seconds after the last keystroke, and at the latest
-  // every few seconds' worth more while somebody types without a pause.
+  // every few seconds' worth more while somebody types without a pause. What is saved on its own has a threshold (see autoTick).
   function markDirty() {
+    if (!dirty) { dirtySince = Date.now(); }
     dirty = true;
     setStatus('dirty', dirtyText());
     if (autosaves) {
       clearTimeout(saveTimer);
-      saveTimer = setTimeout(function () { save('auto'); }, data.autosaveSeconds * 1000);
-      if (!maxTimer) { maxTimer = setTimeout(function () { save('auto'); }, Math.max(10, data.autosaveSeconds * 5) * 1000); }
+      saveTimer = setTimeout(autoTick, data.autosaveSeconds * 1000);
+      if (!maxTimer) { maxTimer = setTimeout(autoTick, Math.max(10, data.autosaveSeconds * 5) * 1000); }
     }
+  }
+
+  /**
+   * The autosave is due. It saves when enough has changed (the threshold), or when a small change has waited long enough. It does not take a large part
+   * of the text away on its own (somebody who selected everything and pressed Delete would find it saved): that waits for the save by hand, or for
+   * leaving the page, which always saves.
+   */
+  function autoTick() {
+    maxTimer = null;
+    if (!dirty || saving) { return; }
+    var diff = difference(snapshot().join('\n'));
+    if (diff.removed > BIG_DELETION && diff.removed > savedText.length * BIG_SHARE) {
+      setStatus('dirty', 'Viel Text gelöscht: nicht automatisch gespeichert (Strg+S speichert)');
+      return;
+    }
+    if (Math.max(diff.removed, diff.added) >= (data.autosaveMinChars || 0) || Date.now() - dirtySince >= PATIENCE_MS) { save('auto'); return; }
+    setStatus('dirty', 'Noch nicht gespeichert: erst bei mehr Änderungen (oder nach einer Minute)');
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(autoTick, 10000);
   }
 
   // keepalive lets a save that is sent while the page is closing finish (the browser allows 64 KB for it).
@@ -567,7 +605,9 @@
         });
       }
       baseVersion = result.versionNo;
+      savedText = text;
       dirty = snapshot().join('\n') !== text;
+      if (dirty) { dirtySince = Date.now(); }
       session.added += result.added; session.removed += result.removed; session.replaced += result.replaced;
       showSession();
       var word = stateWord(result.state);
@@ -585,7 +625,7 @@
       // Time that was not reported goes into the next report.
       activeSeconds += lostActive; keys += lostKeys;
       // A save that did not get through (the connection was gone for a moment) is tried again; the text stays here meanwhile.
-      if (autosaves) { clearTimeout(saveTimer); saveTimer = setTimeout(function () { save('auto'); }, 10000); }
+      if (autosaves) { clearTimeout(saveTimer); saveTimer = setTimeout(autoTick, 10000); }
       return null;
     }).then(function (result) {
       if (pendingKind) { var next = pendingKind, nextOptions = pendingOptions; pendingKind = null; pendingOptions = null; return save(next, nextOptions); }
@@ -642,6 +682,7 @@
     KeyA: function () { closePass(); },
     KeyW: function () { switchView(); },
     KeyX: function () { var b = document.getElementById('editor-export'); if (b) { b.click(); } },
+    KeyV: function () { toggleFocus(); },
     KeyH: function () { openKeys(); },
     ArrowDown: function () { jumpComment(1); },
     ArrowUp: function () { jumpComment(-1); }
@@ -659,11 +700,15 @@
     } else if (event.key === 'F3' && !event.altKey && !event.ctrlKey && !event.metaKey) {
       event.preventDefault();
       findAgain(event.shiftKey);
+    } else if (event.key === 'Escape' && !event.defaultPrevented && document.documentElement.classList.contains('kk-focus') && !(findBar && !findBar.hidden)) {
+      // Esc leaves the full screen (the search bar and the dialogs have their own Esc).
+      setFocus(false);
     }
   });
 
   // ================================================================================================ search and replace
-  var replaceDialog = document.getElementById('editor-replace');
+  var findBar = document.getElementById('editor-find-bar');
+  var findButton = document.getElementById('editor-find');
   var findInput = document.getElementById('replace-find');
   var withInput = document.getElementById('replace-with');
   var caseInput = document.getElementById('replace-case');
@@ -687,15 +732,26 @@
     return n;
   }
 
+  // The search is a bar above the text, not a dialog: the text stays in reach, and replacing in the page view needs the focus on the page.
   function openReplace() {
     var selection = view.selectedText() || (window.getSelection ? String(window.getSelection()) : '');
     if (selection && selection.length < 80 && selection.indexOf('\n') < 0) { findInput.value = selection; }
-    // Not modal: a modal dialog makes the rest of the page unreachable, and replacing in the page view needs the focus on the page.
-    if (!replaceDialog.open) { replaceDialog.show(); }
+    findBar.hidden = false;
+    if (findButton) { findButton.setAttribute('aria-pressed', 'true'); }
     findInput.focus();
     findInput.select();
     countMatches();
   }
+
+  /** Closes the bar and puts the cursor back where it was in the text. */
+  function closeFind() {
+    var active = view.activePosition();
+    findBar.hidden = true;
+    if (findButton) { findButton.setAttribute('aria-pressed', 'false'); }
+    if (active) { view.select(active.index, active.start, active.end); }
+  }
+
+  function toggleFind() { if (findBar.hidden) { openReplace(); } else { closeFind(); } }
 
   function findNext(fromCurrent) {
     var re = pattern();
@@ -766,8 +822,21 @@
     replaceInfo.textContent = count + (count === 1 ? ' Ersetzung' : ' Ersetzungen');
   }
 
-  if (replaceDialog) {
-    replaceDialog.addEventListener('keydown', function (event) { if (event.key === 'Escape') { event.preventDefault(); window.MatUi.dialog.close(replaceDialog); } });
+  if (findBar) {
+    findBar.addEventListener('keydown', function (event) { if (event.key === 'Escape') { event.preventDefault(); closeFind(); } });
+    // Enter in the field of the search goes to the hit (Shift+Enter to the one before); Enter in the field of the replacement replaces this hit.
+    findInput.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' || event.isComposing) { return; }
+      event.preventDefault();
+      if (!(event.shiftKey ? findPrevious() : findNext(true))) { replaceInfo.textContent = 'Keine Treffer'; }
+    });
+    withInput.addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' || event.isComposing) { return; }
+      event.preventDefault();
+      replaceCurrent();
+    });
+    document.getElementById('replace-prev').addEventListener('click', function () { if (!findPrevious()) { replaceInfo.textContent = 'Keine Treffer'; } });
+    document.getElementById('replace-close').addEventListener('click', closeFind);
     findInput.addEventListener('input', countMatches);
     caseInput.addEventListener('change', countMatches);
     wholeInput.addEventListener('change', countMatches);
@@ -941,15 +1010,42 @@
     setView(next);
   }
 
+  // Full screen: the menu, the breadcrumb and the footer step aside (CSS class on the page), and the browser goes full screen as well when it may
+  // (a click is the gesture it asks for). Esc leaves the browser's full screen; the page then leaves its own too. The choice is remembered.
+  var FOCUS_KEY = 'kk.editor.focus';
+  var focusButton = document.getElementById('editor-focus');
+
+  function setFocus(on, fromBrowser) {
+    document.documentElement.classList.toggle('kk-focus', on);
+    if (focusButton) {
+      focusButton.setAttribute('aria-pressed', on ? 'true' : 'false');
+      Array.prototype.forEach.call(focusButton.querySelectorAll('[data-focus-icon]'), function (icon) { icon.hidden = (icon.getAttribute('data-focus-icon') === 'on') !== on; });
+    }
+    try { window.localStorage.setItem(FOCUS_KEY, on ? '1' : '0'); } catch (e) { /* not remembered */ }
+    if (fromBrowser || !document.documentElement.requestFullscreen) { return; }
+    if (on && !document.fullscreenElement) { document.documentElement.requestFullscreen().catch(function () { /* the page's own full screen is enough */ }); }
+    else if (!on && document.fullscreenElement) { document.exitFullscreen().catch(function () { /* already out */ }); }
+  }
+
+  function toggleFocus() { setFocus(!document.documentElement.classList.contains('kk-focus')); }
+
+  document.addEventListener('fullscreenchange', function () {
+    if (!document.fullscreenElement && document.documentElement.classList.contains('kk-focus')) { setFocus(false, true); }
+  });
+
+  try { if (window.localStorage.getItem(FOCUS_KEY) === '1') { setFocus(true, true); } } catch (e) { /* not remembered */ }
+
   var keysDialog = document.getElementById('editor-keys');
   function openKeys() { if (keysDialog) { window.MatUi.dialog.open(keysDialog); } }
 
   wire('editor-save', function () { save('manual'); });
   wire('editor-close', closePass);
+  wire('editor-close-menu', closePass);
   wire('editor-undo', function () { view.undo(); });
   wire('editor-redo', function () { view.redo(); });
-  wire('editor-find', openReplace);
+  wire('editor-find', toggleFind);
   wire('editor-keys-open', openKeys);
+  wire('editor-focus', toggleFocus);
 
   // An export is made of the saved text: what is typed and not yet saved goes first, then the file comes.
   function afterSave() {
