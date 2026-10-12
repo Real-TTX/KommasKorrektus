@@ -36,7 +36,11 @@ before driving the app.
   a separate page; buttons in one row from positive to negative with the delete button spaced apart (`kk-buttons`). Use the
   shared controls (`ListBuilder`, `TableModel`, `_Toolbar`, `_Table`, `_Pager`, `kk-input`, `kk-select`, `kk-tabs` ...); several
   of one kind per page must work. Dependent fields use `show-if` (hidden fields are disabled and not posted: do not let a
-  default overwrite stored values). No inline scripts or styles (CSP `default-src 'self'`). Icons from the sprite (`Ui.Icon`)
+  default overwrite stored values). No inline scripts or styles (CSP `default-src 'self'`). Icons from the sprite (`Ui.Icon`).
+  **Controls line up**: in a `mat-form__grid` every field takes four rows (label, control, hint, error: a subgrid), and a `mat-row`
+  that holds fields (or `kk-diff__bar`) stands on the bottom of its controls with hints and errors hanging below (end of `app.css`):
+  never nudge a button or a switch with margins; put a field in the grid or the row. A field in a grid has the children label,
+  control, hint, error: one control per field (two would sit on top of each other)
 - **Formatting**: the request culture is **invariant on purpose**; format numbers, money and dates with `Fmt` (de-DE),
   never with `{x:0.##}` or `ToString()` in text a person reads
 - **Razor** encodes `ü` as an entity: tests compare with `AppFixture.TextAsync` (decoded)

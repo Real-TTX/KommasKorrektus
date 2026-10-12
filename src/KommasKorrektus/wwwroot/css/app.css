@@ -45,9 +45,7 @@
 ins, del { text-decoration-thickness: 1px; border-radius: var(--mat-radius-xs); }
 ins { background: var(--kk-ins-bg); color: var(--kk-ins-text); text-decoration: underline; }
 del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: line-through; }
-.kk-diff__bar { display: flex; flex-wrap: wrap; gap: var(--mat-space-3); align-items: flex-end; }
 .kk-diff__bar .mat-field { min-width: 11rem; }
-.kk-diff__apply { margin-bottom: var(--mat-space-1); }
 .kk-diff { background: var(--mat-surface); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-lg); overflow: hidden; }
 .kk-diff__head { display: grid; grid-template-columns: 1fr 1fr; background: var(--mat-surface-2); border-bottom: 1px solid var(--mat-border); font-weight: 600; font-size: var(--mat-fs-sm); }
 .kk-diff__head > div { padding: var(--mat-space-2) var(--mat-space-4); }
@@ -213,7 +211,6 @@ a.kk-a { cursor: pointer; }
 .kk-name { align-items: flex-start; text-align: left; }
 .mat-tabpanel > * + * { margin-top: var(--mat-space-4); }
 .mat-tabpanel > .mat-actions { margin-top: var(--mat-space-4); }
-form.mat-form.kk-diff__bar { display: flex; flex-direction: row; flex-wrap: wrap; gap: var(--mat-space-3); align-items: flex-end; }
 
 /* ---- Charts: one series in the accent colour, thin marks standing on a quiet baseline ---- */
 .kk-chart { margin: 0; }
@@ -228,9 +225,7 @@ form.mat-form.kk-diff__bar { display: flex; flex-direction: row; flex-wrap: wrap
 
 /* ---- The stop watch ---- */
 .kk-timer { font-family: var(--mat-mono); font-size: var(--mat-fs-3xl); font-variant-numeric: tabular-nums; }
-.kk-timer-form { align-items: flex-end; }
 .kk-timer-form .mat-field { min-width: 14rem; flex: 1 1 14rem; }
-.kk-timer-form__go { margin-bottom: 1.35rem; }
 .kk-datatable > summary { cursor: pointer; color: var(--mat-text-muted); font-size: var(--mat-fs-sm); padding: var(--mat-space-2) 0; }
 .kk-datatable > summary:hover { color: var(--mat-accent-text); }
 
@@ -268,3 +263,23 @@ form.mat-form.kk-diff__bar { display: flex; flex-direction: row; flex-wrap: wrap
 
 /* ---- Administration ---- */
 .kk-mailtext { margin: var(--mat-space-4) 0 0; padding: var(--mat-space-4); border: 1px solid var(--mat-border); border-radius: var(--mat-radius); background: var(--mat-surface-2); white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; font-size: var(--mat-fs-sm); }
+
+/* ---- Fields that line up by their controls ----
+   A field is a label, a control, a hint and the space for an error. In a form grid every field takes the same four rows (a subgrid), so the
+   controls of one row stand on one line however tall what lies above or below them is: a label that wraps, no label at all (a switch), a hint.
+   The space between the rows is the margin of the items (a gap would be kept around the rows a field leaves empty). */
+.mat-form__grid { row-gap: 0; margin-bottom: calc(-1 * var(--mat-space-4)); }
+.mat-form__grid > * { margin-bottom: var(--mat-space-4); }
+.kk-lines__options { margin-bottom: 0; }
+.mat-form__grid > .mat-field:not(.mat-field--full, .mat-fieldset) { display: grid; grid-row: span 4; grid-template-rows: subgrid; row-gap: 0; }
+.mat-form__grid > .mat-field:not(.mat-field--full, .mat-fieldset) > :not(.mat-label, .mat-hint, .mat-error) { grid-row: 2; }
+.mat-form__grid > .mat-field:not(.mat-field--full, .mat-fieldset) > .mat-label { grid-row: 1; margin-bottom: var(--mat-space-1); }
+.mat-form__grid > .mat-field:not(.mat-field--full, .mat-fieldset) > .mat-hint { grid-row: 3; margin-top: var(--mat-space-1); }
+.mat-form__grid > .mat-field:not(.mat-field--full, .mat-fieldset) > .mat-error { grid-row: 4; margin-top: var(--mat-space-1); }
+
+/* A row of fields and buttons ("status" and "apply", the timer, the bar of the comparison): the controls stand on one line, the bottom of the row.
+   A hint or an error does not take room under its field, it hangs below it, so that a field without them does not look higher. */
+.mat-row:has(> .mat-field), .kk-diff__bar { display: flex; flex-direction: row; flex-wrap: wrap; align-items: flex-end; gap: var(--mat-space-4) var(--mat-space-3); }
+:is(.mat-row:has(> .mat-field), .kk-diff__bar) > .mat-field { position: relative; }
+:is(.mat-row:has(> .mat-field), .kk-diff__bar) > .mat-field > :is(.mat-hint, .mat-error) { position: absolute; top: 100%; left: 0; right: 0; margin-top: var(--mat-space-1); min-height: 0; }
+:is(.mat-row:has(> .mat-field), .kk-diff__bar) > .mat-field > .mat-switch { min-height: var(--mat-control-h); }
