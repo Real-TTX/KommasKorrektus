@@ -106,6 +106,10 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-comments { padding: 0; margin: 0 0 var(--mat-space-3); list-style: none; display: grid; gap: var(--mat-space-2); }
 .kk-comment { border: 1px solid var(--mat-border); border-radius: var(--mat-radius); padding: var(--mat-space-3); background: var(--mat-surface); }
 .kk-comment p { margin: var(--mat-space-1) 0; overflow-wrap: anywhere; }
+.kk-comment.is-current { border-color: var(--mat-accent); box-shadow: 0 0 0 2px var(--mat-accent-soft); }
+.kk-keys { display: grid; grid-template-columns: max-content 1fr; gap: var(--mat-space-2) var(--mat-space-5); margin: 0 0 var(--mat-space-4); align-items: center; }
+.kk-keys dt { white-space: nowrap; }
+.kk-keys dd { margin: 0; color: var(--mat-text-muted); }
 .kk-comment__head { display: flex; justify-content: space-between; align-items: center; gap: var(--mat-space-2); }
 .kk-reading { font-size: 1.0625rem; line-height: 1.75; }
 .kk-reading p { margin: 0 0 var(--mat-space-3); overflow-wrap: anywhere; }

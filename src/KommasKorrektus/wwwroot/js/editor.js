@@ -627,6 +627,34 @@
     else if (view && view.keys && (key === 'y' || (key === 'z' && event.shiftKey))) { event.preventDefault(); view.redo(); }
   });
 
+  // The shortcuts of the editor are Alt + a letter: Ctrl + Alt is AltGr on a German keyboard (it types @, €, { ...), and Alt alone is free in the
+  // browsers. They go by the position of the key (code), so that they work with any layout. The list is in the dialog "Tastenkürzel".
+  var HOTKEYS = {
+    KeyK: function () { commentHere(); },
+    KeyL: function () { toggleSide(); },
+    KeyA: function () { closePass(); },
+    KeyW: function () { switchView(); },
+    KeyX: function () { var b = document.getElementById('editor-export'); if (b) { b.click(); } },
+    KeyH: function () { openKeys(); },
+    ArrowDown: function () { jumpComment(1); },
+    ArrowUp: function () { jumpComment(-1); }
+  };
+
+  function modalOpen() {
+    return Array.prototype.some.call(document.querySelectorAll('dialog[open]'), function (d) { return d.matches(':modal'); });
+  }
+
+  document.addEventListener('keydown', function (event) {
+    if (!view || event.isComposing || modalOpen()) { return; }
+    if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && HOTKEYS[event.code]) {
+      event.preventDefault();
+      HOTKEYS[event.code]();
+    } else if (event.key === 'F3' && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      findAgain(event.shiftKey);
+    }
+  });
+
   // ================================================================================================ search and replace
   var replaceDialog = document.getElementById('editor-replace');
   var findInput = document.getElementById('replace-find');
@@ -693,6 +721,36 @@
     if (!findNext(true)) { replaceInfo.textContent = 'Keine weiteren Treffer'; }
   }
 
+  function findPrevious() {
+    var re = pattern();
+    if (!re) { return false; }
+    var n = view.count();
+    var active = view.activePosition();
+    var startIndex = active ? active.index : n - 1;
+    var limit = active ? active.start : Infinity;
+    for (var step = 0; step <= n; step += 1) {
+      var i = (((startIndex - step) % n) + n) % n;
+      var text = view.textAt(i);
+      var last = null;
+      var m;
+      re.lastIndex = 0;
+      while ((m = re.exec(text))) {
+        if (m[0].length === 0) { re.lastIndex += 1; continue; }
+        // In the paragraph the search starts in, only what lies before the cursor counts (the last round of the loop comes back to it whole).
+        if (step === 0 && m.index >= limit) { break; }
+        last = m;
+      }
+      if (last) { view.select(i, last.index, last.index + last[0].length); return true; }
+    }
+    return false;
+  }
+
+  /** F3: the next hit (Shift+F3 the one before). Nothing to look for yet: the dialog opens. */
+  function findAgain(backwards) {
+    if (!pattern()) { openReplace(); return; }
+    if (!(backwards ? findPrevious() : findNext(true))) { toast('Keine Treffer.'); }
+  }
+
   function replaceAll() {
     var re = pattern();
     if (!re) { return; }
@@ -748,6 +806,7 @@
     }
     open.forEach(function (c) {
       var item = el('li', 'kk-comment');
+      item.setAttribute('data-comment', String(c.id));
       var head = el('div', 'kk-comment__head');
       var link = el('a');
       link.href = '#p' + (c.at + 1);
@@ -794,17 +853,49 @@
         renderComments();
         window.MatUi.dialog.close(commentDialog);
         toast('Der Kommentar ist gespeichert.');
-        if (side) { side.hidden = false; host.classList.add('has-side'); }
+        showSide(true);
       }).catch(function () { toast('Der Kommentar konnte nicht gespeichert werden.', 'error'); });
     });
   }
 
   var toggle = document.getElementById('editor-side-toggle');
-  if (toggle && side) {
-    toggle.addEventListener('click', function () {
-      side.hidden = !side.hidden;
-      host.classList.toggle('has-side', !side.hidden);
-      toggle.setAttribute('aria-pressed', side.hidden ? 'false' : 'true');
+  function showSide(on) {
+    if (!side) { return; }
+    side.hidden = !on;
+    host.classList.toggle('has-side', on);
+    if (toggle) { toggle.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+  }
+  function toggleSide() { showSide(!!(side && side.hidden)); }
+  if (toggle && side) { toggle.addEventListener('click', toggleSide); }
+
+  /** Alt+K: a remark on the marked words, or on the paragraph the cursor is in. */
+  function commentHere() {
+    var p = view.activePosition();
+    if (!p) { toast('Setze den Cursor in den Absatz, den du kommentieren möchtest.'); return; }
+    var text = view.textAt(p.index);
+    openComment(p.index, p.end > p.start ? text.slice(p.start, p.end) : text.slice(0, 60));
+  }
+
+  /** Alt+↓ / Alt+↑: the next / the previous open remark, counted from where the cursor is (round and round). */
+  function jumpComment(step) {
+    var open = data.comments.filter(function (c) { return !c.isResolved; }).sort(function (a, b) { return a.at - b.at || a.id - b.id; });
+    if (open.length === 0) { toast('Keine offenen Kommentare.'); return; }
+    var p = view.activePosition();
+    var from = p ? p.index : view.anchor().index;
+    var target = null;
+    if (step > 0) {
+      target = open.find(function (c) { return c.at > from; }) || open[0];
+    } else {
+      for (var i = open.length - 1; i >= 0; i -= 1) { if (open[i].at < from) { target = open[i]; break; } }
+      target = target || open[open.length - 1];
+    }
+    var element = view.element(target.at);
+    if (element) { element.scrollIntoView({ block: 'center' }); view.focusParagraph(target.at, 'end'); }
+    showSide(true);
+    Array.prototype.forEach.call(commentList.children, function (li) {
+      var current = li.getAttribute('data-comment') === String(target.id);
+      li.classList.toggle('is-current', current);
+      if (current) { li.scrollIntoView({ block: 'nearest' }); }
     });
   }
 
@@ -830,15 +921,42 @@
 
   // ================================================================================================ the bar
   function wire(id, handler) { var b = document.getElementById(id); if (b) { b.addEventListener('click', handler); } }
-  wire('editor-save', function () { save('manual'); });
-  wire('editor-close', function () {
+  function closePass() {
     window.MatUi.prompt('Name des Durchgangs (zum Beispiel „Erster Durchgang“). Danach beginnt die nächste Änderung eine neue Fassung.', { title: 'Durchgang abschließen', ok: 'Abschließen' }).then(function (label) {
       if (label !== null) { save('close', { label: label }); }
     });
-  });
+  }
+
+  function switchView() {
+    var next = view.name === 'text' ? 'page' : 'text';
+    var button = host.querySelector('[data-view="' + next + '"]');
+    if (!button || button.disabled) { toast('Die Seitenansicht gibt es für dieses Dokument nicht.'); return; }
+    setView(next);
+  }
+
+  var keysDialog = document.getElementById('editor-keys');
+  function openKeys() { if (keysDialog) { window.MatUi.dialog.open(keysDialog); } }
+
+  wire('editor-save', function () { save('manual'); });
+  wire('editor-close', closePass);
   wire('editor-undo', function () { view.undo(); });
   wire('editor-redo', function () { view.redo(); });
   wire('editor-find', openReplace);
+  wire('editor-keys-open', openKeys);
+
+  // An export is made of the saved text: what is typed and not yet saved goes first, then the file comes.
+  function afterSave() {
+    return save('auto').then(function () {
+      return saving || pendingKind ? new Promise(function (done) { setTimeout(done, 200); }).then(afterSave) : null;
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-export]'), function (link) {
+    link.addEventListener('click', function (event) {
+      if (!dirty && !saving) { return; }
+      event.preventDefault();
+      afterSave().then(function () { location.href = link.href; });
+    });
+  });
 
   // The uploaded PDF next to the text (a PDF has no layout to rebuild, so the original itself is the page to look at).
   var originalButton = document.getElementById('editor-original');
