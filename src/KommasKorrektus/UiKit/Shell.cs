@@ -121,6 +121,7 @@ public sealed class ShellFactory(ICurrentUser user, NavCounts counts, IHttpConte
             new("Arbeit",
             [
                 new("Kunden", "/Customers", "users"),
+                new("Mit mir geteilt", "/Releases", "share"),
                 new("Projekte", null, "folder", Children:
                 [
                     new("Alle Projekte", "/Projects", null),
@@ -175,6 +176,7 @@ public sealed class ShellFactory(ICurrentUser user, NavCounts counts, IHttpConte
         [
             new("Meine Projekte", "/Portal", "folder"),
             new("Rechnungen & Angebote", "/Portal/Invoices", "dollar"),
+            new("Mit mir geteilt", "/Releases", "share"),
         ]),
     ]);
 

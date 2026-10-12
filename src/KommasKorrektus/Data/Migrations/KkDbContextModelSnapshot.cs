@@ -1391,6 +1391,9 @@ namespace KommasKorrektus.Data.Migrations
                     b.Property<string>("UserAgent")
                         .HasColumnType("text");
 
+                    b.Property<long?>("UserId")
+                        .HasColumnType("bigint");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ShareLinkId");
@@ -1473,6 +1476,9 @@ namespace KommasKorrektus.Data.Migrations
                     b.Property<long?>("UpdateUserId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("UserId")
+                        .HasColumnType("bigint");
+
                     b.Property<int?>("VersionNo")
                         .HasColumnType("integer");
 
@@ -1487,6 +1493,8 @@ namespace KommasKorrektus.Data.Migrations
 
                     b.HasIndex("Token")
                         .IsUnique();
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("ShareLink");
                 });
@@ -2307,9 +2315,15 @@ namespace KommasKorrektus.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("KommasKorrektus.Data.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId");
+
                     b.Navigation("Document");
 
                     b.Navigation("Project");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("KommasKorrektus.Data.Entities.StyleEntry", b =>

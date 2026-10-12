@@ -217,7 +217,7 @@ public static class InvoicePdf
                 c.ConstantColumn(22);
                 c.RelativeColumn(5);
                 if (s.ShowQuantityColumn) { c.ConstantColumn(40); }
-                if (s.ShowUnitColumn) { c.ConstantColumn(48); }
+                if (s.ShowUnitColumn) { c.ConstantColumn(58); }
                 c.ConstantColumn(58);
                 if (s.ShowVatColumn && !d.SmallBusiness) { c.ConstantColumn(36); }
                 if (s.ShowDiscountColumn) { c.ConstantColumn(40); }

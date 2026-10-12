@@ -4,13 +4,14 @@ using KommasKorrektus.Data;
 using KommasKorrektus.Data.Entities;
 using KommasKorrektus.Services;
 using KommasKorrektus.Services.Mail;
+using KommasKorrektus.UiKit;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 
 namespace KommasKorrektus.Pages.Projects;
 
-/// <summary>An anonymous link to a project or one document: made here, shown here with its link to copy, its use, and the way to take it back.</summary>
+/// <summary>A link to a project or one document, anonymous or released to one account: made here, shown here with its link to copy, its use, and the way to take it back.</summary>
 public sealed class ShareModel(KkDbContext db, ShareService shares, MailService mail, ConfigStore config, ICurrentUser current, TimeProvider clock, ActivityLogger log, ProjectService projects) : PageModelBase
 {
     public sealed class InputModel
@@ -31,6 +32,9 @@ public sealed class ShareModel(KkDbContext db, ShareService shares, MailService 
         [Range(1, 365, ErrorMessage = "Der Link gilt zwischen 1 und 365 Tagen.")]
         [Display(Name = "Gültig für Tage")]
         public int Days { get; set; } = 14;
+
+        [Display(Name = "Konto")]
+        public long? UserId { get; set; }
 
         [Display(Name = "Passwort")]
         public string? Password { get; set; }
@@ -70,6 +74,12 @@ public sealed class ShareModel(KkDbContext db, ShareService shares, MailService 
 
     public List<SelectListItem> Documents { get; private set; } = [];
 
+    /// <summary>The accounts a release can be made to: the staff, and the clients of this project's customer.</summary>
+    public List<SelectListItem> Accounts { get; private set; } = [];
+
+    /// <summary>The names of the accounts that used the link.</summary>
+    public Dictionary<long, string> VisitorNames { get; private set; } = [];
+
     public bool MailConfigured => mail.IsConfigured;
 
     public bool IsActive => Link is { } l && l.IsActive(clock.GetUtcNow().UtcDateTime);
@@ -86,7 +96,7 @@ public sealed class ShareModel(KkDbContext db, ShareService shares, MailService 
             Input = new InputModel
             {
                 Title = link.Title, DocumentId = link.DocumentId, VersionNo = link.VersionNo, Message = link.Message, Days = Math.Max(1, (int)Math.Ceiling((link.ExpiresDate - clock.GetUtcNow().UtcDateTime).TotalDays)),
-                AllowDownload = link.AllowDownload, ShowChanges = link.ShowChanges, AllowComments = link.AllowComments, AllowApproval = link.AllowApproval,
+                AllowDownload = link.AllowDownload, ShowChanges = link.ShowChanges, AllowComments = link.AllowComments, AllowApproval = link.AllowApproval, UserId = link.UserId,
                 RecipientName = link.RecipientName, RecipientEmail = link.RecipientEmail,
             };
         }
@@ -108,9 +118,22 @@ public sealed class ShareModel(KkDbContext db, ShareService shares, MailService 
             return NotFound();
         }
 
+        var account = Input.UserId is { } wanted ? await db.User.AsNoTracking().FirstOrDefaultAsync(u => u.Id == wanted) : null;
+        if (Input.UserId is not null && (account is null || Accounts.All(a => a.Value != account.Id.ToString())))
+        {
+            ModelState.AddModelError("Input.UserId", "Dieses Konto kann keine Freigabe bekommen.");
+        }
+
         if (!ModelState.IsValid)
         {
             return Page();
+        }
+
+        // A release to an account is addressed to that account: the name and the address for the mail follow it unless somebody wrote others.
+        if (account is not null)
+        {
+            Input.RecipientName = string.IsNullOrWhiteSpace(Input.RecipientName) ? account.DisplayName : Input.RecipientName;
+            Input.RecipientEmail = string.IsNullOrWhiteSpace(Input.RecipientEmail) ? account.Email : Input.RecipientEmail;
         }
 
         if (Link is { } existing)
@@ -127,7 +150,12 @@ public sealed class ShareModel(KkDbContext db, ShareService shares, MailService 
             link.AllowApproval = Input.AllowApproval;
             link.RecipientName = string.IsNullOrWhiteSpace(Input.RecipientName) ? null : Input.RecipientName.Trim();
             link.RecipientEmail = string.IsNullOrWhiteSpace(Input.RecipientEmail) ? null : Input.RecipientEmail.Trim();
-            if (!string.IsNullOrEmpty(Input.Password))
+            link.UserId = Input.UserId;
+            if (Input.UserId is not null)
+            {
+                link.PasswordHash = null;
+            }
+            else if (!string.IsNullOrEmpty(Input.Password))
             {
                 link.PasswordHash = Core.Security.PasswordHasher.Hash(Input.Password);
             }
@@ -139,10 +167,10 @@ public sealed class ShareModel(KkDbContext db, ShareService shares, MailService 
         }
 
         var created = await shares.CreateAsync(Project, Input.DocumentId, Input.DocumentId is null ? null : Input.VersionNo, Input.Title, Input.Message, Input.Days, Input.Password,
-            Input.AllowDownload, Input.ShowChanges, Input.AllowComments, Input.AllowApproval, Input.RecipientName, Input.RecipientEmail);
+            Input.AllowDownload, Input.ShowChanges, Input.AllowComments, Input.AllowApproval, Input.RecipientName, Input.RecipientEmail, Input.UserId);
         projects.AddHistory(Project.CustomerId, $"Link „{created.Title}“ erstellt", $"gültig bis {Fmt.Date(created.ExpiresDate)}", Project.Id, "ShareLink", created.Id);
         await db.SaveChangesAsync();
-        await log.LogAsync("Freigabe-Link erstellt", "ShareLink", created.Id, created.Title);
+        await log.LogAsync(created.UserId is null ? "Freigabe-Link erstellt" : "Freigabe an ein Konto erstellt", "ShareLink", created.Id, created.Title);
         Flash("Der Link ist erstellt.");
         return RedirectToPage(new { projectId = ProjectId, id = created.Id });
     }
@@ -165,7 +193,7 @@ public sealed class ShareModel(KkDbContext db, ShareService shares, MailService 
         var text = $"Hallo{(link.RecipientName is null ? "" : " " + link.RecipientName)},\n\n" +
                    (string.IsNullOrWhiteSpace(link.Message) ? $"hier ist der Link zu „{link.Title}“." : link.Message) +
                    $"\n\n{shares.LinkOf(link)}\n\nDer Link ist bis {Fmt.Date(link.ExpiresDate)} gültig." +
-                   (link.PasswordHash is null ? "" : " Das Passwort bekommst du von mir getrennt.") +
+                   (link.UserId is not null ? " Melde dich mit deinem Konto an, dann findest du es auch unter „Mit mir geteilt“." : link.PasswordHash is null ? "" : " Das Passwort bekommst du von mir getrennt.") +
                    $"\n\nHerzliche Grüße\n{current.Name}{(string.IsNullOrWhiteSpace(company.Name) ? "" : "\n" + company.Name)}";
         var result = await mail.SendAsync(link.RecipientEmail, link.Title, text, MailKind.ShareLink);
         if (result.Delivered)
@@ -229,6 +257,8 @@ public sealed class ShareModel(KkDbContext db, ShareService shares, MailService 
 
             LinkUrl = shares.LinkOf(Link);
             Accesses = await db.ShareAccess.AsNoTracking().Where(a => a.ShareLinkId == id).OrderByDescending(a => a.AccessDate).Take(40).ToListAsync();
+            var visitors = Accesses.Where(a => a.UserId is not null).Select(a => a.UserId!.Value).Distinct().ToList();
+            VisitorNames = await db.User.AsNoTracking().Where(u => visitors.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.DisplayName);
         }
 
         var title = Link is null ? "Neuer Link" : "Freigabe-Link";
@@ -237,6 +267,9 @@ public sealed class ShareModel(KkDbContext db, ShareService shares, MailService 
         ViewData["ActiveHref"] = "/Projects";
         Documents = (await db.Document.AsNoTracking().Where(d => d.ProjectId == ProjectId).OrderBy(d => d.Title).ToListAsync())
             .Select(d => new SelectListItem($"{d.Title} (Fassung {d.CurrentVersionNo})", d.Id.ToString())).ToList();
+        var ofCustomer = db.UserCustomer.Where(uc => uc.CustomerId == project.CustomerId).Select(uc => uc.UserId);
+        Accounts = (await db.User.AsNoTracking().Where(u => u.IsActive && (u.Role != UserRole.Client || ofCustomer.Contains(u.Id))).OrderBy(u => u.DisplayName).ToListAsync())
+            .Select(u => new SelectListItem($"{u.DisplayName} · {Labels.Of(u.Role)}", u.Id.ToString())).ToList();
         return true;
     }
 }

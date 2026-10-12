@@ -14,7 +14,7 @@
                 <input class="mat-input mat-mono" id="share-link" readonly value="@Model.LinkUrl" />
                 <button type="button" class="mat-btn mat-btn--secondary" data-copy="#share-link">@Ui.Icon("copy")<span>Kopieren</span></button>
             </div>
-            <span class="mat-hint">Gültig bis @Fmt.Moment(link.ExpiresDate) · @link.ViewCount Aufrufe@(link.LastViewDate is null ? "" : $", zuletzt {Fmt.Moment(link.LastViewDate)}")@(link.ApprovedDate is null ? "" : $" · freigegeben von {link.ApprovedByName} am {Fmt.Date(link.ApprovedDate)}")@(link.PasswordHash is null ? "" : " · mit Passwort")</span>
+            <span class="mat-hint">Gültig bis @Fmt.Moment(link.ExpiresDate) · @link.ViewCount Aufrufe@(link.LastViewDate is null ? "" : $", zuletzt {Fmt.Moment(link.LastViewDate)}")@(link.ApprovedDate is null ? "" : $" · freigegeben von {link.ApprovedByName} am {Fmt.Date(link.ApprovedDate)}")@(link.PasswordHash is null ? "" : " · mit Passwort")@(link.UserId is null ? "" : " · nur für " + (Model.Accounts.FirstOrDefault(a => a.Value == link.UserId.ToString())?.Text ?? "ein Konto"))</span>
         </div>
         <form method="post" class="mat-actions">
             <a class="mat-btn mat-btn--secondary" href="@Model.LinkUrl" target="_blank" rel="noopener">@Ui.Icon("external")<span>So sieht es das Gegenüber</span></a>
@@ -40,6 +40,12 @@
         </div>
     </kk-card>
 
+    <kk-card title="Für wen?" icon="user">
+        <div class="mat-form__grid">
+            <kk-select for="Input.UserId" label="Konto" items="Model.Accounts" empty="Für alle mit dem Link (anonym)" full="true" hint="Mit einem Konto ist die Freigabe nur für dieses Konto: es meldet sich an und findet sie unter „Mit mir geteilt“, wer sonst den Link hat, sieht nichts. Ohne Konto kann jeder mit dem Link hinein." />
+        </div>
+    </kk-card>
+
     <kk-card title="Was darf das Gegenüber?" icon="key">
         <div class="mat-form__grid">
             <kk-switch for="Input.ShowChanges" label="Die Änderungen sehen (alt und neu)" full="true" />
@@ -52,7 +58,7 @@
     <kk-card title="Gültigkeit und Schutz" icon="lock">
         <div class="mat-form__grid">
             <kk-input for="Input.Days" label="Gültig für Tage" type="number" min="1" max="365" hint="@(link is null ? "Danach funktioniert der Link nicht mehr." : "Neu gerechnet ab jetzt.")" />
-            <kk-input for="Input.Password" label="Passwort (optional)" type="password" autocomplete="new-password" hint="@(link?.PasswordHash is null ? "Ohne Passwort kann jeder mit dem Link hinein." : "Leer lassen, um das Passwort zu behalten.")" />
+            <kk-input for="Input.Password" label="Passwort (optional)" type="password" autocomplete="new-password" show-if="Input.UserId" show-value="" hint="@(link?.PasswordHash is null ? "Ohne Passwort kann jeder mit dem Link hinein." : "Leer lassen, um das Passwort zu behalten.")" />
         </div>
     </kk-card>
 
@@ -92,7 +98,7 @@
                             <tr>
                                 <td data-label="Wann">@Fmt.Moment(a.AccessDate)</td>
                                 <td data-label="Was">@(a.Action switch { ShareAction.View => "Angesehen", ShareAction.Download => "Heruntergeladen", ShareAction.Comment => "Kommentiert", ShareAction.Approve => "Freigegeben", _ => "Falsches Passwort" })@(string.IsNullOrWhiteSpace(a.Detail) ? "" : ": " + a.Detail)</td>
-                                <td data-label="Besucher" class="mat-hide-sm mat-mono">@a.ClientHash</td>
+                                <td data-label="Besucher" class="mat-hide-sm @(a.UserId is null ? "mat-mono" : "")">@(a.UserId is { } visitor && Model.VisitorNames.TryGetValue(visitor, out var visitorName) ? visitorName : a.ClientHash)</td>
                                 <td data-label="Gerät" class="mat-hide-sm">@KommasKorrektus.Pages.Account.SecurityModel.DeviceName(a.UserAgent)</td>
                             </tr>
                         }

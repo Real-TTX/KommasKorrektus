@@ -71,10 +71,13 @@ Everything KommasKorrektus does, area by area. Names in *italics* are the labels
 - **What the visitor may do** is chosen per link: see the changes (old / new) or only the clean text, or the page in the layout of the original (*Seite*; with the changes in it when the link shows them, never with the old words when it does not), download Word and
   PDF, write remarks (name required), approve ("Passt so, freigeben"). Approval records name and date and is shown on
   the editor's side
-- **Password** (optional): checked once, remembered in a signed cookie for 4 hours; after 10 wrong tries in 15 minutes the
+- **Release to an account** (*Für wen? → Konto*): the same link, but for **one account** (staff, or a client of the project's customer). It asks for the sign-in
+  and comes back to the page afterwards; any other account is told "not found", a password is not needed. The account finds all its releases under
+  *Mit mir geteilt* (menu of the staff and of the portal), the log shows the account by name. Same rights, period and take-back as any link
+- **Password** (optional, on an anonymous link): checked once, remembered in a signed cookie for 4 hours; after 10 wrong tries in 15 minutes the
   link is locked for a while
 - **Log**: views, downloads, remarks, approvals, wrong passwords; visitors are shown as a hash of the address, not the
-  address. A signed-in editor looking at the page is not counted as a visit of the customer
+  address (an account by its name). A signed-in editor looking at the page is not counted as a visit of the customer
 - A link that has run out or was taken back says so in words and shows nothing about the project
 
 ## Accounts and the portal

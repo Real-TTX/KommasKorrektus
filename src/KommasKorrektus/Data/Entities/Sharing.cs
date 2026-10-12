@@ -1,8 +1,8 @@
 namespace KommasKorrektus.Data.Entities;
 
 /// <summary>
-/// An anonymous link to a project, or to one document (and one version of it): valid for a limited time, optionally with a password.
-/// The visitor is the "Anonymous" role: no account, only what the link allows.
+/// A link to a project, or to one document (and one version of it): valid for a limited time. Anonymous (optionally with a password): the visitor has no
+/// account, only what the link allows. Or released to one account (<see cref="UserId"/>): the link asks for the sign-in and is "not found" for anybody else.
 /// </summary>
 public class ShareLink : AuditedEntity
 {
@@ -26,6 +26,11 @@ public class ShareLink : AuditedEntity
     public string? Message { get; set; }
 
     public DateTime ExpiresDate { get; set; }
+
+    /// <summary>Set: the link is for this account only (staff or client). It asks for the sign-in instead of a password, and the visits are written down with the account.</summary>
+    public long? UserId { get; set; }
+
+    public User? User { get; set; }
 
     public string? PasswordHash { get; set; }
 
@@ -81,6 +86,9 @@ public class ShareAccess : AuditedEntity
 
     /// <summary>A hash of the address, not the address: enough to tell visits apart, nothing to identify a person.</summary>
     public string? ClientHash { get; set; }
+
+    /// <summary>The account that did it, on a link that was released to an account.</summary>
+    public long? UserId { get; set; }
 
     public string? UserAgent { get; set; }
 

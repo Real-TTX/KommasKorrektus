@@ -21,10 +21,14 @@ public abstract class ShareModelBase(ShareService shares, ICurrentUser current) 
 
     public bool Locked { get; private set; }
 
-    /// <summary>True for somebody who works here and looks at the link: the visit is not counted as the visit of the customer.</summary>
-    public bool IsStaffPreview => current.IsAuthenticated && current.Role is UserRole.Admin or UserRole.User;
+    /// <summary>The link is for one account and nobody is signed in: the page asks for the sign-in (and comes back here).</summary>
+    public bool NeedsSignIn { get; private set; }
 
-    public bool CanShow => State == ShareState.Active && !NeedsPassword;
+    /// <summary>True for somebody who works here and looks at the link: the visit is not counted as the visit of the customer.</summary>
+    /// <remarks>On a link released to an account the account itself is the visitor, even when it is a staff account.</remarks>
+    public bool IsStaffPreview => current.IsAuthenticated && current.Role is UserRole.Admin or UserRole.User && (Link?.UserId is null || Link.UserId != current.UserId);
+
+    public bool CanShow => State == ShareState.Active && !NeedsPassword && !NeedsSignIn;
 
     public string CompanyName => shares.CompanyName;
 
@@ -46,6 +50,28 @@ public abstract class ShareModelBase(ShareService shares, ICurrentUser current) 
         {
             Response.StatusCode = StatusCodes.Status410Gone;
             return false;
+        }
+
+        // A link for an account: the sign-in is the gate. Somebody else who is signed in is told "not found" (it is not said whom the link is for);
+        // the people of the house may look, as they may look at any link.
+        if (Link.UserId is { } owner)
+        {
+            if (!current.IsAuthenticated)
+            {
+                NeedsSignIn = true;
+                return false;
+            }
+
+            if (current.UserId != owner && current.Role is not (UserRole.Admin or UserRole.User))
+            {
+                State = ShareState.Unknown;
+                Link = null!;
+                Response.StatusCode = StatusCodes.Status404NotFound;
+                return false;
+            }
+
+            ViewData["Title"] = Link.Title;
+            return true;
         }
 
         NeedsPassword = shares.NeedsPassword(Link, HttpContext);

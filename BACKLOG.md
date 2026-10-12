@@ -1,23 +1,7 @@
 # Backlog
 
 Ideas and wishes that are not built yet, newest last. Delete an item when it ships (the feature then belongs in `docs/FEATURES.md`).
-Shipped so far from this list: *Hotkeys for comments and more* and *Export from the editor* (see `git log`).
-
-## Logo on the invoice
-
-A logo on offers and invoices already exists (*Vorlagen* → *Logo und Titel*: PNG, JPEG or SVG up to 2 MB, left or right, 8 to 40 mm,
-shown in the live preview and in the issued PDF). It is to be checked end to end (upload, preview, issued PDF, ZUGFeRD PDF, offer);
-what else is wanted has not been said: other places (footer, watermark), one logo for the whole company instead of one per template.
-
-## Releases to a particular user, not only a public URL
-
-Today a release is an anonymous link (`/s/<token>`, optionally with a password): whoever has the link sees it. Wanted: release a project
-or a document to **a particular account** as well, so that the person signs in and finds it in their own list.
-
-Plan: a `ShareLink` may be bound to an account (`UserId`). The link then asks for the sign-in (no password), is "not found" for any other
-account, and shows what a link shows (changes or clean text, download, remarks, approval, period, take back). The account finds its
-releases in a list ("Mit mir geteilt") and the log shows the account instead of an address hash. Staff and client accounts alike.
-Open: an e-mail to the person when something is released to them.
+Shipped so far from this list: *Hotkeys for comments and more*, *Export from the editor*, *Releases to a particular account*, *Logo on the invoice* (it was there: checked, only the unit column got wider) (see `git log`).
 
 ## Remember the view (page or text), and pages side by side with the change mode
 

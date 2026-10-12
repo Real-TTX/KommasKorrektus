@@ -24,7 +24,7 @@ public sealed record ShareResolution(ShareState State, ShareLink? Link);
 /// A link can have a password (checked once, remembered in a signed cookie for a few hours); wrong passwords are counted, so a link cannot be guessed at.
 /// What a visitor does (look, download, comment, approve) is written to <see cref="ShareAccess"/> with a hash of the address, not the address.
 /// </summary>
-public sealed class ShareService(KkDbContext db, ConfigStore config, TimeProvider clock, IDataProtectionProvider protection, PublicUrl urls)
+public sealed class ShareService(KkDbContext db, ConfigStore config, TimeProvider clock, IDataProtectionProvider protection, PublicUrl urls, ICurrentUser current)
 {
     public const int MaxWrongPasswords = 10;
 
@@ -34,7 +34,7 @@ public sealed class ShareService(KkDbContext db, ConfigStore config, TimeProvide
 
     public string LinkOf(ShareLink link) => urls.Absolute($"/s/{link.Token}");
 
-    public async Task<ShareLink> CreateAsync(Project project, long? documentId, int? versionNo, string title, string? message, int days, string? password, bool allowDownload, bool showChanges, bool allowComments, bool allowApproval, string? recipientName, string? recipientEmail, CancellationToken ct = default)
+    public async Task<ShareLink> CreateAsync(Project project, long? documentId, int? versionNo, string title, string? message, int days, string? password, bool allowDownload, bool showChanges, bool allowComments, bool allowApproval, string? recipientName, string? recipientEmail, long? userId = null, CancellationToken ct = default)
     {
         var link = new ShareLink
         {
@@ -44,7 +44,9 @@ public sealed class ShareService(KkDbContext db, ConfigStore config, TimeProvide
             Title = title.Trim(),
             Message = string.IsNullOrWhiteSpace(message) ? null : message.Trim(),
             ExpiresDate = clock.GetUtcNow().UtcDateTime.AddDays(Math.Clamp(days, 1, 365)),
-            PasswordHash = string.IsNullOrEmpty(password) ? null : PasswordHasher.Hash(password),
+            UserId = userId,
+            // A link for an account is guarded by the sign-in; a password on top would only be a second, forgotten secret.
+            PasswordHash = string.IsNullOrEmpty(password) || userId is not null ? null : PasswordHasher.Hash(password),
             AllowDownload = allowDownload,
             ShowChanges = showChanges,
             AllowComments = allowComments,
@@ -137,6 +139,7 @@ public sealed class ShareService(KkDbContext db, ConfigStore config, TimeProvide
             ShareLinkId = link.Id,
             AccessDate = now,
             Action = action,
+            UserId = link.UserId is not null ? current.UserId : null,
             ClientHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(link.Token + "|" + http.Connection.RemoteIpAddress))).ToLowerInvariant()[..16],
             UserAgent = http.Request.Headers.UserAgent.ToString() is { Length: > 0 } agent ? (agent.Length > 200 ? agent[..200] : agent) : null,
             Detail = detail is { Length: > 300 } ? detail[..300] : detail,

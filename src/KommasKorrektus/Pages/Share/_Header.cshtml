@@ -22,6 +22,14 @@ else if (Model.State != ShareState.Active)
         <p class="mat-muted">Bitte dein Lektorat um einen neuen Link.</p>
     </div></div>
 }
+else if (Model.NeedsSignIn)
+{
+    <div class="mat-card kk-share__card"><div class="mat-card__body mat-stack">
+        <h1>Diese Freigabe ist für ein bestimmtes Konto</h1>
+        <p class="mat-muted">Melde dich mit dem Konto an, für das sie gedacht ist. Du kommst danach gleich hierher zurück.</p>
+        <div class="mat-btn-row mat-btn-row--plain"><a class="mat-btn mat-btn--primary" href="/Account/Login?returnUrl=@Uri.EscapeDataString(Context.Request.Path + Context.Request.QueryString)">@Ui.Icon("login")<span>Anmelden</span></a></div>
+    </div></div>
+}
 else if (Model.NeedsPassword)
 {
     <div class="mat-card kk-share__card"><div class="mat-card__body">
