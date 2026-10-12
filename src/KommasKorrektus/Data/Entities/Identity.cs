@@ -26,11 +26,14 @@ public class User : AuditedEntity, ISoftDeletable
     /// <summary>"system", "light" or "dark": kept per user, applied at sign-in.</summary>
     public string Theme { get; set; } = "system";
 
-    /// <summary>"text" or "page": the view of the text (the editor, a version) the person used last. Kept per account, so it follows them to another browser.</summary>
-    public string EditorView { get; set; } = "text";
+    /// <summary>"page" or "text": the view of the text (the editor, a version) the person used last. The page is the standard. Kept per account, so it follows them to another browser.</summary>
+    public string EditorView { get; set; } = "page";
 
-    /// <summary>"side", "inline", "page" or "pages": how the person looked at a comparison last.</summary>
-    public string CompareView { get; set; } = "side";
+    /// <summary>"pages", "page", "side" or "inline": how the person looked at a comparison last. Two pages next to each other are the standard.</summary>
+    public string CompareView { get; set; } = "pages";
+
+    /// <summary>What else the editor remembers per account, as JSON: whether the earlier version stands beside the text and whether the comments are open (<c>ViewPreferences.EditorOptions</c>).</summary>
+    public string EditorOptions { get; set; } = "{}";
 
     public DateTime? LastLoginDate { get; set; }
 

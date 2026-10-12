@@ -84,7 +84,8 @@ public sealed class DocumentModel(ShareService shares, ICurrentUser current, KkD
     public bool HasChanges => Link.ShowChanges && Version.VersionNo > BaseVersionNo;
 
     /// <summary>"page" (the layout of the original, with the changes in it when the link shows them), "text", "changes" or "side".</summary>
-    public string ViewMode => Mode == "page" ? "page" : !HasChanges ? "text" : Mode is "side" or "text" ? Mode : "changes";
+    // The page is the standard; the plain text, the one text with the changes and the two texts next to each other are asked for by name.
+    public string ViewMode => Mode is "text" or "changes" or "side" ? (Mode != "text" && !HasChanges ? "text" : Mode) : "page";
 
     /// <summary>Whether the view is about changes (so it has the numbers and the steps from change to change).</summary>
     public bool ShowsChanges => ViewMode is "changes" or "side" || (ViewMode == "page" && HasChanges);

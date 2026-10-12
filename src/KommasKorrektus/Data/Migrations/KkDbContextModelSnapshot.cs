@@ -1838,6 +1838,10 @@ namespace KommasKorrektus.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("EditorOptions")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("EditorView")
                         .IsRequired()
                         .HasColumnType("text");

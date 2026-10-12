@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace KommasKorrektus.Pages.Documents;
 
-public sealed class DetailsModel(KkDbContext db, DocumentService documents, ConfigStore config, ActivityLogger log) : PageModelBase
+public sealed class DetailsModel(KkDbContext db, DocumentService documents, ConfigStore config, ActivityLogger log, ICurrentUser current) : PageModelBase
 {
     public sealed record VersionRow(DocumentVersion Version, string? Author);
 
@@ -34,6 +34,9 @@ public sealed class DetailsModel(KkDbContext db, DocumentService documents, Conf
 
     /// <summary>The version the newest round began with (the original, or the latest file of the customer): the starting point of "what did I change".</summary>
     public int RoundStart { get; private set; } = 1;
+
+    /// <summary>The way this person looked at a comparison last (two pages by default): the one the form of the comparison starts with.</summary>
+    public string CompareView { get; private set; } = ViewPreferences.DefaultCompareView;
 
     public int TotalSeconds { get; private set; }
 
@@ -90,6 +93,7 @@ public sealed class DetailsModel(KkDbContext db, DocumentService documents, Conf
         Names = VersionNames.Of(Versions.Select(v => (v.Version.VersionNo, v.Version.Origin, v.Version.Label)));
         Current = Versions.First(v => v.Version.VersionNo == document.CurrentVersionNo).Version;
         RoundStart = await documents.RoundStartAsync(document, document.CurrentVersionNo, HttpContext.RequestAborted);
+        CompareView = (await ViewPreferences.GetAsync(db, current.UserId, HttpContext.RequestAborted)).Compare;
 
         Comments = await db.DocumentComment.AsNoTracking().Where(c => c.DocumentId == Id).OrderBy(c => c.IsResolved).ThenBy(c => c.ParagraphIndex).ThenBy(c => c.CreateDate).ToListAsync();
 

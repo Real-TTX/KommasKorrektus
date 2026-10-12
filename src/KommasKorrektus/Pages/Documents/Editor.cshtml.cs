@@ -25,7 +25,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
 
     public sealed record LayoutRequest(string[] Paragraphs);
 
-    public sealed record ViewRequest(string? View);
+    public sealed record ViewRequest(string? View, bool? Reference, bool? Side);
 
     public sealed record StyleRequest(string? Category, string? Term, string? Decision, string? Note);
 
@@ -79,6 +79,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         {
             documentId = document.Id,
             view = views.Editor,
+            options = new { reference = views.Options.Reference, side = views.Options.Side },
             kind = document.Kind.ToString(),
             versionNo = version.VersionNo,
             versionName = VersionTitle,
@@ -219,6 +220,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
     public async Task<IActionResult> OnPostViewAsync([FromBody] ViewRequest request)
     {
         var saved = await ViewPreferences.SetEditorAsync(db, current.UserId, request.View, HttpContext.RequestAborted);
+        saved |= await ViewPreferences.SetOptionsAsync(db, current.UserId, request.Reference, request.Side, HttpContext.RequestAborted);
         return saved ? new JsonResult(new { ok = true }) : BadRequest();
     }
 

@@ -37,6 +37,13 @@
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-more" data-menu-toggle="editor-more-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Mehr" data-tip="Mehr">@Ui.Icon("more-vertical")</button>
         </div>
 
+        <div class="kk-refbar" id="editor-refbar" hidden>
+            <label class="kk-refbar__label" for="reference-from">Frühere Fassung daneben</label>
+            <select class="mat-select mat-select--sm" id="reference-from"></select>
+            <span class="mat-hint" id="reference-note" aria-live="polite"></span>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm kk-refbar__close" id="reference-close" aria-label="Schließen" data-tip="Schließen">@Ui.Icon("x")</button>
+        </div>
+
         <div class="kk-find" id="editor-find-bar" role="search" aria-label="Suchen und ersetzen" hidden>
             <div class="kk-find__fields">
                 <input class="mat-input mat-input--sm" id="replace-find" placeholder="Suchen" aria-label="Suchen" autocomplete="off" />
@@ -75,7 +82,7 @@
         {
             <button type="button" class="mat-menu__item" role="menuitem" id="editor-original" aria-pressed="false">@Ui.Icon("eye")<span>Das Original-PDF daneben zeigen</span></button>
         }
-        <button type="button" class="mat-menu__item" role="menuitemcheckbox" id="editor-reference-toggle" aria-pressed="false">@Ui.Icon("columns")<span>Frühere Fassung daneben (Alt+R)</span></button>
+        <button type="button" class="mat-menu__item kk-editor__wide" role="menuitemcheckbox" id="editor-reference-toggle" aria-pressed="false">@Ui.Icon("columns")<span>Frühere Fassung daneben (Alt+R)</span></button>
         <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-maximize-menu">@Ui.Icon("maximize-2")<span>Maximieren</span></button>
         <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-fullscreen-menu">@Ui.Icon("maximize")<span>Vollbild</span></button>
         <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-close-menu">@Ui.Icon("check-circle")<span>Durchgang abschließen</span></button>
@@ -85,12 +92,6 @@
 
     <div class="kk-editor__body">
         <aside class="kk-editor__reference" id="editor-reference" aria-label="Frühere Fassung mit den Änderungen" hidden>
-            <div class="kk-editor__reference-head">
-                <label class="mat-sr-only" for="reference-from">Vergleichen mit</label>
-                <select class="mat-select mat-select--sm" id="reference-from"></select>
-                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" id="reference-close" aria-label="Schließen" data-tip="Schließen">@Ui.Icon("x")</button>
-            </div>
-            <p class="mat-hint kk-editor__reference-note" id="reference-note" aria-live="polite"></p>
             <div class="kk-editor__reference-body"></div>
         </aside>
         @if (d.Kind == DocumentKind.Pdf && d.OriginalFileId is not null)

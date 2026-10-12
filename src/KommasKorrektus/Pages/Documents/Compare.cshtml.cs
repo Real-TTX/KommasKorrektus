@@ -26,7 +26,7 @@ public sealed class CompareModel(KkDbContext db, DocumentService documents, Layo
     public int To { get; set; }
 
     [BindProperty(SupportsGet = true)]
-    public string Mode { get; set; } = "side";
+    public string Mode { get; set; } = ViewPreferences.DefaultCompareView;
 
     /// <summary>Show only what changed (with a paragraph of context) and fold the rest away.</summary>
     [BindProperty(SupportsGet = true)]
@@ -83,7 +83,7 @@ public sealed class CompareModel(KkDbContext db, DocumentService documents, Layo
         // The way of looking is kept with the account: without a choice in the address the person gets what they chose last, and a choice is remembered.
         if (Request.Query.ContainsKey("mode"))
         {
-            Mode = ViewPreferences.CompareViews.Contains(Mode) ? Mode : "side";
+            Mode = ViewPreferences.CompareViews.Contains(Mode) ? Mode : ViewPreferences.DefaultCompareView;
             await ViewPreferences.SetCompareAsync(db, current.UserId, Mode, HttpContext.RequestAborted);
         }
         else

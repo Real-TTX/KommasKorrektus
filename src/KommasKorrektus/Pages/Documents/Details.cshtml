@@ -82,8 +82,10 @@
                     <div class="mat-field mat-field--full">
                         <span class="mat-label">Ansicht</span>
                         <div class="mat-checks mat-checks--inline" role="radiogroup">
-                            <label class="mat-check"><input type="radio" name="mode" value="side" checked /><span class="mat-check__text">Nebeneinander (alt | neu)</span></label>
-                            <label class="mat-check"><input type="radio" name="mode" value="inline" /><span class="mat-check__text">Ein Dokument (Änderungen im Text)</span></label>
+                            <label class="mat-check"><input type="radio" name="mode" value="pages" checked="@(Model.CompareView == "pages")" /><span class="mat-check__text">Zwei Seiten (alt | neu)</span></label>
+                            <label class="mat-check"><input type="radio" name="mode" value="page" checked="@(Model.CompareView == "page")" /><span class="mat-check__text">Eine Seite (Änderungen im Text)</span></label>
+                            <label class="mat-check"><input type="radio" name="mode" value="side" checked="@(Model.CompareView == "side")" /><span class="mat-check__text">Texte nebeneinander (alt | neu)</span></label>
+                            <label class="mat-check"><input type="radio" name="mode" value="inline" checked="@(Model.CompareView == "inline")" /><span class="mat-check__text">Ein Text (Änderungen im Text)</span></label>
                         </div>
                     </div>
                 </div>

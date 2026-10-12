@@ -34,7 +34,7 @@ public sealed class ViewPreferenceTests : IClassFixture<AppFixture>
     private static string ViewOfEditor(string html) => Regex.Match(html, "\"view\":\"(\\w+)\"").Groups[1].Value;
 
     [DatabaseFact]
-    public async Task The_view_of_the_editor_follows_the_account_to_the_next_browser()
+    public async Task The_page_is_the_standard_and_the_view_of_the_editor_follows_the_account_to_the_next_browser()
     {
         await _app.EnsureAdminAsync();
         var (_, _, document) = await _app.CreateCustomerWithDocumentAsync("Ansicht");
@@ -42,21 +42,44 @@ public sealed class ViewPreferenceTests : IClassFixture<AppFixture>
         await _app.CreateUserAsync("ansicht-zwei@example.test", "Zwei-Passwort-2026", UserRole.User);
 
         using var first = await SignedInAsync("ansicht-eins@example.test", "Eins-Passwort-2026");
-        Assert.Equal("text", ViewOfEditor(await first.GetStringAsync($"/Documents/Editor?id={document.Id}")));
-        Assert.Equal(HttpStatusCode.OK, await PostViewAsync(first, document.Id, "page"));
+        Assert.Equal("page", ViewOfEditor(await first.GetStringAsync($"/Documents/Editor?id={document.Id}")));
+        Assert.Equal(HttpStatusCode.OK, await PostViewAsync(first, document.Id, "text"));
         Assert.Equal(HttpStatusCode.BadRequest, await PostViewAsync(first, document.Id, "nonsense"));
 
         // another browser of the same account, and another account
         using var elsewhere = await SignedInAsync("ansicht-eins@example.test", "Eins-Passwort-2026");
-        Assert.Equal("page", ViewOfEditor(await elsewhere.GetStringAsync($"/Documents/Editor?id={document.Id}")));
-        using var second = await SignedInAsync("ansicht-zwei@example.test", "Zwei-Passwort-2026");
-        Assert.Equal("text", ViewOfEditor(await second.GetStringAsync($"/Documents/Editor?id={document.Id}")));
-
-        // the page of a version opens the way the person left it, and an explicit choice is remembered
-        var version = $"/Documents/Version?id={document.Id}&no=1";
-        Assert.Contains("kk-sheet", await elsewhere.GetStringAsync(version));
-        Assert.DoesNotContain("kk-sheet", await elsewhere.GetStringAsync(version + "&view=text"));
         Assert.Equal("text", ViewOfEditor(await elsewhere.GetStringAsync($"/Documents/Editor?id={document.Id}")));
+        using var second = await SignedInAsync("ansicht-zwei@example.test", "Zwei-Passwort-2026");
+        Assert.Equal("page", ViewOfEditor(await second.GetStringAsync($"/Documents/Editor?id={document.Id}")));
+
+        // the page of a version opens the way the person left it (the text here), and an explicit choice is remembered
+        var version = $"/Documents/Version?id={document.Id}&no=1";
+        Assert.DoesNotContain("kk-sheet", await elsewhere.GetStringAsync(version));
+        Assert.Contains("kk-sheet", await elsewhere.GetStringAsync(version + "&view=page"));
+        Assert.Equal("page", ViewOfEditor(await elsewhere.GetStringAsync($"/Documents/Editor?id={document.Id}")));
+        // somebody who did not choose gets the page
+        Assert.Contains("kk-sheet", await second.GetStringAsync(version));
+    }
+
+    [DatabaseFact]
+    public async Task What_the_editor_has_open_is_kept_with_the_account_too()
+    {
+        await _app.EnsureAdminAsync();
+        var (_, _, document) = await _app.CreateCustomerWithDocumentAsync("Offen");
+        await _app.CreateUserAsync("offen-eins@example.test", "Eins-Passwort-2026", UserRole.User);
+        using var client = await SignedInAsync("offen-eins@example.test", "Eins-Passwort-2026");
+
+        string Options(string html) => Regex.Match(html, "\"options\":\\{([^}]*)\\}").Groups[1].Value;
+        Assert.Contains("\"reference\":false", Options(await client.GetStringAsync($"/Documents/Editor?id={document.Id}")));
+
+        var token = await AppFixture.TokenAsync(client, $"/Documents/Editor?id={document.Id}");
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/Documents/Editor?id={document.Id}&handler=View") { Content = JsonContent.Create(new { reference = true, side = (bool?)null, view = (string?)null }) };
+        request.Headers.Add("RequestVerificationToken", token);
+        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(request)).StatusCode);
+
+        var options = Options(await client.GetStringAsync($"/Documents/Editor?id={document.Id}"));
+        Assert.Contains("\"reference\":true", options);
+        Assert.Contains("\"side\":false", options);
     }
 
     [DatabaseFact]
@@ -68,15 +91,15 @@ public sealed class ViewPreferenceTests : IClassFixture<AppFixture>
         using var client = await SignedInAsync("vergleich-eins@example.test", "Eins-Passwort-2026");
         var url = $"/Documents/Compare?id={document.Id}&from=1&to=2";
 
-        Assert.Contains("kk-diff--side", await client.GetStringAsync(url));
-
-        // the text of the test has no Word file behind it: "pages" still draws two pages, and the choice sticks without being named again
-        var pages = await client.GetStringAsync(url + "&mode=pages");
+        // two pages next to each other are the standard (a text without a Word file still has a page)
+        var pages = await client.GetStringAsync(url);
         Assert.Contains("kk-pages", pages);
         Assert.Contains("kk-desk--old", pages);
         Assert.Contains("kk-desk--new", pages);
-        Assert.Contains("kk-pages", await client.GetStringAsync(url));
 
+        // a choice sticks without being named again
+        Assert.Contains("kk-diff--side", await client.GetStringAsync(url + "&mode=side"));
+        Assert.Contains("kk-diff--side", await client.GetStringAsync(url));
         Assert.Contains("kk-diff--inline", await client.GetStringAsync(url + "&mode=inline"));
         Assert.Contains("kk-diff--inline", await client.GetStringAsync(url));
 

@@ -62,7 +62,8 @@ public sealed class DocumentModel(KkDbContext db, ICurrentUser current, Document
     public bool HasChanges => Version.VersionNo > 1;
 
     /// <summary>"page" (the layout of the original, with the changes in it when there are some), "text", "changes" or "side".</summary>
-    public string ViewMode => Mode == "page" ? "page" : !HasChanges ? "text" : Mode is "side" or "text" ? Mode : "changes";
+    // The page is the standard; the plain text, the one text with the changes and the two texts next to each other are asked for by name.
+    public string ViewMode => Mode is "text" or "changes" or "side" ? (Mode != "text" && !HasChanges ? "text" : Mode) : "page";
 
     /// <summary>Whether the view is about changes (so it has the numbers and the steps from change to change).</summary>
     public bool ShowsChanges => ViewMode is "changes" or "side" || (ViewMode == "page" && HasChanges);

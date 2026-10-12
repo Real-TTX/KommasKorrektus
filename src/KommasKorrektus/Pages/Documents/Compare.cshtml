@@ -11,10 +11,10 @@
     <div class="mat-field">
         <span class="mat-label">Ansicht</span>
         <div class="mat-seg" role="group" aria-label="Ansicht">
-            <button type="submit" name="mode" value="side" class="mat-seg__btn" aria-pressed="@(Model.Mode == "side" ? "true" : "false")">@Ui.Icon("columns")<span>Nebeneinander</span></button>
-            <button type="submit" name="mode" value="inline" class="mat-seg__btn" aria-pressed="@(Model.Inline ? "true" : "false")">@Ui.Icon("file-text")<span>Ein Dokument</span></button>
-            <button type="submit" name="mode" value="page" class="mat-seg__btn" aria-pressed="@(Model.PageView ? "true" : "false")" data-tip="Die Änderungen in der Formatierung des Originals">@Ui.Icon("file")<span>Seite</span></button>
             <button type="submit" name="mode" value="pages" class="mat-seg__btn" aria-pressed="@(Model.PagesView ? "true" : "false")" data-tip="Die alte und die neue Seite nebeneinander, in der Formatierung des Originals">@Ui.Icon("copy")<span>Zwei Seiten</span></button>
+            <button type="submit" name="mode" value="page" class="mat-seg__btn" aria-pressed="@(Model.PageView ? "true" : "false")" data-tip="Die Änderungen in der Formatierung des Originals">@Ui.Icon("file")<span>Seite</span></button>
+            <button type="submit" name="mode" value="side" class="mat-seg__btn" aria-pressed="@(Model.Mode == "side" ? "true" : "false")" data-tip="Nur der Text, alt und neu nebeneinander">@Ui.Icon("columns")<span>Text nebeneinander</span></button>
+            <button type="submit" name="mode" value="inline" class="mat-seg__btn" aria-pressed="@(Model.Inline ? "true" : "false")" data-tip="Nur der Text, die Änderungen darin">@Ui.Icon("file-text")<span>Ein Text</span></button>
         </div>
     </div>
     <div class="mat-field">
