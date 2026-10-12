@@ -79,8 +79,8 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-editor__size [data-tip]::after { bottom: auto; top: calc(100% + 6px); left: auto; right: 0; transform: translateY(-2px); }
 .kk-editor__size [data-tip]:hover::after, .kk-editor__size [data-tip]:focus-visible::after { transform: none; }
 /* the size of the writing: smaller, the value (a click puts it back to 100 %), bigger */
-.kk-zoom { display: inline-flex; align-items: center; gap: 2px; }
-.kk-zoom__value { min-width: 3.6rem; font-variant-numeric: tabular-nums; }
+.kk-zoom { display: inline-flex; align-items: center; gap: 0; }
+.kk-zoom__value { min-width: 2.9rem; padding-inline: var(--mat-space-1); font-variant-numeric: tabular-nums; }
 .kk-editor__sep { width: 1px; height: 1.5rem; background: var(--mat-border); margin-inline: var(--mat-space-1); }
 .kk-editor__phone { display: none; }
 .kk-editor__title { min-width: 0; flex: 1 1 14rem; }
