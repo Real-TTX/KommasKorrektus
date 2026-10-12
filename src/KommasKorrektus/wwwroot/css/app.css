@@ -287,3 +287,11 @@ a.kk-a { cursor: pointer; }
 :is(.mat-row:has(> .mat-field), .kk-diff__bar) > .mat-field { position: relative; }
 :is(.mat-row:has(> .mat-field), .kk-diff__bar) > .mat-field > :is(.mat-hint, .mat-error) { position: absolute; top: 100%; left: 0; right: 0; margin-top: var(--mat-space-1); min-height: 0; }
 :is(.mat-row:has(> .mat-field), .kk-diff__bar) > .mat-field > .mat-switch { min-height: var(--mat-control-h); }
+
+/* ---- Two pages next to each other: the old one with what was taken away, the new one with what was added ---- */
+.kk-pages { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--mat-space-3); align-items: start; }
+.kk-pages__side { min-width: 0; }
+.kk-pages__title { font-size: var(--mat-fs-md); margin: 0 0 var(--mat-space-2); }
+.kk-desk--old .kk-sheet ins, .kk-desk--new .kk-sheet del { display: none; }
+.kk-desk--old .kk-sheet .kk-lp.is-inserted, .kk-desk--new .kk-sheet .kk-lp.is-deleted { visibility: hidden; }
+@media (max-width: 900px) { .kk-pages { grid-template-columns: minmax(0, 1fr); } }

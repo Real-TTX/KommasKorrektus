@@ -68,13 +68,17 @@ public static class LayoutView
         return items;
     }
 
-    /// <summary>The stylesheet and the page. <paramref name="withNotes"/> puts the footnotes at the end (on the last page of a long text).</summary>
-    public static IHtmlContent Render(PagePayload page, IEnumerable<LayoutItem> items, bool withNotes, bool diff = false)
+    /// <summary>
+    /// The stylesheet and the page. <paramref name="withNotes"/> puts the footnotes at the end (on the last page of a long text). <paramref name="side"/> ("old" or "new")
+    /// draws one of two pages next to each other from the same markup of the changes: the old page shows what was taken away, the new one what was added.
+    /// </summary>
+    public static IHtmlContent Render(PagePayload page, IEnumerable<LayoutItem> items, bool withNotes, bool diff = false, string? side = null)
     {
         var sb = new StringBuilder();
         sb.Append("<link rel=\"stylesheet\" href=\"").Append(WebUtility.HtmlEncode(page.CssUrl)).Append("\">");
-        sb.Append("<div class=\"kk-desk kk-desk--read\" data-fit");
-        if (diff)
+        sb.Append("<div class=\"kk-desk kk-desk--read").Append(side is null ? string.Empty : " kk-desk--" + side).Append("\" data-fit");
+        // the jump from change to change goes through the new page when there are two
+        if (diff && side != "old")
         {
             sb.Append(" id=\"diff\" data-diff");
         }

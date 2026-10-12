@@ -25,6 +25,8 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
 
     public sealed record LayoutRequest(string[] Paragraphs);
 
+    public sealed record ViewRequest(string? View);
+
     [BindProperty(SupportsGet = true)]
     public long Id { get; set; }
 
@@ -64,9 +66,11 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         Version = version;
         var comments = await db.DocumentComment.AsNoTracking().Where(c => c.DocumentId == Id).OrderBy(c => c.ParagraphIndex).ThenBy(c => c.CreateDate).ToListAsync();
         var styles = await db.StyleEntry.AsNoTracking().Where(s => s.ProjectId == document.ProjectId).OrderBy(s => s.Category).ThenBy(s => s.Term).ToListAsync();
+        var views = await ViewPreferences.GetAsync(db, current.UserId, HttpContext.RequestAborted);
         DataJson = JsonSerializer.Serialize(new
         {
             documentId = document.Id,
+            view = views.Editor,
             kind = document.Kind.ToString(),
             versionNo = version.VersionNo,
             state = StateOf(version),
@@ -160,6 +164,13 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
             width = page.Layout.PageWidthPx,
             formatted = page.Formatted,
         });
+    }
+
+    /// <summary>The person changed the view of the text: it is kept with the account, so that the next browser opens the same way.</summary>
+    public async Task<IActionResult> OnPostViewAsync([FromBody] ViewRequest request)
+    {
+        var saved = await ViewPreferences.SetEditorAsync(db, current.UserId, request.View, HttpContext.RequestAborted);
+        return saved ? new JsonResult(new { ok = true }) : BadRequest();
     }
 
     public async Task<IActionResult> OnPostTrackAsync([FromBody] TrackRequest request)

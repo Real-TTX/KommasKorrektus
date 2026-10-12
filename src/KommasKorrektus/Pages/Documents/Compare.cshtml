@@ -14,6 +14,7 @@
             <button type="submit" name="mode" value="side" class="mat-seg__btn" aria-pressed="@(Model.Mode == "side" ? "true" : "false")">@Ui.Icon("columns")<span>Nebeneinander</span></button>
             <button type="submit" name="mode" value="inline" class="mat-seg__btn" aria-pressed="@(Model.Inline ? "true" : "false")">@Ui.Icon("file-text")<span>Ein Dokument</span></button>
             <button type="submit" name="mode" value="page" class="mat-seg__btn" aria-pressed="@(Model.PageView ? "true" : "false")" data-tip="Die Änderungen in der Formatierung des Originals">@Ui.Icon("file")<span>Seite</span></button>
+            <button type="submit" name="mode" value="pages" class="mat-seg__btn" aria-pressed="@(Model.PagesView ? "true" : "false")" data-tip="Die alte und die neue Seite nebeneinander, in der Formatierung des Originals">@Ui.Icon("copy")<span>Zwei Seiten</span></button>
         </div>
     </div>
     <div class="mat-field">
@@ -42,9 +43,21 @@
 {
     <div class="mat-empty"><span class="mat-empty__icon">@Ui.Icon("check-circle")</span><div class="mat-empty__title">Keine Unterschiede</div><p>Die beiden Fassungen haben denselben Text.</p></div>
 }
-else if (Model.PageView && Model.Sheet is { } sheet)
+else if ((Model.PageView || Model.PagesView) && Model.Sheet is { } sheet)
 {
-    @LayoutView.Render(sheet, Model.PageItems, withNotes: Model.Pager.Page >= (int)Math.Ceiling(Model.Pager.Total / (double)Model.Pager.PageSize), diff: true)
+    var last = Model.Pager.Page >= (int)Math.Ceiling(Model.Pager.Total / (double)Model.Pager.PageSize);
+    if (Model.PagesView)
+    {
+        <div class="kk-pages" id="pages">
+            <div class="kk-pages__side"><h2 class="kk-pages__title">Fassung @Model.From <small class="mat-muted">was wegfällt</small></h2>@LayoutView.Render(sheet, Model.PageItems, withNotes: last, diff: true, side: "old")</div>
+            <div class="kk-pages__side"><h2 class="kk-pages__title">Fassung @Model.To <small class="mat-muted">was neu ist</small></h2>@LayoutView.Render(sheet, Model.PageItems, withNotes: last, diff: true, side: "new")</div>
+        </div>
+    }
+    else
+    {
+        @LayoutView.Render(sheet, Model.PageItems, withNotes: last, diff: true)
+    }
+
     if (!sheet.Formatted)
     {
         <p class="mat-hint">Das Original ist keine Word-Datei (oder sein Text ist nicht mehr der des Imports): Die Seite zeigt den Text einfach, ohne Formatierung.</p>
@@ -66,4 +79,8 @@ else
 @section Scripts {
     <script src="~/js/diff.js" asp-append-version="true"></script>
     <script src="~/js/sheet.js" asp-append-version="true"></script>
+    @if (Model.PagesView)
+    {
+        <script src="~/js/pages.js" asp-append-version="true"></script>
+    }
 }

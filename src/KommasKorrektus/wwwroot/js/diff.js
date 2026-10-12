@@ -6,17 +6,22 @@
   if (!root) { return; }
 
   var changes = Array.prototype.slice.call(root.querySelectorAll('.kk-change'));
-  var current = -1;
+  var current = null;
+
+  // On the new of two pages a paragraph that was taken away is invisible: the jump skips it.
+  function visible(element) { return element.offsetParent !== null && getComputedStyle(element).visibility !== 'hidden'; }
 
   function go(step) {
-    if (changes.length === 0) { return; }
-    if (current >= 0) { changes[current].classList.remove('is-current'); }
-    current = current < 0 ? (step > 0 ? 0 : changes.length - 1) : (current + step + changes.length) % changes.length;
-    var row = changes[current];
-    var gap = row.closest('details');
+    var list = changes.filter(visible);
+    if (list.length === 0) { return; }
+    var at = current ? list.indexOf(current) : -1;
+    if (current) { current.classList.remove('is-current'); }
+    at = at < 0 ? (step > 0 ? 0 : list.length - 1) : (at + step + list.length) % list.length;
+    current = list[at];
+    var gap = current.closest('details');
     if (gap) { gap.open = true; }
-    row.classList.add('is-current');
-    row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    current.classList.add('is-current');
+    current.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
   Array.prototype.forEach.call(document.querySelectorAll('[data-diff-step]'), function (button) {

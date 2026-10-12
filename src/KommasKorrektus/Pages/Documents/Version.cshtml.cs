@@ -9,11 +9,11 @@ using Microsoft.EntityFrameworkCore;
 namespace KommasKorrektus.Pages.Documents;
 
 /// <summary>One version of a document to read, without the editor: as text, or as a page in the layout of the original.</summary>
-public sealed class VersionModel(KkDbContext db, DocumentService documents, LayoutService layouts) : PageModelBase
+public sealed class VersionModel(KkDbContext db, DocumentService documents, LayoutService layouts, ICurrentUser current) : PageModelBase
 {
     private const int PageBlocks = 40;
 
-    /// <summary>"page" for the layout of the original; anything else is the plain text.</summary>
+    /// <summary>"page" for the layout of the original, "text" for the plain text; without one the view the person used last (kept with the account, like the editor's).</summary>
     [BindProperty(SupportsGet = true)]
     public string? View { get; set; }
 
@@ -38,6 +38,15 @@ public sealed class VersionModel(KkDbContext db, DocumentService documents, Layo
         if (document is null || version is null)
         {
             return NotFound();
+        }
+
+        if (View is "page" or "text")
+        {
+            await ViewPreferences.SetEditorAsync(db, current.UserId, View, HttpContext.RequestAborted);
+        }
+        else
+        {
+            View = (await ViewPreferences.GetAsync(db, current.UserId, HttpContext.RequestAborted)).Editor;
         }
 
         Document = document;

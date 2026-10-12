@@ -1819,6 +1819,10 @@ namespace KommasKorrektus.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
+                    b.Property<string>("CompareView")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("CreateDate")
                         .HasColumnType("timestamp with time zone");
 
@@ -1826,6 +1830,10 @@ namespace KommasKorrektus.Data.Migrations
                         .HasColumnType("bigint");
 
                     b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("EditorView")
                         .IsRequired()
                         .HasColumnType("text");
 

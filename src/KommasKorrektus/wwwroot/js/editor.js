@@ -442,12 +442,19 @@
 
   var VIEW_KEY = 'kk.editor.view';
 
+  // The view is kept with the account (the server says which, so another browser opens the same way); the browser's own memory is the fallback.
+  var rememberedView = data.view || null;
+
   function storedView() {
+    if (data.view) { return data.view; }
     try { return window.localStorage.getItem(VIEW_KEY); } catch (e) { return null; }
   }
 
   function rememberView(name) {
     try { window.localStorage.setItem(VIEW_KEY, name); } catch (e) { /* private mode: the view is simply not remembered */ }
+    if (name === rememberedView) { return; }
+    rememberedView = name;
+    post('View', { view: name }).catch(function () { rememberedView = null; });
   }
 
   function showView(name) {
