@@ -27,6 +27,9 @@
   var cache = null;       // the paragraphs of the page, in order; null when they have to be looked up again
   var housekeeping = null;
   var toolsFrame = 0;
+  var marks = null;       // the layer of the comment marks in the margin of the page
+  var marked = new Set(); // the paragraphs with an open comment
+  var marksFrame = 0;
   var composing = false;
 
   function el(tag, cls) { return core.el(tag, cls); }
@@ -319,6 +322,36 @@
     toolsNumber.textContent = p.getAttribute('data-n');
   }
 
+  // ------------------------------------------------------------------------------------------------ the comments in the margin
+  // A small bubble beside every paragraph with an open comment, at the right edge of the page (inside it when the page fills the desk); a click opens the comments at that one.
+  function placeMarks() {
+    marksFrame = 0;
+    if (!sheet || !marks) { return; }
+    marks.textContent = '';
+    var desk = wrap.getBoundingClientRect();
+    var page = sheet.getBoundingClientRect();
+    var left = Math.min(page.right - desk.left + 6, wrap.clientWidth - 30);
+    var paragraphs = list();
+    marked.forEach(function (index) {
+      var p = paragraphs[index];
+      if (!p) { return; }
+      var bubble = el('button', 'kk-pmark');
+      bubble.type = 'button';
+      bubble.setAttribute('aria-label', 'Kommentar zu Absatz ' + (index + 1) + ' zeigen');
+      bubble.setAttribute('data-tip', 'Kommentar zeigen');
+      bubble.innerHTML = core.icon('message-square');
+      bubble.style.top = Math.max(0, p.getBoundingClientRect().top - desk.top) + 'px';
+      bubble.style.left = left + 'px';
+      bubble.addEventListener('mousedown', function (e) { e.preventDefault(); });
+      bubble.addEventListener('click', function () { core.showComments(index); });
+      marks.appendChild(bubble);
+    });
+  }
+
+  function scheduleMarks() {
+    if (!marksFrame) { marksFrame = requestAnimationFrame(placeMarks); }
+  }
+
   function onSelection() {
     if (!toolsFrame) { toolsFrame = requestAnimationFrame(placeTools); }
   }
@@ -412,8 +445,10 @@
       button.addEventListener('click', commentHere);
       tools.appendChild(toolsNumber);
       tools.appendChild(button);
+      marks = el('div', 'kk-pmarks');
       wrap.appendChild(sheet);
       wrap.appendChild(tools);
+      wrap.appendChild(marks);
       parasElement.appendChild(wrap);
 
       width = result.width;
@@ -431,8 +466,10 @@
       document.execCommand('defaultParagraphSeparator', false, 'p');
 
       if (typeof ResizeObserver !== 'undefined') {
-        observer = new ResizeObserver(fit);
+        observer = new ResizeObserver(function () { fit(); scheduleMarks(); });
         observer.observe(wrap);
+        // the text grows and shrinks while somebody writes: the marks follow their paragraphs
+        observer.observe(sheet);
       }
       fit();
       recountAll();
@@ -456,6 +493,7 @@
       sheet = null;
       wrap = null;
       tools = null;
+      marks = null;
       cache = null;
     },
 
@@ -523,8 +561,10 @@
       return count;
     },
 
-    setCommentMarks: function (marked) {
-      list().forEach(function (p, i) { p.classList.toggle('has-comment', marked.has(i)); });
+    setCommentMarks: function (paragraphs) {
+      marked = paragraphs;
+      list().forEach(function (p, i) { p.classList.toggle('has-comment', paragraphs.has(i)); });
+      scheduleMarks();
     },
 
     undo: function () { sheet.focus({ preventScroll: true }); document.execCommand('undo'); },

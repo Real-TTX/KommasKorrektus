@@ -193,6 +193,9 @@ a.kk-a { cursor: pointer; }
 .kk-ptools__no { font-family: var(--mat-mono); font-size: var(--mat-fs-xs); color: #6b6b75; }
 .kk-ptools__comment { width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border: 0; border-radius: var(--mat-radius); background: var(--mat-surface); color: var(--mat-text-muted); cursor: pointer; box-shadow: var(--mat-shadow-1); }
 .kk-ptools__comment:hover { color: var(--mat-accent-text); }
+.kk-pmarks { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.kk-pmark { position: absolute; width: 1.6rem; height: 1.6rem; display: grid; place-items: center; border: 0; border-radius: var(--mat-radius); background: var(--mat-warning-bg); color: var(--mat-warning-text); cursor: pointer; box-shadow: var(--mat-shadow-1); pointer-events: auto; }
+.kk-pmark:hover { color: var(--mat-accent-text); }
 
 /* Find and replace is a panel beside the text, not a dialog over it: replacing needs the page in reach. */
 #editor-replace:not(:modal) { position: fixed; inset: 6.5rem 1.25rem auto auto; margin: 0; z-index: 30; width: min(380px, calc(100vw - 2rem)); height: auto; }

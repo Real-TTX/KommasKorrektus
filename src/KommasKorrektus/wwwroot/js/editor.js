@@ -952,6 +952,22 @@
     openComment(p.index, p.end > p.start ? text.slice(p.start, p.end) : text.slice(0, 60));
   }
 
+  /** The comment of the list that is meant is marked, and the list shows it. */
+  function flashComment(id) {
+    Array.prototype.forEach.call(commentList.children, function (li) {
+      var current = li.getAttribute('data-comment') === String(id);
+      li.classList.toggle('is-current', current);
+      if (current) { li.scrollIntoView({ block: 'nearest' }); }
+    });
+  }
+
+  /** A mark in the margin of the page was clicked: the panel opens at the first open comment of that paragraph. */
+  function showComments(index) {
+    showSide(true);
+    var first = data.comments.filter(function (c) { return !c.isResolved && c.at === index; })[0];
+    if (first) { flashComment(first.id); }
+  }
+
   /** Alt+↓ / Alt+↑: the next / the previous open remark, counted from where the cursor is (round and round). */
   function jumpComment(step) {
     var open = data.comments.filter(function (c) { return !c.isResolved; }).sort(function (a, b) { return a.at - b.at || a.id - b.id; });
@@ -968,11 +984,7 @@
     var element = view.element(target.at);
     if (element) { element.scrollIntoView({ block: 'center' }); view.focusParagraph(target.at, 'end'); }
     showSide(true);
-    Array.prototype.forEach.call(commentList.children, function (li) {
-      var current = li.getAttribute('data-comment') === String(target.id);
-      li.classList.toggle('is-current', current);
-      if (current) { li.scrollIntoView({ block: 'nearest' }); }
-    });
+    flashComment(target.id);
   }
 
   var styleList = document.getElementById('style-list');
@@ -1107,6 +1119,7 @@
     countWords: countWords,
     showWordCount: showWordCount,
     openComment: openComment,
+    showComments: showComments,
     toDisplay: toDisplay,
     renderComments: renderComments,
     updateUndoButtons: updateUndoButtons,
