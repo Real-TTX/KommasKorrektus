@@ -411,6 +411,13 @@
   var page = {
     name: 'page',
 
+    // what the earlier version beside the text needs to find places in paragraphs, the same way for the page that is written in and for the one that is only read
+    tools: {
+      displayOf: function (p) { return displayOf(p); },
+      locate: function (p, offset) { return locate(p, offset); },
+      renumber: function () { cache = null; renumber(); },
+    },
+
     prepare: function (texts) {
       return core.post('Layout', { paragraphs: texts }).then(function (result) {
         if (!result.ok) { throw new Error(result.reason || 'Die Seite lässt sich nicht aufbauen.'); }

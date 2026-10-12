@@ -187,8 +187,8 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
     }
 
     /// <summary>
-    /// The earlier version beside the text ("Änderungsmodus"): the changes between <c>from</c> and the saved newest version as one page, of which the editor shows the
-    /// side that has what was taken away (the markup is the one of the comparison). <c>from</c> is a rule that stays right as the work goes on ("previous": the version
+    /// The earlier version beside the text ("Änderungsmodus"): the page of the version <c>from</c> is, to be written next to (and compared with) the text of the editor.
+    /// <c>from</c> is a rule that stays right as the work goes on ("previous": the version
     /// before the newest, "round": where this round of the ping pong began, "original") or the number of a version.
     /// </summary>
     public async Task<IActionResult> OnGetReferenceAsync(string? from)
@@ -238,8 +238,15 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
             fromNo = to - 1;
         }
 
-        var page = await layouts.ForChangesAsync(document, fromNo, to, HttpContext.RequestAborted);
-        return new JsonResult(new { ok = true, empty = false, from = fromNo, to, rules, versions, selected, html = page.Html, link = page.CssUrl, pageClass = page.Layout.PageClass, formatted = page.Formatted });
+        // The page of that version as it was. What differs from the text as it is written now is found in the browser, while it is written (textdiff.js).
+        var version = await documents.GetVersionAsync(document.Id, fromNo, HttpContext.RequestAborted);
+        if (version is null)
+        {
+            return NotFound();
+        }
+
+        var page = await layouts.ForVersionAsync(document, version, editable: false, HttpContext.RequestAborted);
+        return new JsonResult(new { ok = true, empty = false, from = fromNo, to, rules, versions, selected, html = page.Html, link = page.CssUrl, pageClass = page.Layout.PageClass, formatted = page.Formatted, paragraphs = DocumentService.ParagraphsOf(version).Length });
     }
 
     /// <summary>The person changed the view of the text: it is kept with the account, so that the next browser opens the same way.</summary>

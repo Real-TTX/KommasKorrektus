@@ -125,6 +125,11 @@ public sealed class ViewPreferenceTests : IClassFixture<AppFixture>
         Assert.Equal(2, previous.GetProperty("to").GetInt32());
         Assert.Equal("previous", previous.GetProperty("selected").GetString());
         Assert.Contains("kk-lp", previous.GetProperty("html").GetString());
+        // the page of that version as it was, nothing marked: what differs from the text is found in the browser while it is written
+        Assert.Contains("data-n=\"1\"", previous.GetProperty("html").GetString());
+        Assert.DoesNotContain("<ins", previous.GetProperty("html").GetString());
+        Assert.DoesNotContain("<del", previous.GetProperty("html").GetString());
+        Assert.True(previous.GetProperty("paragraphs").GetInt32() > 0);
         Assert.Equal("previous", previous.GetProperty("rules")[0].GetProperty("value").GetString());
         Assert.Equal("1", previous.GetProperty("versions")[0].GetProperty("value").GetString());
 

@@ -623,7 +623,7 @@
       setStatus(dirty ? 'dirty' : 'saved', dirty ? dirtyText() : (kind === 'auto' ? 'Automatisch gespeichert um ' : 'Gespeichert um ') + result.savedAt + ' (Fassung ' + result.versionNo + (word ? ', ' + word : '') + ')');
       if (kind === 'close') { toast('Fassung ' + result.versionNo + ' ist abgeschlossen. Die nächste Änderung beginnt Fassung ' + (result.versionNo + 1) + '.'); }
       else if (kind === 'manual') { toast('Gespeichert. Das bleibt Fassung ' + result.versionNo + (word ? ' (' + word + ')' : '') + '.'); }
-      if (refPane && !refPane.hidden) { clearTimeout(refTimer); refTimer = setTimeout(refLoad, 600); }
+      if (refShown && (result.created || kind === 'close' || result.versionNo !== refVersion.to)) { clearTimeout(refTimer); refTimer = setTimeout(refLoad, 400); }
       var versionLabel = document.getElementById('editor-version');
       if (versionLabel) { versionLabel.textContent = 'Fassung ' + result.versionNo + (result.name ? ' · ' + result.name : '') + (word ? ' · ' + word : ''); }
       if (dirty) { markDirty(); }
@@ -1140,8 +1140,12 @@
   var refTimer = null;
   var refFrom = cleanChoice(data.options && data.options.referenceFrom);   // "previous", "round", "original" or the number of a version (kept with the account)
   var refTicket = 0;
-  var alignFrame = 0;
+  var refVersion = { from: 0, to: 0 };
+  var refOld = null;         // the earlier page as it was drawn: its paragraphs (the elements) and their texts
+  var refFrame = 0;
+  var refTimerSoon = null;
   var alignSheet = null;     // the room on the side of the text: rules of a constructable stylesheet (the policy of the site forbids style attributes in markup)
+  var canHighlight = typeof CSS !== 'undefined' && !!CSS.highlights && typeof Highlight !== 'undefined';
 
   function cleanChoice(value) { return value === 'round' || value === 'original' || (value && /^\d{1,6}$/.test(String(value))) ? String(value) : 'previous'; }
 
@@ -1156,36 +1160,85 @@
     sheet.style.zoom = wanted > available && available > 0 ? String(Math.max(0.3, available / wanted)) : '';
   }
 
-  function clearAlignment() {
+  // What the page shows of the comparison is taken away again before it is drawn anew: the room made for the lining up, the marks of the paragraphs and of the words.
+  function clearMarks() {
     if (alignSheet) { alignSheet.replaceSync(''); }
-    if (refBody) { Array.prototype.forEach.call(refBody.querySelectorAll('.kk-aligner'), function (node) { node.remove(); }); }
+    if (canHighlight) { CSS.highlights.delete('kk-removed'); CSS.highlights.delete('kk-added'); }
+    if (!refBody) { return; }
+    Array.prototype.forEach.call(refBody.querySelectorAll('.kk-aligner'), function (node) { node.remove(); });
+    Array.prototype.forEach.call(refBody.querySelectorAll('.kk-gone'), function (node) { node.classList.remove('kk-gone'); });
+    if (view && view.name === 'page') {
+      for (var i = 0; i < view.count(); i += 1) { var p = view.element(i); if (p) { p.classList.remove('kk-new'); } }
+    }
+  }
+
+  function rangeIn(tools, paragraph, from, to) {
+    var a = tools.locate(paragraph, from);
+    var b = tools.locate(paragraph, to);
+    var range = document.createRange();
+    range.setStart(a.node, a.offset);
+    range.setEnd(b.node, b.offset);
+    return range;
   }
 
   /**
-   * Lines the paragraphs of the two columns up. The paragraphs of the earlier version that are not taken away (the ones that are there in the text too, in the same
-   * order) are the counterparts of the paragraphs of the text. Between two such pairs one side may have more (a paragraph that was taken away, longer words): the
-   * other side gets that much room before its next paragraph. The text is the one that is written in, so its room is a rule of a stylesheet, not a change of the page.
+   * Everything that depends on the text as it is now, drawn anew: the text is compared with the earlier version (paragraph by paragraph, word by word: textdiff.js),
+   * what was taken away is marked on the earlier page, what is new on the text, and the two are lined up so that the paragraphs that belong together stand across from each
+   * other. It is meant to run on every change: it costs a comparison and a few measurements.
    */
-  function alignReference() {
-    alignFrame = 0;
-    if (!refShown || !view || view.name !== 'page' || !refBody || typeof CSSStyleSheet === 'undefined' || !CSSStyleSheet.prototype.replaceSync) { return; }
-    clearAlignment();
+  function refreshReference() {
+    refFrame = 0;
+    if (!refShown || !view || view.name !== 'page' || !refBody || !refOld || !window.KkTextDiff) { return; }
+    var tools = views.page.tools;
+    tools.renumber();
+    clearMarks();
     var count = view.count();
-    var theirs = Array.prototype.filter.call(refBody.querySelectorAll('p.kk-lp'), function (p) { return !p.classList.contains('is-deleted'); });
+    var newTexts = [];
+    for (var i = 0; i < count; i += 1) { newTexts.push(view.textAt(i)); }
+    var rows = window.KkTextDiff.compare(refOld.texts, newTexts);
+
+    var removed = [];
+    var added = [];
+    var pairs = [];
+    rows.forEach(function (row) {
+      var theirs = row.o === null ? null : refOld.els[row.o];
+      var mine = row.n === null ? null : view.element(row.n);
+      if (row.kind === 'mod' && canHighlight) {
+        var found = window.KkTextDiff.words(refOld.texts[row.o], newTexts[row.n]);
+        found.del.forEach(function (r) { removed.push(rangeIn(tools, theirs, r[0], r[1])); });
+        found.ins.forEach(function (r) { added.push(rangeIn(tools, mine, r[0], r[1])); });
+      } else if (row.kind !== 'same' && row.kind !== 'mod') {
+        if (theirs) { theirs.classList.add('kk-gone'); }
+        if (mine) { mine.classList.add('kk-new'); }
+      }
+      if (theirs && mine) { pairs.push({ theirs: theirs, mine: mine, index: row.n }); }
+    });
+    if (canHighlight) {
+      if (removed.length > 0) { CSS.highlights.set('kk-removed', new Highlight(...removed)); }
+      if (added.length > 0) { CSS.highlights.set('kk-added', new Highlight(...added)); }
+    }
+    alignPairs(pairs);
+  }
+
+  /**
+   * Lines the paragraphs that belong together up. Between two pairs one side may have more (a paragraph that was taken away, a longer one, one more that was just
+   * written): the other side gets that much room before its next paragraph. The text is the one that is written in, so its room is a rule of a stylesheet, not a
+   * change of the page; the earlier page gets a spacer.
+   */
+  function alignPairs(pairs) {
+    if (pairs.length === 0 || typeof CSSStyleSheet === 'undefined' || !CSSStyleSheet.prototype.replaceSync) { return; }
     var paneSheet = refBody.querySelector('.kk-sheet');
-    if (!paneSheet || count === 0 || theirs.length !== count) { return; }   // the text has more or fewer paragraphs than saved: lined up again after the next save
-    var mine = [];
-    for (var i = 0; i < count; i += 1) { mine.push(view.element(i)); }
-    var editSheet = mine[0].closest('.kk-sheet');
-    if (!editSheet || editSheet.getBoundingClientRect().left === paneSheet.getBoundingClientRect().left) { return; }
+    var editSheet = pairs[0].mine.closest('.kk-sheet');
+    if (!paneSheet || !editSheet || editSheet.getBoundingClientRect().left === paneSheet.getBoundingClientRect().left) { return; }   // stacked, not side by side
     var zp = zoomOf(paneSheet);
     var ze = zoomOf(editSheet);
     if (!alignSheet) { alignSheet = new CSSStyleSheet(); document.adoptedStyleSheets = document.adoptedStyleSheets.concat([alignSheet]); }
+    var count = pairs.length;
 
     // the room each paragraph of the text has before it now (a margin that is bigger than this one stands in for the next paragraph's own)
-    var gaps = mine.map(function (p) {
-      var before = p.previousElementSibling;
-      return before ? (p.getBoundingClientRect().top - before.getBoundingClientRect().bottom) / ze : parseFloat(getComputedStyle(p).marginTop) || 0;
+    var gaps = pairs.map(function (pair) {
+      var before = pair.mine.previousElementSibling;
+      return before ? (pair.mine.getBoundingClientRect().top - before.getBoundingClientRect().bottom) / ze : parseFloat(getComputedStyle(pair.mine).marginTop) || 0;
     });
     var roomTheirs = new Array(count).fill(0);
     var roomMine = new Array(count).fill(0);
@@ -1197,20 +1250,20 @@
         if (roomTheirs[k] > 0.4) {
           var spacer = el('div', 'kk-aligner');
           spacer.style.height = (roomTheirs[k] / zp) + 'px';
-          theirs[k].parentNode.insertBefore(spacer, theirs[k]);
+          pairs[k].theirs.parentNode.insertBefore(spacer, pairs[k].theirs);
         }
-        if (roomMine[k] > 0.4) { rules.push('.kk-sheet[contenteditable] p.kk-lp[data-n="' + (k + 1) + '"] { margin-top: ' + (gaps[k] + roomMine[k] / ze) + 'px; }'); }
+        if (roomMine[k] > 0.4) { rules.push('.kk-sheet[contenteditable] p.kk-lp[data-n="' + (pairs[k].index + 1) + '"] { margin-top: ' + (gaps[k] + roomMine[k] / ze) + 'px; }'); }
       }
       alignSheet.replaceSync(rules.join('\n'));
     }
 
     // From the first look at the page, and twice more should a margin not have done exactly what was asked: where the text lies lower than its counterpart by more
-    // than it did at the paragraph before, the earlier version gets room there, and the other way round.
+    // than it did at the pair before, the earlier version gets room there, and the other way round.
     for (var pass = 0; pass < 3; pass += 1) {
       var before = 0;
       var changed = false;
       var offsets = [];
-      for (var j = 0; j < count; j += 1) { offsets.push(mine[j].getBoundingClientRect().top - theirs[j].getBoundingClientRect().top); }
+      for (var j = 0; j < count; j += 1) { offsets.push(pairs[j].mine.getBoundingClientRect().top - pairs[j].theirs.getBoundingClientRect().top); }
       for (var k = 0; k < count; k += 1) {
         var step = offsets[k] - before;
         before = offsets[k];
@@ -1221,14 +1274,14 @@
     }
   }
 
-  function scheduleAlign() {
-    if (!alignFrame) { alignFrame = requestAnimationFrame(alignReference); }
+  function scheduleRefresh() {
+    if (!refFrame) { refFrame = requestAnimationFrame(refreshReference); }
   }
 
-  var alignTimer = null;
+  /** The text changed (a letter, Enter, Backspace ...): drawn anew in a moment, so that typing is not held up. */
   function alignSoon() {
-    clearTimeout(alignTimer);
-    alignTimer = setTimeout(scheduleAlign, 120);
+    clearTimeout(refTimerSoon);
+    refTimerSoon = setTimeout(scheduleRefresh, 100);
   }
 
   function refLoad() {
@@ -1256,7 +1309,8 @@
           fill(group, r.versions);
           refSelect.appendChild(group);
         }
-        clearAlignment();
+        clearMarks();
+        refOld = null;
         refBody.textContent = '';
         if (r.empty) {
           refNote.textContent = '';
@@ -1265,20 +1319,26 @@
           refBody.appendChild(none);
           return;
         }
+        refVersion = { from: r.from, to: r.to };
         if (refLink) { refLink.remove(); }
         refLink = el('link');
         refLink.rel = 'stylesheet';
         refLink.href = r.link;
         document.head.appendChild(refLink);
-        var desk = el('div', 'kk-desk kk-desk--read kk-desk--old');
+        var desk = el('div', 'kk-desk kk-desk--read');
         var sheet = el('div', 'kk-sheet kk-sheet--read ' + r.pageClass);
         sheet.innerHTML = r.html;
         desk.appendChild(sheet);
         refBody.appendChild(desk);
         refFit();
-        refNote.textContent = 'Fassung ' + r.from + ', was bis zur gespeicherten Fassung ' + r.to + ' wegfällt, durchgestrichen.';
+        // the same paragraphs the text has (notes have no number); the ids would be there twice on the page
+        var els = Array.prototype.slice.call(sheet.querySelectorAll('p.kk-lp[data-n]'));
+        els.forEach(function (p) { p.removeAttribute('id'); });
+        var tools = views.page.tools;
+        refOld = { els: els, texts: els.map(function (p) { return tools.displayOf(p); }) };
+        refNote.textContent = 'Fassung ' + r.from + ' neben deinem Text: rot ist, was dort weggefallen ist, grün, was bei dir neu ist. Es folgt jedem Tastendruck.';
         // the stylesheet of the page has to be there before anything is measured
-        var ready = function () { scheduleAlign(); };
+        var ready = function () { scheduleRefresh(); };
         if (refLink.sheet) { ready(); } else { refLink.addEventListener('load', ready); refLink.addEventListener('error', ready); }
       })
       .catch(function () { if (ticket === refTicket) { refNote.textContent = 'Die frühere Fassung lässt sich gerade nicht laden.'; } });
@@ -1289,12 +1349,12 @@
     if (!refPane) { return; }
     var show = refWanted && !!view && view.name === 'page';
     if (refToggle) { refToggle.setAttribute('aria-pressed', refWanted ? 'true' : 'false'); }
-    if (show === refShown) { if (show) { scheduleAlign(); } return; }
+    if (show === refShown) { if (show) { scheduleRefresh(); } return; }
     refShown = show;
     refPane.hidden = !show;
     refBar.hidden = !show;
     host.classList.toggle('has-reference', show);
-    if (show) { refLoad(); } else { clearAlignment(); }
+    if (show) { refLoad(); } else { clearMarks(); }
   }
 
   function toggleReference(on) {
@@ -1319,11 +1379,11 @@
     document.getElementById('reference-close').addEventListener('click', function () { toggleReference(false); });
     if (typeof ResizeObserver !== 'undefined') {
       // Whatever changes the height of one column (a word that wraps, the zoom of the page, the window) is lined up again.
-      var resizes = new ResizeObserver(function () { refFit(); scheduleAlign(); });
+      var resizes = new ResizeObserver(function () { refFit(); scheduleRefresh(); });
       resizes.observe(refBody);
       resizes.observe(parasElement);
     }
-    window.addEventListener('resize', scheduleAlign);
+    window.addEventListener('resize', scheduleRefresh);
   }
 
   var keysDialog = document.getElementById('editor-keys');

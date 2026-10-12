@@ -10,6 +10,7 @@ one container (port **2930**) plus a database. The user-facing text is **German*
 ./scripts/redeploy.ps1 -Fresh     # the same with empty volumes (setup page again)
 dotnet build KommasKorrektus.slnx  # build locally BEFORE a redeploy: a compile error otherwise shows up as "docker compose failed"
 dotnet test KommasKorrektus.slnx   # unit tests; integration tests need KOMMASKORREKTUS_TEST_DB (and KOMMASKORREKTUS_TEST_SMB), see README
+node tests/js/textdiff.test.mjs     # the comparison the editor makes in the browser (wwwroot/js/textdiff.js), no dependencies
 ```
 
 Test and look at changes by **rebuilding the container and redeploying the stack**, not with a watcher. Do not pipe
@@ -61,6 +62,7 @@ before driving the app.
   kept in `IMemoryCache`); a stylesheet that is not in the cache any more is a 404, so the page that links it must be fresh. `white-space: pre-wrap` sits on `.kk-sheet`, not on `.kk-lp`:
   otherwise Chrome adds style attributes (blocked, with a console error) when it joins paragraphs. Joining paragraphs of a different look still makes it *try* inline styles; the
   policy blocks them and the moved text takes the look of the paragraph it joins, which is what the export does
+- **Earlier version beside the text** (`js/editor.js` `refreshReference`, `js/textdiff.js`): the pane is the plain page of the old version (`OnGetReferenceAsync`, loaded again only when the versions change); what differs is **not** computed on the server but in the browser on every change of the text (paragraphs: Myers + pairing by similarity, words: Myers), marked with `CSS.highlights` (`kk-removed` / `kk-added`, nothing is put into the text) and the classes `kk-gone` / `kk-new`. The lining up is a spacer `.kk-aligner` on the old side and rules of a constructable stylesheet for the text side (margins keyed by `data-n`): the text is the field that is written in, so its DOM is never touched
 - Page view, editing: native undo only works if the DOM is not rewritten behind the browser's back: list numbers that end up in the middle of a paragraph are hidden by a class,
   not removed. Formatting commands (`beforeinput` `format*`) are refused on purpose
 - **Rounds** (ping pong with the customer): a file the customer sends back is a version of its own (`VersionOrigin.Upload`, `DocumentVersion.SourceFileId`). The formatting of the page and of the Word export is not always the original: `DocumentService.RoundOfAsync` gives the file of the round a version belongs to (the latest version at or before it that came from a file), `RoundStartAsync` its number; the export without a starting version starts there

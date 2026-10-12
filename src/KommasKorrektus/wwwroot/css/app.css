@@ -113,6 +113,12 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-editor__reference-body .kk-desk { border: 0; border-radius: 0; background: transparent; }
 .kk-editor__reference-empty { padding: var(--mat-space-4); }
 .kk-aligner { pointer-events: none; }
+/* what differs, drawn while it is written: the words that are not there any more on the earlier page, the words that are new in the text (the highlights of the page,
+   nothing is put into the text), and the paragraphs that are taken away or new as a whole */
+::highlight(kk-removed) { background-color: #fde0e0; color: #a4161a; text-decoration: line-through; }
+::highlight(kk-added) { background-color: #d6f3dc; color: #0e5a24; }
+.kk-sheet .kk-lp.kk-gone { background-color: #fdeeee; color: #7a1a1d; text-decoration: line-through; text-decoration-color: #a4161a; }
+.kk-sheet .kk-lp.kk-new { background-color: #ecf9ef; }
 .kk-refbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-2) var(--mat-space-3); padding-top: var(--mat-space-3); border-top: 1px solid var(--mat-border); }
 .kk-refbar__label { font-size: var(--mat-fs-sm); font-weight: 600; }
 .kk-refbar .mat-select { width: auto; min-width: 14rem; max-width: 100%; }
