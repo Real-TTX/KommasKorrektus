@@ -502,22 +502,30 @@
     statusElement.textContent = text;
   }
 
+  var autosaves = data.autosaveSeconds > 0;
+  function dirtyText() { return autosaves ? 'Wird automatisch gespeichert …' : 'Nicht gespeichert'; }
+
+  // Saving goes into the version being worked on, so it can be done often: a few seconds after the last keystroke, and at the latest
+  // every few seconds' worth more while somebody types without a pause.
   function markDirty() {
     dirty = true;
-    setStatus('dirty', 'Nicht gespeichert');
-    if (data.autosaveSeconds > 0) {
+    setStatus('dirty', dirtyText());
+    if (autosaves) {
       clearTimeout(saveTimer);
       saveTimer = setTimeout(function () { save('auto'); }, data.autosaveSeconds * 1000);
-      if (!maxTimer) { maxTimer = setTimeout(function () { save('auto'); }, Math.max(60, data.autosaveSeconds * 4) * 1000); }
+      if (!maxTimer) { maxTimer = setTimeout(function () { save('auto'); }, Math.max(10, data.autosaveSeconds * 5) * 1000); }
     }
   }
 
-  function post(handler, body) {
+  // keepalive lets a save that is sent while the page is closing finish (the browser allows 64 KB for it).
+  function post(handler, body, keepalive) {
+    var json = JSON.stringify(body);
     return fetch(location.pathname + '?id=' + data.documentId + '&handler=' + handler, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': token },
       credentials: 'same-origin',
-      body: JSON.stringify(body)
+      keepalive: !!keepalive && json.length < 60000,
+      body: json
     }).then(function (response) {
       if (!response.ok) { throw new Error('HTTP ' + response.status); }
       return response.json();
@@ -542,7 +550,7 @@
     return post('Save', {
       text: text, kind: kind, label: o.label || null, comment: o.comment || null,
       activeSeconds: takeActive(), keystrokes: takeKeys(), baseVersion: baseVersion, force: !!o.force
-    }).then(function (result) {
+    }, o.leaving).then(function (result) {
       saving = false;
       if (result.conflict) {
         setStatus('error', 'Konflikt: neuere Fassung von jemand anderem');
@@ -556,7 +564,7 @@
       session.added += result.added; session.removed += result.removed; session.replaced += result.replaced;
       showSession();
       var word = stateWord(result.state);
-      setStatus(dirty ? 'dirty' : 'saved', dirty ? 'Nicht gespeichert' : 'Gespeichert um ' + result.savedAt + ' (Fassung ' + result.versionNo + (word ? ', ' + word : '') + ')');
+      setStatus(dirty ? 'dirty' : 'saved', dirty ? dirtyText() : (kind === 'auto' ? 'Automatisch gespeichert um ' : 'Gespeichert um ') + result.savedAt + ' (Fassung ' + result.versionNo + (word ? ', ' + word : '') + ')');
       if (kind === 'close') { toast('Fassung ' + result.versionNo + ' ist abgeschlossen. Die nächste Änderung beginnt Fassung ' + (result.versionNo + 1) + '.'); }
       else if (kind === 'manual') { toast('Gespeichert. Das bleibt Fassung ' + result.versionNo + (word ? ' (' + word + ')' : '') + '.'); }
       var versionLabel = document.getElementById('editor-version');
@@ -569,6 +577,8 @@
       if (kind !== 'auto') { toast('Speichern fehlgeschlagen. Der Text bleibt in diesem Fenster.', 'error'); }
       // Time that was not reported goes into the next report.
       activeSeconds += lostActive; keys += lostKeys;
+      // A save that did not get through (the connection was gone for a moment) is tried again; the text stays here meanwhile.
+      if (autosaves) { clearTimeout(saveTimer); saveTimer = setTimeout(function () { save('auto'); }, 10000); }
       return null;
     }).then(function (result) {
       if (pendingKind) { var next = pendingKind, nextOptions = pendingOptions; pendingKind = null; pendingOptions = null; return save(next, nextOptions); }
@@ -851,8 +861,12 @@
     if (dirty) { event.preventDefault(); event.returnValue = ''; }
   });
 
+  // Switching to another tab or leaving the page: what is not saved yet goes out now, and may finish while the page closes.
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'hidden' && dirty) { save('auto'); }
+    if (document.visibilityState === 'hidden' && dirty) { save('auto', { leaving: true }); }
+  });
+  window.addEventListener('pagehide', function () {
+    if (dirty) { save('auto', { leaving: true }); }
   });
 
   // ================================================================================================ start
