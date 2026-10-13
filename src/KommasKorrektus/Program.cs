@@ -83,6 +83,7 @@ builder.Services.AddScoped<BackupService>();
 builder.Services.AddHostedService<BackupScheduler>();
 builder.Services.AddHostedService<MaintenanceService>();
 builder.Services.AddScoped<TimeTrackingService>();
+builder.Services.AddScoped<SystemService>();
 builder.Services.AddScoped<NavCounts>();
 builder.Services.AddScoped<ShellFactory>();
 

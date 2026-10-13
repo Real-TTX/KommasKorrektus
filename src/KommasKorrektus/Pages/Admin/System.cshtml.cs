@@ -1,17 +1,15 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using KommasKorrektus.Configuration;
-using KommasKorrektus.Data;
 using KommasKorrektus.Services;
 using KommasKorrektus.Services.Backup;
 using KommasKorrektus.UiKit;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace KommasKorrektus.Pages.Admin;
 
 /// <summary>What the installation is made of and how it is doing: version, runtime, data volume, database, and the tables that are cleaned up by the maintenance.</summary>
-public sealed class SystemModel(KkDbContext db, ConfigStore config, TimeProvider clock, ActivityLogger log) : PageModelBase
+public sealed class SystemModel(SystemService system, ConfigStore config, ActivityLogger log) : PageModelBase
 {
     public sealed record Folder(string Name, string Hint, long Bytes, int Files);
 
@@ -50,33 +48,10 @@ public sealed class SystemModel(KkDbContext db, ConfigStore config, TimeProvider
         Head("System", "Version, Speicher und Datenbank.", ("Verwaltung", null), ("System", null));
         var ct = HttpContext.RequestAborted;
 
-        var connection = db.Database.GetDbConnection();
-        await connection.OpenAsync(ct);
-        try
-        {
-            await using var version = connection.CreateCommand();
-            version.CommandText = "SELECT version()";
-            DatabaseVersion = System.Text.RegularExpressions.Regex.Match((string?)await version.ExecuteScalarAsync(ct) ?? "", @"^PostgreSQL [\d.]+").Value;
-            await using var size = connection.CreateCommand();
-            size.CommandText = "SELECT pg_database_size(current_database())";
-            DatabaseBytes = Convert.ToInt64(await size.ExecuteScalarAsync(ct));
-        }
-        finally
-        {
-            await connection.CloseAsync();
-        }
-
-        Counts = new Dictionary<string, int>
-        {
-            ["Benutzer"] = await db.User.CountAsync(ct),
-            ["Kunden"] = await db.Customer.CountAsync(ct),
-            ["Projekte"] = await db.Project.CountAsync(ct),
-            ["Dokumente"] = await db.Document.CountAsync(ct),
-            ["Fassungen"] = await db.DocumentVersion.CountAsync(ct),
-            ["Rechnungen und Angebote"] = await db.Invoice.CountAsync(ct),
-            ["Dateien"] = await db.StoredFile.CountAsync(ct),
-            ["Freigabe-Links"] = await db.ShareLink.CountAsync(ct),
-        };
+        var database = await system.GetDatabaseAsync(ct);
+        DatabaseVersion = database.Version;
+        DatabaseBytes = database.Bytes;
+        Counts = await system.CountRowsAsync(ct);
 
         Folders =
         [
@@ -91,7 +66,7 @@ public sealed class SystemModel(KkDbContext db, ConfigStore config, TimeProvider
     /// <summary>Removes old sessions, used codes and old logs now (the maintenance does the same once a day).</summary>
     public async Task<IActionResult> OnPostMaintainAsync()
     {
-        var result = await MaintenanceService.RunAsync(db, clock, HttpContext.RequestAborted);
+        var result = await system.MaintainAsync(HttpContext.RequestAborted);
         await log.LogAsync("Aufräumen", "System", null, $"{result.Total} Einträge entfernt");
         Flash(result.Total == 0 ? "Es gab nichts aufzuräumen." : $"{Ui.Plural(result.Total, "alter Eintrag", "alte Einträge")} entfernt.");
         return RedirectToPage();
