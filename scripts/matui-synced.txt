@@ -1,0 +1,3 @@
+MatUi 0.1.0 (hash 22013355f3, build local-20261013)
+commit of MatDesign: 6b15ee19a7a148b4a193268da451a656434f0356
+synced: 2026-10-14

@@ -1,33 +1,55 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Copies the MatUi toolkit (CSS, script, icon sprite) from the sibling repository MatDesign into src/KommasKorrektus/wwwroot/ui.
+    Copies the MatUi toolkit (CSS, scripts, icon sprite, changelog, manifest) from a MatDesign archive into src/KommasKorrektus/wwwroot/ui.
 .DESCRIPTION
-    Apps copy MatUi, they never load it from another site (rule CODE-03). The ten CSS parts are bundled into one matui.css in the
-    order MatDesign serves them. Run it when MatDesign publishes a new toolkit version and commit the result.
-.PARAMETER Source
-    The MatDesign repository (default: the sibling directory MatDesign).
+    Apps copy MatUi, they never load it from another site (rule CODE-03), and the toolkit has a version of its own (MatDesign docs/VERSIONING.md): the files of one
+    version belong together, so all of them are copied, never a few. The archive is what MatDesign serves at /ui/matui.zip (the toolkit as it is now) or a release of the
+    Studio (/releases/<version>/matui-<version>.zip). The files are checked against the SHA-256 in matui.manifest.json that came with the archive; kk-icons.svg is ours and stays.
+    What was copied is written to scripts/matui-synced.txt (version, hash, the commit of MatDesign when it is known), which check-matui.ps1 compares with the news of MatDesign.
+    Read the changelog (wwwroot/ui/CHANGELOG.md) from the old version to the new one before committing: a Breaking section says what the app has to change.
+.PARAMETER Archive
+    The address or the path of matui.zip (default: the MatDesign of this PC, http://localhost:8060/ui/matui.zip).
+.PARAMETER Commit
+    The commit of the MatDesign repository the archive was made from, when known; it is only written down.
 #>
 param(
-    [string]$Source = (Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'MatDesign')
+    [string]$Archive = 'http://localhost:8060/ui/matui.zip',
+    [string]$Commit = ''
 )
 
 $ErrorActionPreference = 'Stop'
-$ui = Join-Path $Source 'src/MatUi/wwwroot'
-if (-not (Test-Path $ui)) { throw "MatUi not found at $ui" }
+$root = Split-Path -Parent $PSScriptRoot
+$target = Join-Path $root 'src/KommasKorrektus/wwwroot/ui'
+$work = Join-Path ([IO.Path]::GetTempPath()) ('matui-' + [guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Force $work | Out-Null
 
-$target = Join-Path (Split-Path -Parent $PSScriptRoot) 'src/KommasKorrektus/wwwroot/ui'
-New-Item -ItemType Directory -Force $target | Out-Null
+try {
+    $zip = Join-Path $work 'matui.zip'
+    if ($Archive -match '^https?://') { Invoke-WebRequest $Archive -OutFile $zip -UseBasicParsing } else { Copy-Item $Archive $zip }
+    Expand-Archive $zip (Join-Path $work 'x')
+    $folder = Get-ChildItem (Join-Path $work 'x') -Directory | Select-Object -First 1
+    if (-not $folder) { throw "No folder in $Archive" }
 
-$parts = 'matui.tokens.css', 'matui.base.css', 'matui.shell.css', 'matui.controls.css', 'matui.forms.css', 'matui.pickers.css', 'matui.lists.css', 'matui.dialogs.css', 'matui.layout.css', 'matui.apps.css'
-$css = foreach ($p in $parts) { [IO.File]::ReadAllText((Join-Path $ui "css/$p")) }
-$header = "/* MatUi - bundled from $($parts -join ', ') (copied from MatDesign by scripts/sync-matui.ps1) */`n"
-$text = ($header + ($css -join "`n")) -replace "`r`n", "`n"
-[IO.File]::WriteAllText((Join-Path $target 'matui.css'), $text, (New-Object Text.UTF8Encoding($false)))
+    $manifestPath = Join-Path $folder.FullName 'matui.manifest.json'
+    if (-not (Test-Path $manifestPath)) { throw 'The archive has no matui.manifest.json: it is not a MatUi archive of a version that is numbered.' }
+    $manifest = Get-Content $manifestPath -Raw | ConvertFrom-Json
 
-foreach ($f in @(@('js/matui.js', 'matui.js'), @('js/matui.boot.js', 'matui.boot.js'), @('img/matui-icons.svg', 'matui-icons.svg'))) {
-    $content = ([IO.File]::ReadAllText((Join-Path $ui $f[0]))) -replace "`r`n", "`n"
-    [IO.File]::WriteAllText((Join-Path $target $f[1]), $content, (New-Object Text.UTF8Encoding($false)))
+    # the files as they came must be the files the manifest names
+    foreach ($f in $manifest.files) {
+        $hash = (Get-FileHash (Join-Path $folder.FullName $f.name) -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($hash -ne $f.sha256) { throw "$($f.name) does not match the manifest (SHA-256): the archive is damaged or was changed." }
+    }
+
+    # everything the archive holds (the bundle, the script, the sprite, the parts of the CSS, the changelog, the manifest): the files of one version belong together
+    New-Item -ItemType Directory -Force $target | Out-Null
+    Copy-Item (Join-Path $folder.FullName '*') $target -Recurse -Force
+
+    $note = "MatUi $($manifest.version) (hash $($manifest.hash), build $($manifest.build))`ncommit of MatDesign: $(if ($Commit) { $Commit } else { 'not given' })`nsynced: $(Get-Date -Format 'yyyy-MM-dd')`n"
+    [IO.File]::WriteAllText((Join-Path $PSScriptRoot 'matui-synced.txt'), $note, (New-Object Text.UTF8Encoding($false)))
+    Write-Host "MatUi $($manifest.version) ($($manifest.hash)) copied to $target" -ForegroundColor Green
+    Write-Host 'Next: read wwwroot/ui/CHANGELOG.md for what the update takes with it, build, redeploy, look at the pages.'
 }
-
-Write-Host "MatUi copied to $target" -ForegroundColor Green
+finally {
+    Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+}

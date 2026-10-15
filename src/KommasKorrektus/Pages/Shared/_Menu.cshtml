@@ -1,8 +1,8 @@
 @using Microsoft.AspNetCore.Html
 @model (ShellModel Shell, string? Active)
 @*
-    The menu of the shell: the switcher under the logo (only with more than one menu) and a panel of items per menu; only the menu that has the current
-    page is shown. Items: an icon and a label, the current one marked; a badge at the right end; a parent opens its children.
+    The menu of the shell: a panel of items per menu; only the menu that has the current page is shown. Items: an icon and a label, the current one marked; a badge
+    at the right end; a parent opens its children. The switcher between the menus (only with more than one) is at the foot, above the user: _Layout draws it.
 *@
 @{
     var shell = Model.Shell;
@@ -15,18 +15,6 @@
         var label = string.IsNullOrEmpty(badge.Label) ? string.Empty : (badge.IsDot ? badge.Label : " " + badge.Label);
         return new HtmlString($"<span class=\"{badge.Classes(sum)}\">{System.Net.WebUtility.HtmlEncode(text)}" + (label.Length == 0 ? string.Empty : $"<span class=\"mat-sr-only\">{System.Net.WebUtility.HtmlEncode(label)}</span>") + "</span>");
     }
-}
-
-@if (shell.HasSwitcher)
-{
-    <div class="mat-nav__switch">
-        <button type="button" class="mat-switcher" data-menu-toggle="nav-switch-menu" data-menu-place="bottom" aria-haspopup="menu" aria-expanded="false">
-            <span class="mat-switcher__icon">@Ui.Icon(current.Icon)</span>
-            <span class="mat-switcher__text"><small>Menü</small><span class="mat-switcher__name">@current.Title</span></span>
-            @Ui.Icon("chevron-down", "mat-switcher__chev")
-            <span class="mat-switcher__dot" hidden="@(!shell.Menus.Any(m => m != current && m.NeedsAttention))"></span>
-        </button>
-    </div>
 }
 
 @foreach (var menu in shell.Menus)

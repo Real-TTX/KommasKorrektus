@@ -36,6 +36,10 @@
             <partial name="_Menu" model="(shell, active)" />
 
             <div class="mat-nav__foot">
+                @if (shell.HasSwitcher)
+                {
+                    <partial name="_MenuSwitcher" model="(shell, active)" />
+                }
                 <div class="mat-nav__account">
                     <button type="button" class="mat-user" data-menu-toggle="user-menu" aria-haspopup="menu" aria-expanded="false">
                         <span class="mat-avatar" aria-hidden="true">@Ui.Initials(shell.UserName)</span>
