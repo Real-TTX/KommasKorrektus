@@ -335,7 +335,23 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
         return (diff, DocumentDiff.Stats(diff));
     }
 
-    public async Task<ExportResult> ExportAsync(Document document, int fromNo, int toNo, ExportFormat format, string author, CancellationToken ct = default)
+    /// <summary>
+    /// What the editor wrote to the author in this document, for the Word file: the open remarks of the staff (not those that are ticked off, not those of clients and visitors, not
+    /// those that came with an imported file: the Word file keeps its own comments), as comments of Word on the words they are about.
+    /// </summary>
+    public async Task<IReadOnlyList<DocxComment>> CommentsForExportAsync(Document document, string author, CancellationToken ct = default)
+    {
+        var rows = await (from c in db.DocumentComment.AsNoTracking()
+                          where c.DocumentId == document.Id && !c.IsResolved && c.Source == null && c.ShareLinkId == null
+                          join u in db.User.IgnoreQueryFilters().AsNoTracking() on c.AuthorUserId equals u.Id
+                          where u.Role != UserRole.Client
+                          orderby c.ParagraphIndex, c.CreateDate, c.Id
+                          select new { c.ParagraphIndex, c.Quote, c.Text, c.AuthorName, c.CreateDate }).ToListAsync(ct);
+        return [.. rows.Select(r => new DocxComment(r.ParagraphIndex, r.Quote, r.Text, string.IsNullOrWhiteSpace(r.AuthorName) ? author : r.AuthorName, DateTime.SpecifyKind(r.CreateDate, DateTimeKind.Utc)))];
+    }
+
+    /// <param name="withComments">The remarks of the editor go into the Word file with changes as comments (only the editor's own export asks for it: what the portal and a share link give out is not the notes of the editor).</param>
+    public async Task<ExportResult> ExportAsync(Document document, int fromNo, int toNo, ExportFormat format, string author, CancellationToken ct = default, bool withComments = false)
     {
         var from = await GetVersionAsync(document.Id, fromNo, ct) ?? throw new InvalidOperationException("Die Ausgangsfassung gibt es nicht.");
         var to = fromNo == toNo ? from : await GetVersionAsync(document.Id, toNo, ct) ?? throw new InvalidOperationException("Die Zielfassung gibt es nicht.");
@@ -352,7 +368,8 @@ public sealed class DocumentService(KkDbContext db, FileStoreService files, Conf
             case ExportFormat.DocxClean:
                 var baseDocx = await BaseDocxAsync(document, fromNo, toNo, oldParagraphs, ct);
                 var mode = format == ExportFormat.DocxTracked ? RevisionMode.Tracked : RevisionMode.Accepted;
-                var docx = DocxWriter.Write(baseDocx, oldParagraphs, newParagraphs, mode, author, date);
+                var comments = withComments && format == ExportFormat.DocxTracked ? await CommentsForExportAsync(document, author, ct) : null;
+                var docx = DocxWriter.Write(baseDocx, oldParagraphs, newParagraphs, mode, author, date, comments);
                 var suffix = format == ExportFormat.DocxTracked ? "mit Änderungen" : "bereinigt";
                 return new ExportResult(docx, $"{stem} ({suffix}).docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
 

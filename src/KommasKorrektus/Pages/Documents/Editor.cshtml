@@ -17,7 +17,7 @@
         <div class="kk-editor__head">
             <div class="kk-editor__title">
                 <h1>@d.Title</h1>
-                <p class="mat-muted"><a href="/Projects/Details?id=@d.ProjectId&tab=documents">@d.Project!.Title</a> · <span id="editor-version">Fassung @Model.Version.VersionNo · @Model.VersionTitle@(Model.Version.Origin switch { VersionOrigin.Working => " · in Arbeit", VersionOrigin.Manual => " · abgeschlossen", _ => "" })</span> · <span id="editor-words">0</span> Wörter</p>
+                <p class="mat-muted"><a href="/Projects/Details?id=@d.ProjectId&tab=documents">@d.Project!.Title</a> · <span id="editor-version">Fassung @Model.Version.VersionNo · @Model.VersionTitle@(Model.Version.Origin switch { VersionOrigin.Working => " · in Arbeit", VersionOrigin.Manual => " · abgeschlossen", _ => "" })</span> · <span id="editor-words">0</span> Wörter · <span id="editor-norm">0,0</span> Normseiten</p>
             </div>
             <div class="kk-editor__state">
                 <span id="editor-status" class="kk-editor__status is-saved" aria-live="polite" role="status">Geöffnet</span>
@@ -40,16 +40,29 @@
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-undo" aria-label="Rückgängig (Strg+Z)" data-tip="Rückgängig" disabled>@Ui.Icon("undo")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-redo" aria-label="Wiederholen (Strg+Y)" data-tip="Wiederholen" disabled>@Ui.Icon("redo")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-find" aria-pressed="false" aria-label="Suchen und ersetzen (Strg+H)" data-tip="Suchen und ersetzen (Strg+H)">@Ui.Icon("search")</button>
-            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-side-toggle" aria-pressed="false" aria-label="Kommentare und Stilblatt (Alt+L)" data-tip="Kommentare und Stilblatt (Alt+L)">@Ui.Icon("message-square")<span class="mat-badge mat-badge--soft" id="comment-count">0</span></button>
+            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-side-toggle" aria-pressed="false" aria-label="Kommentare und Stilblatt (Alt+L)" data-tip="Kommentare und Stilblatt (Alt+L)"><span class="mat-indicator">@Ui.Icon("message-square")<span class="mat-badge mat-badge--soft" id="comment-count" hidden>0</span></span></button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-export" data-menu-toggle="editor-export-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Exportieren (Alt+X)" data-tip="Exportieren (Alt+X)">@Ui.Icon("download")</button>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon" id="editor-more" data-menu-toggle="editor-more-menu" aria-haspopup="menu" aria-expanded="false" aria-label="Mehr" data-tip="Mehr">@Ui.Icon("more-vertical")</button>
         </div>
 
+        @* The changes since an earlier version, as in Word's review: how they are marked in the text (all, only a bar, none), the way from one to the next, what they are
+           measured against, and the page of the earlier version beside the text. Page view only. *@
         <div class="kk-refbar" id="editor-refbar" hidden>
-            <label class="kk-refbar__label" for="reference-from">Frühere Fassung daneben</label>
+            <div class="kk-chctl" id="editor-chctl" role="group" aria-label="Änderungen im Text">
+                <span class="kk-refbar__label" id="markup-label">Änderungen</span>
+                <div class="mat-seg" role="group" aria-labelledby="markup-label">
+                    <button type="button" class="mat-seg__btn" data-markup="all" aria-pressed="true" data-tip="Alle Änderungen im Text markieren (Alt+M)">@Ui.Icon("eye")<span>Alle</span></button>
+                    <button type="button" class="mat-seg__btn" data-markup="simple" aria-pressed="false" data-tip="Nur ein Balken am Rand, wo sich etwas geändert hat (Alt+M)"><span>Einfach</span></button>
+                    <button type="button" class="mat-seg__btn" data-markup="off" aria-pressed="false" data-tip="Der Text ohne Markierung (Alt+M)"><span>Aus</span></button>
+                </div>
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" id="changes-prev" aria-label="Vorige Änderung (Alt+P)" data-tip="Vorige Änderung (Alt+P)">@Ui.Icon("arrow-up")</button>
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--sm kk-chctl__count" id="changes-count" aria-label="Die Änderungen auflisten" data-tip="Die Änderungen auflisten">0</button>
+                <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" id="changes-next" aria-label="Nächste Änderung (Alt+N)" data-tip="Nächste Änderung (Alt+N)">@Ui.Icon("arrow-down")</button>
+            </div>
+            <label class="kk-refbar__label" for="reference-from">gegenüber</label>
             <select class="mat-select mat-select--sm" id="reference-from"></select>
+            <label class="mat-switch kk-refbar__pane" data-tip="Die Seite der früheren Fassung neben den Text legen (Alt+R)"><input type="checkbox" id="reference-pane" /><span class="mat-switch__track"></span><span>Frühere Fassung daneben</span></label>
             <span class="mat-hint" id="reference-note" aria-live="polite"></span>
-            <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm kk-refbar__close" id="reference-close" aria-label="Schließen" data-tip="Schließen">@Ui.Icon("x")</button>
         </div>
 
         <div class="kk-find" id="editor-find-bar" role="search" aria-label="Suchen und ersetzen" hidden>
@@ -66,6 +79,7 @@
             <div class="kk-find__options">
                 <label class="mat-check"><input type="checkbox" id="replace-case" /><span class="mat-check__text">Groß/klein</span></label>
                 <label class="mat-check"><input type="checkbox" id="replace-whole" /><span class="mat-check__text">Ganze Wörter</span></label>
+                <label class="mat-check" data-tip="Ein regulärer Ausdruck statt der Worte: (\w+) ,(\w+) wird mit $1, $2 ersetzt. Im Ersetzungstext stehen $1 bis $9 für die Gruppen."><input type="checkbox" id="replace-regex" /><span class="mat-check__text">Regulärer Ausdruck</span></label>
                 <span class="mat-hint" id="replace-info" aria-live="polite"></span>
             </div>
             <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm kk-find__close" id="replace-close" aria-label="Suche schließen (Esc)" data-tip="Schließen (Esc)">@Ui.Icon("x")</button>
@@ -74,7 +88,7 @@
 
     @* What the export makes is the saved text: a click saves first (editor.js), then the file comes. *@
     <div class="mat-menu" id="editor-export-menu" role="menu" aria-label="Exportieren" hidden>
-        <a class="mat-menu__item" role="menuitem" data-export href="/Documents/Export?id=@d.Id&format=@nameof(ExportFormat.DocxTracked)">@Ui.Icon("download")<span>Word mit Änderungen</span></a>
+        <a class="mat-menu__item" role="menuitem" data-export href="/Documents/Export?id=@d.Id&format=@nameof(ExportFormat.DocxTracked)">@Ui.Icon("download")<span>Word mit Änderungen und Kommentaren</span></a>
         <a class="mat-menu__item" role="menuitem" data-export href="/Documents/Export?id=@d.Id&format=@nameof(ExportFormat.DocxClean)">@Ui.Icon("download")<span>Word bereinigt</span></a>
         <a class="mat-menu__item" role="menuitem" data-export href="/Documents/Export?id=@d.Id&format=@nameof(ExportFormat.PdfChanges)">@Ui.Icon("download")<span>PDF mit Änderungen</span></a>
         <a class="mat-menu__item" role="menuitem" data-export href="/Documents/Export?id=@d.Id&format=@nameof(ExportFormat.PdfClean)">@Ui.Icon("download")<span>PDF bereinigt</span></a>
@@ -91,6 +105,8 @@
             <button type="button" class="mat-menu__item" role="menuitem" id="editor-original" aria-pressed="false">@Ui.Icon("eye")<span>Das Original-PDF daneben zeigen</span></button>
         }
         <button type="button" class="mat-menu__item kk-editor__wide" role="menuitemcheckbox" id="editor-reference-toggle" aria-pressed="false">@Ui.Icon("columns")<span>Frühere Fassung daneben (Alt+R)</span></button>
+        <button type="button" class="mat-menu__item" role="menuitem" id="editor-markup-menu">@Ui.Icon("eye")<span>Änderungen im Text: alle / Balken / aus (Alt+M)</span></button>
+        <button type="button" class="mat-menu__item" role="menuitem" id="editor-check-menu">@Ui.Icon("check-circle")<span>Text prüfen: Typografie und Namen (Alt+T)</span></button>
         <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-zoom-in-menu">@Ui.Icon("plus")<span>Schrift größer</span></button>
         <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-zoom-out-menu">@Ui.Icon("minus")<span>Schrift kleiner</span></button>
         <button type="button" class="mat-menu__item kk-editor__phone" role="menuitem" id="editor-maximize-menu">@Ui.Icon("maximize-2")<span>Maximieren</span></button>
@@ -111,7 +127,22 @@
             </aside>
         }
         <div class="kk-editor__paper" id="paras" aria-label="Text des Dokuments"></div>
-        <aside class="kk-editor__side" id="editor-side" aria-label="Kommentare und Stilblatt" hidden>
+        <aside class="kk-editor__side" id="editor-side" aria-label="Änderungen, Kommentare und Stilblatt" hidden>
+            <section id="changes-section" hidden>
+                <h2>Änderungen <span class="mat-badge mat-badge--soft" id="changes-total">0</span></h2>
+                <p class="mat-hint" id="changes-summary"></p>
+                <ul class="kk-comments kk-changes" id="changes-list"></ul>
+            </section>
+            @* The check: typography and the names of the style sheet, found by rules (proofcheck.js), shown in the text, corrected with one click or all at once. *@
+            <section id="check-section">
+                <h2>Prüfung <span class="mat-badge mat-badge--soft" id="check-total">0</span></h2>
+                <p class="mat-hint" id="check-summary">Leerzeichen, Anführungszeichen, Gedankenstriche und die Namen des Stilblatts.</p>
+                <div class="kk-check__bar">
+                    <button type="button" class="mat-btn mat-btn--secondary mat-btn--sm" id="check-run">@Ui.Icon("check-circle")<span>Text prüfen</span></button>
+                    <button type="button" class="mat-btn mat-btn--ghost mat-btn--sm" id="check-clear" hidden>@Ui.Icon("x")<span>Schließen</span></button>
+                </div>
+                <div class="kk-check" id="check-list"></div>
+            </section>
             <section>
                 <h2>Kommentare</h2>
                 @* Ticked off is not gone: the comments that are done can be shown again (and opened again), the choice is kept with the account. *@
@@ -180,7 +211,10 @@
                     <dt><kbd>Alt</kbd> + <kbd>W</kbd></dt><dd>Zwischen Text und Seite wechseln</dd>
                     <dt><kbd>Alt</kbd> + <kbd>X</kbd></dt><dd>Exportieren (Word, PDF, Text)</dd>
                     <dt><kbd>Alt</kbd> + <kbd>S</kbd></dt><dd>Das markierte Wort ins Stilblatt des Projekts eintragen</dd>
-                    <dt><kbd>Alt</kbd> + <kbd>R</kbd></dt><dd>Die frühere Fassung mit den Änderungen daneben zeigen (Änderungsmodus)</dd>
+                    <dt><kbd>Alt</kbd> + <kbd>M</kbd></dt><dd>Änderungen im Text: alle, nur ein Balken, aus</dd>
+                    <dt><kbd>Alt</kbd> + <kbd>N</kbd> / <kbd>P</kbd></dt><dd>Nächste / vorige Änderung</dd>
+                    <dt><kbd>Alt</kbd> + <kbd>T</kbd></dt><dd>Den Text prüfen: Leerzeichen, Anführungszeichen, Striche, Namen des Stilblatts</dd>
+                    <dt><kbd>Alt</kbd> + <kbd>R</kbd></dt><dd>Die Seite der früheren Fassung daneben zeigen</dd>
                     <dt><kbd>Alt</kbd> + <kbd>+</kbd> / <kbd>−</kbd> / <kbd>0</kbd></dt><dd>Schrift größer / kleiner / zurück auf 100 %</dd>
                     <dt><kbd>Alt</kbd> + <kbd>V</kbd></dt><dd>Maximieren: im Browserfenster groß, Menü, Kopfzeile und Fußzeile weg (<kbd>Esc</kbd> beendet es)</dd>
                     <dt><kbd>Alt</kbd> + <kbd>B</kbd></dt><dd>Vollbild: der ganze Bildschirm (<kbd>Esc</kbd> beendet es)</dd>
@@ -207,4 +241,7 @@
     <script src="~/js/sidebyside.js" asp-append-version="true"></script>
     <script src="~/js/editor.js" asp-append-version="true"></script>
     <script src="~/js/editor-page.js" asp-append-version="true"></script>
+    <script src="~/js/editor-changes.js" asp-append-version="true"></script>
+    <script src="~/js/proofcheck.js" asp-append-version="true"></script>
+    <script src="~/js/editor-check.js" asp-append-version="true"></script>
 }

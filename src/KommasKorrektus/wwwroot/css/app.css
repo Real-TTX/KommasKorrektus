@@ -76,8 +76,17 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
    them. Their tooltips open downwards and to the left: they are in the corner. */
 .kk-editor__size { position: absolute; top: var(--mat-space-3); right: var(--mat-space-4); display: flex; gap: var(--mat-space-1); }
 @media (min-width: 641px) { .kk-editor__head { padding-right: 5.5rem; min-height: var(--mat-control-h); } }
-.kk-editor__size [data-tip]::after { bottom: auto; top: calc(100% + 6px); left: auto; right: 0; transform: translateY(-2px); }
+/* A tooltip is above its button (the toolkit's way). Where there is no room above (the button is at the very top of the window: the bar of a maximized editor) app.js sets
+   data-tip-below on it, and it opens below. */
+[data-tip][data-tip-below]::after { bottom: auto; top: calc(100% + 6px); transform: translateX(-50%) translateY(-2px); }
+[data-tip][data-tip-below]:hover::after, [data-tip][data-tip-below]:focus-visible::after { transform: translateX(-50%); }
+/* the buttons in the corner of the editor card: the tooltip ends at the right edge of the button (it would stick out of the window otherwise) */
+.kk-editor__size [data-tip]::after { left: auto; right: 0; transform: translateY(2px); }
 .kk-editor__size [data-tip]:hover::after, .kk-editor__size [data-tip]:focus-visible::after { transform: none; }
+.kk-editor__size [data-tip][data-tip-below]::after { transform: translateY(-2px); }
+.kk-editor__size [data-tip][data-tip-below]:hover::after, .kk-editor__size [data-tip][data-tip-below]:focus-visible::after { transform: none; }
+/* the number of open comments is a badge at the corner of the icon (the toolkit's mat-indicator), smaller than the standard one so that the icon stays readable */
+#editor-side-toggle .mat-indicator > .mat-badge { top: -9px; right: -11px; min-width: 16px; height: 16px; padding: 0 4px; font-size: .65rem; }
 /* the size of the writing: smaller, the value (a click puts it back to 100 %), bigger */
 .kk-zoom { display: inline-flex; align-items: center; gap: 0; }
 .kk-zoom__value { min-width: 2.9rem; padding-inline: var(--mat-space-1); font-variant-numeric: tabular-nums; }
@@ -114,9 +123,14 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-editor.has-reference .kk-editor__paper { margin-inline: 0; max-width: none; }
 /* The earlier version stands in the flow of the page, not in a box of its own: the two columns scroll as one, and the script lines them up (paragraph beside paragraph). */
 .kk-editor__reference { border: 1px solid var(--mat-border); border-radius: var(--mat-radius-lg); overflow: hidden; background: var(--mat-surface-2); }
-.kk-editor__reference-body .kk-desk { border: 0; border-radius: 0; background: transparent; }
+/* the earlier page and the page that is written in are made alike, so that both sheets begin at the same height and are the same size: the same paddings around the desk */
+.kk-editor__reference-body { padding: var(--mat-space-3) var(--mat-space-2); }
+.kk-editor__reference-body .kk-desk { border: 0; border-radius: 0; background: transparent; padding: var(--mat-space-4) 0; }
 .kk-editor__reference-empty { padding: var(--mat-space-4); }
-.kk-aligner { pointer-events: none; }
+/* the numbers of the paragraphs, as on the earlier page (and on the pages of the comparison): the page that is written in has them too while the earlier one stands beside it */
+.kk-editor.has-reference .kk-sheet[contenteditable] .kk-lp[data-n] { position: relative; }
+.kk-editor.has-reference .kk-sheet[contenteditable] .kk-lp[data-n]::before { content: attr(data-n); position: absolute; right: calc(100% + .4rem); top: var(--kk-pt, 0); font: 10px/1.9 ui-monospace, Consolas, monospace; color: #9a9aa6; text-indent: 0; user-select: none; pointer-events: none; }
+.kk-editor.has-reference .kk-sheet[contenteditable] td .kk-lp::before { display: none; }
 /* what differs, drawn while it is written: the words that are not there any more on the earlier page, the words that are new in the text (the highlights of the page,
    nothing is put into the text), and the paragraphs that are taken away or new as a whole */
 ::highlight(kk-removed) { background-color: #fde0e0; color: #a4161a; text-decoration: line-through; }
@@ -131,11 +145,56 @@ del { background: var(--kk-del-bg); color: var(--kk-del-text); text-decoration: 
 .kk-refbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-2) var(--mat-space-3); padding-top: var(--mat-space-3); border-top: 1px solid var(--mat-border); }
 .kk-refbar__label { font-size: var(--mat-fs-sm); font-weight: 600; }
 .kk-refbar .mat-select { width: auto; min-width: 14rem; max-width: 100%; }
-.kk-refbar__close { margin-left: auto; }
+.kk-refbar__pane { min-height: 0; }
+.kk-refbar .mat-hint { flex: 1 1 14rem; min-width: 0; margin: 0; }
+/* the changes in the text: how they are marked (all, only the bars, none) and the way from one to the next */
+.kk-chctl { display: inline-flex; align-items: center; gap: 2px; }
+.kk-chctl .kk-refbar__label { margin-right: var(--mat-space-2); }
+.kk-chctl__count { min-width: 2rem; padding-inline: var(--mat-space-1); font-variant-numeric: tabular-nums; }
+/* a pin where words were taken away since the earlier version (a line across the page where a whole paragraph was): a hover or a click shows what stood there */
+.kk-pghosts { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.kk-pghost { position: absolute; width: 12px; margin: 0 0 0 -6px; padding: 0; border: 0; background: transparent; cursor: pointer; pointer-events: auto; }
+.kk-pghost::before { content: ""; position: absolute; left: 5px; top: 2px; bottom: 0; width: 2px; border-radius: 1px; background: #c62828; }
+.kk-pghost::after { content: ""; position: absolute; left: 2px; top: -2px; width: 8px; height: 8px; border-radius: 50%; background: #c62828; }
+.kk-pghost:hover::before, .kk-pghost:hover::after { background: #8e0000; }
+.kk-pghost--paragraph { margin-left: 0; }
+.kk-pghost--paragraph::before { left: 0; right: 0; top: 4px; bottom: auto; width: auto; height: 0; border-top: 2px dashed #c62828; border-radius: 0; background: none; }
+.kk-pghost--paragraph::after { display: none; }
+/* the card of a change: what stood there, what stands there now, the button that puts it back */
+.kk-chpop { position: fixed; z-index: 60; width: max-content; max-width: min(26rem, calc(100vw - 16px)); padding: var(--mat-space-3); background: var(--mat-surface); color: var(--mat-text); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-lg); box-shadow: var(--mat-shadow-3); font-size: var(--mat-fs-sm); }
+.kk-chpop__title { font-weight: 600; margin-bottom: var(--mat-space-2); }
+.kk-chpop__row { display: grid; grid-template-columns: 4rem minmax(0, 1fr); gap: var(--mat-space-2); align-items: baseline; margin-bottom: var(--mat-space-1); }
+.kk-chpop__row small { color: var(--mat-text-muted); }
+.kk-chpop__actions { display: flex; justify-content: flex-end; margin-top: var(--mat-space-2); }
+.kk-chpop del, .kk-change del { background: var(--mat-danger-bg); color: var(--mat-danger-text); text-decoration: line-through; border-radius: 2px; padding: 0 2px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.kk-chpop ins, .kk-change ins { background: var(--mat-success-bg); color: var(--mat-success-text); text-decoration: none; border-radius: 2px; padding: 0 2px; overflow-wrap: anywhere; white-space: pre-wrap; }
+/* the check (Alt+T): the places it found are marked in the text, and listed in the side panel by rule */
+::highlight(kk-check) { background-color: #fff1b8; text-decoration: underline wavy #d98f00; }
+.kk-sheet .kk-lp.kk-check-empty { background-color: #fff6d6; }
+.kk-check__bar { display: flex; flex-wrap: wrap; gap: var(--mat-space-2); margin-bottom: var(--mat-space-2); }
+.kk-check__group { margin-top: var(--mat-space-3); }
+.kk-check__head { display: flex; align-items: center; justify-content: space-between; gap: var(--mat-space-2); }
+.kk-check__head h3 { margin: 0; font-size: var(--mat-fs-md); }
+.kk-check__group > .mat-hint { margin: 0 0 var(--mat-space-1); }
+.kk-check__items { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--mat-space-1); }
+.kk-check__item { padding: var(--mat-space-2); border: 1px solid var(--mat-border); border-radius: var(--mat-radius); background: var(--mat-surface); cursor: pointer; font-size: var(--mat-fs-sm); }
+.kk-check__item:hover { border-color: var(--mat-border-strong); }
+.kk-check__context { overflow-wrap: anywhere; white-space: pre-wrap; }
+.kk-check__context mark { background: #fff1b8; color: inherit; border-radius: 2px; padding: 0 2px; margin: 0 .2em; }
+.kk-check__where { margin-right: var(--mat-space-1); font-variant-numeric: tabular-nums; }
+.kk-check__actions { display: flex; align-items: center; justify-content: space-between; gap: var(--mat-space-2); margin-top: var(--mat-space-1); }
+.kk-check__result ins { background: var(--mat-success-bg); color: var(--mat-success-text); text-decoration: none; border-radius: 2px; padding: 0 2px; }
+/* the list of the changes in the side panel */
+.kk-change { cursor: pointer; }
+.kk-change__text { margin: 0; overflow-wrap: anywhere; }
+.kk-change__kind { color: var(--mat-text-muted); }
+.kk-change__kind--gone { color: var(--mat-danger-text); }
+.kk-change__kind--new { color: var(--mat-success-text); }
+.kk-changes__all { margin-top: var(--mat-space-2); }
 /* what sticks beside the text stays below the bar: its height is told by the script (--kk-bar-h) */
 .kk-editor__original { position: sticky; top: calc(var(--mat-topbar-h) + var(--kk-bar-h, 8rem) + var(--mat-space-4)); height: calc(100vh - var(--mat-topbar-h) - var(--kk-bar-h, 8rem) - 2 * var(--mat-space-4)); border: 1px solid var(--mat-border); border-radius: var(--mat-radius-lg); overflow: hidden; background: var(--mat-surface); }
 .kk-editor__original iframe { width: 100%; height: 100%; border: 0; }
-.kk-editor__side { position: sticky; top: calc(var(--mat-topbar-h) + var(--kk-bar-h, 8rem) + var(--mat-space-4)); max-height: calc(100vh - var(--mat-topbar-h) - var(--kk-bar-h, 8rem) - 2 * var(--mat-space-4)); overflow-y: auto; }
+.kk-editor__side { position: sticky; top: calc(var(--mat-topbar-h) + var(--kk-bar-h, 8rem) + var(--mat-space-4)); max-height: calc(100vh - var(--mat-topbar-h) - var(--kk-bar-h, 8rem) - 2 * var(--mat-space-4)); overflow-y: auto; overflow-x: hidden; }
 .kk-editor__side h2 { font-size: var(--mat-fs-lg); margin: 0 0 var(--mat-space-2); }
 .kk-editor__side section { margin-bottom: var(--mat-space-5); }
 .kk-p { position: relative; display: flex; padding-left: 3rem; content-visibility: auto; contain-intrinsic-size: auto 3rem; }
@@ -257,7 +316,7 @@ a.kk-a { cursor: pointer; }
   /* A phone: the bar scrolls away with the page (the text needs the room), the buttons keep to two short rows, the long words become the short ones. */
   .kk-editor__bar { position: static; padding: var(--mat-space-3); }
   .kk-editor__title h1 { font-size: var(--mat-fs-lg); }
-  #editor-close, .kk-editor__size, .kk-zoom { display: none; }
+  #editor-close, .kk-editor__size, .kk-zoom, .kk-chctl { display: none; }
   .kk-editor__phone { display: flex; }
   .kk-editor__actions .mat-seg__btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .kk-editor__sep { display: none; }

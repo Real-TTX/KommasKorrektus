@@ -127,24 +127,25 @@ public sealed class PingPongTests : IClassFixture<AppFixture>
         await AppFixture.LoginAsync(client, "admin@example.test", "Admin-Passwort-2026");
         var export = await client.GetAsync($"/Documents/Export?id={document.Id}&format={nameof(ExportFormat.DocxTracked)}");
         Assert.Equal(HttpStatusCode.OK, export.StatusCode);
-        var xml = DocumentXml(await export.Content.ReadAsByteArrayAsync());
-        Assert.Contains("<w:ins ", xml);
-        Assert.Contains("dickste", xml);
-        Assert.DoesNotContain("dicker</w:t></w:r></w:ins>", xml);
+        var bytes = await export.Content.ReadAsByteArrayAsync();
+        Assert.Contains("<w:ins ", DocumentXml(bytes));
+        // (the change is marked letter by letter, dick[er][ste]: accepting it gives our text, rejecting it the customer's, which is where this round began)
+        Assert.Contains("dickste", string.Join('\n', Core.RevisionView.Accepted(bytes)));
+        Assert.Contains("dicker", string.Join('\n', Core.RevisionView.Rejected(bytes)));
 
         // and from the original on, both rounds are in it
         var all = await client.GetAsync($"/Documents/Export?id={document.Id}&from=1&format={nameof(ExportFormat.DocxTracked)}");
         Assert.Equal(HttpStatusCode.OK, all.StatusCode);
-        var allXml = DocumentXml(await all.Content.ReadAsByteArrayAsync());
-        Assert.Contains("fetter", allXml);
-        Assert.Contains("dickste", allXml);
-        Assert.Contains("Der Kunde ergänzt einen Satz.", allXml);
+        var allBytes = await all.Content.ReadAsByteArrayAsync();
+        Assert.Contains("fetter", string.Join('\n', Core.RevisionView.Rejected(allBytes)));
+        Assert.Contains("dickste", string.Join('\n', Core.RevisionView.Accepted(allBytes)));
+        Assert.Contains("Der Kunde ergänzt einen Satz.", DocumentXml(allBytes));
 
         // the page of the newest version is drawn in the formatting of the customer's file (it matched), and the comparison with the version before shows the change
         var page = await _app.WithScopeAsync(async sp => await sp.GetRequiredService<LayoutService>().ForChangesAsync(
             await sp.GetRequiredService<KkDbContext>().Document.AsNoTracking().FirstAsync(d => d.Id == document.Id), 3, 4));
         Assert.True(page.Formatted);
-        Assert.Contains("dickste", page.Html);
+        Assert.Contains("dickerste", System.Text.RegularExpressions.Regex.Replace(page.Html, "<[^>]+>", string.Empty));
         var compare = await AppFixture.TextAsync(client, $"/Documents/Compare?id={document.Id}&from=2&to=3&mode=page&changes=false");
         Assert.Contains("kk-sheet", compare);
         Assert.Contains("Der Kunde ergänzt einen Satz.", compare);

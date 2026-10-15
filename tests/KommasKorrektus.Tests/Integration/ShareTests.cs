@@ -56,8 +56,8 @@ public sealed class ShareTests : IClassFixture<AppFixture>
         using var visitor = _app.NewClient();
 
         var page = await AppFixture.TextAsync(visitor, $"/s/{link.Token}/document/{document.Id}?mode=changes");
-        Assert.Contains("<del>hate</del>", page);
-        Assert.Contains("<ins>hatte</ins>", page);
+        Assert.Contains("ha<ins>t</ins>te", page);
+        Assert.Contains("<ins>Der Rabe folgte ihr.</ins>", page);
 
         var docx = await visitor.GetAsync($"/s/{link.Token}/download/{document.Id}?format=DocxTracked");
         Assert.Equal(HttpStatusCode.OK, docx.StatusCode);

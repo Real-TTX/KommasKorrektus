@@ -53,7 +53,7 @@ public sealed class ShareToAccountTests : IClassFixture<AppFixture>
         // the account itself: the content, and the visit is written down with the account
         using var annaClient = await SignedInAsync("anna-konto@example.test", "Anna-Passwort-2026");
         var page = await AppFixture.TextAsync(annaClient, $"/s/{link.Token}/document/{document.Id}?mode=changes");
-        Assert.Contains("<ins>hatte</ins>", page);
+        Assert.Contains("ha<ins>t</ins>te", page);
         Assert.Equal(HttpStatusCode.OK, (await annaClient.GetAsync($"/s/{link.Token}/download/{document.Id}?format=DocxClean")).StatusCode);
         var visits = await _app.WithScopeAsync(sp => sp.GetRequiredService<KkDbContext>().ShareAccess.AsNoTracking().Where(a => a.ShareLinkId == link.Id).ToListAsync());
         Assert.Contains(visits, a => a.Action == ShareAction.View && a.UserId == anna.Id);
@@ -61,7 +61,7 @@ public sealed class ShareToAccountTests : IClassFixture<AppFixture>
 
         // the people of the house may look, and it is not counted as the visit of the account
         using var admin = await SignedInAsync("admin@example.test", "Admin-Passwort-2026");
-        Assert.Contains("<ins>hatte</ins>", await AppFixture.TextAsync(admin, $"/s/{link.Token}/document/{document.Id}?mode=changes"));
+        Assert.Contains("ha<ins>t</ins>te", await AppFixture.TextAsync(admin, $"/s/{link.Token}/document/{document.Id}?mode=changes"));
         var after = await _app.WithScopeAsync(sp => sp.GetRequiredService<KkDbContext>().ShareAccess.AsNoTracking().CountAsync(a => a.ShareLinkId == link.Id));
         Assert.Equal(visits.Count, after);
     }

@@ -8,7 +8,7 @@
     var previous = Model.Versions.Count > 1 ? Model.Versions[1].Version.VersionNo : 1;
     var formats = new List<SelectListItem>
     {
-        new("Word mit Änderungen (zum Annehmen in Word)", nameof(ExportFormat.DocxTracked)),
+        new("Word mit Änderungen und Kommentaren (zum Annehmen in Word)", nameof(ExportFormat.DocxTracked)),
         new("Word bereinigt (Änderungen übernommen)", nameof(ExportFormat.DocxClean)),
         new("PDF Korrekturfahne (gelöscht rot, neu grün)", nameof(ExportFormat.PdfChanges)),
         new("PDF alt und neu nebeneinander", nameof(ExportFormat.PdfSideBySide)),

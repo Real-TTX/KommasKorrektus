@@ -82,7 +82,7 @@ else
 <partial name="_Pager" model="Model.Pager" />
 
 <div class="mat-actions">
-    <a class="mat-btn mat-btn--primary" href="/Documents/Export?id=@d.Id&from=@Model.From&to=@Model.To&format=@nameof(ExportFormat.DocxTracked)">@Ui.Icon("download")<span>Word mit Änderungen</span></a>
+    <a class="mat-btn mat-btn--primary" href="/Documents/Export?id=@d.Id&from=@Model.From&to=@Model.To&format=@nameof(ExportFormat.DocxTracked)">@Ui.Icon("download")<span>Word mit Änderungen und Kommentaren</span></a>
     <a class="mat-btn mat-btn--secondary" href="/Documents/Export?id=@d.Id&from=@Model.From&to=@Model.To&format=@nameof(ExportFormat.PdfChanges)">@Ui.Icon("download")<span>PDF</span></a>
     <a class="mat-btn mat-btn--secondary" href="/Documents/Details?id=@d.Id&tab=versions">@Ui.Icon("back")<span>Zurück</span></a>
 </div>

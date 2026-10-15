@@ -26,16 +26,24 @@ public static class ViewPreferences
 
     public static int CleanZoom(int? value) => value is { } z && Zooms.Contains(z) ? z : DefaultZoom;
 
+    /// <summary>How the changes since an earlier version are shown in the text of the editor: all of them, only a bar in the margin, or not at all (as in Word).</summary>
+    public static readonly string[] Markups = ["all", "simple", "off"];
+
+    public const string DefaultMarkup = "all";
+
     /// <summary>
     /// What the editor has open: the earlier version beside the text (and which: "previous" the version before, "round" the beginning of the round, "original", or a number),
-/// the side panel with the comments and the style sheet, whether the comments that are ticked off are shown there too, and the size of the writing (<see cref="Zooms"/>),
-    /// which the comparison of two pages uses too.
+    /// the side panel with the comments and the style sheet, whether the comments that are ticked off are shown there too, the size of the writing (<see cref="Zooms"/>),
+    /// which the comparison of two pages uses too, and how the changes are marked in the text (<see cref="Markups"/>).
     /// </summary>
-    public sealed record EditorOptions(bool Reference = false, bool Side = false, string ReferenceFrom = "previous", int Zoom = DefaultZoom, bool ShowResolved = false);
+    public sealed record EditorOptions(bool Reference = false, bool Side = false, string ReferenceFrom = "previous", int Zoom = DefaultZoom, bool ShowResolved = false, string Markup = DefaultMarkup);
 
     /// <summary>"previous", "round", "original" or the number of a version; anything else is "previous".</summary>
     public static string CleanReferenceFrom(string? value)
         => value is "previous" or "round" or "original" || (value is not null && value.Length is > 0 and < 7 && value.All(char.IsAsciiDigit)) ? value : "previous";
+
+    /// <summary>"all", "simple" or "off"; anything else is "all".</summary>
+    public static string CleanMarkup(string? value) => value is not null && Markups.Contains(value) ? value : DefaultMarkup;
 
     public static async Task<(string Editor, string Compare, EditorOptions Options)> GetAsync(KkDbContext db, long? userId, CancellationToken ct = default)
     {
@@ -84,16 +92,25 @@ public static class ViewPreferences
     }
 
     /// <summary>Remembers what the editor has open; what is null stays as it was.</summary>
-    public static async Task<bool> SetOptionsAsync(KkDbContext db, long? userId, bool? reference, bool? side, string? referenceFrom = null, int? zoom = null, bool? showResolved = null, CancellationToken ct = default)
+    public static async Task<bool> SetOptionsAsync(KkDbContext db, long? userId, bool? reference, bool? side, string? referenceFrom = null, int? zoom = null, bool? showResolved = null, string? markup = null, CancellationToken ct = default)
     {
         zoom = zoom is { } size && Zooms.Contains(size) ? size : null;   // what is not one of the sizes is no change
-        if (userId is null || (reference is null && side is null && referenceFrom is null && zoom is null && showResolved is null))
+        markup = markup is not null && Markups.Contains(markup) ? markup : null;
+        if (userId is null || (reference is null && side is null && referenceFrom is null && zoom is null && showResolved is null && markup is null))
         {
             return false;
         }
 
         var current = ParseOptions(await db.User.AsNoTracking().Where(u => u.Id == userId).Select(u => u.EditorOptions).FirstOrDefaultAsync(ct));
-        var next = current with { Reference = reference ?? current.Reference, Side = side ?? current.Side, ReferenceFrom = referenceFrom is null ? CleanReferenceFrom(current.ReferenceFrom) : CleanReferenceFrom(referenceFrom), Zoom = zoom is null ? CleanZoom(current.Zoom) : CleanZoom(zoom), ShowResolved = showResolved ?? current.ShowResolved };
+        var next = current with
+        {
+            Reference = reference ?? current.Reference,
+            Side = side ?? current.Side,
+            ReferenceFrom = referenceFrom is null ? CleanReferenceFrom(current.ReferenceFrom) : CleanReferenceFrom(referenceFrom),
+            Zoom = zoom is null ? CleanZoom(current.Zoom) : CleanZoom(zoom),
+            ShowResolved = showResolved ?? current.ShowResolved,
+            Markup = markup ?? CleanMarkup(current.Markup),
+        };
         var json = JsonSerializer.Serialize(next, JsonOptions);
         await db.User.Where(u => u.Id == userId).ExecuteUpdateAsync(s => s.SetProperty(u => u.EditorOptions, json), ct);
         return true;

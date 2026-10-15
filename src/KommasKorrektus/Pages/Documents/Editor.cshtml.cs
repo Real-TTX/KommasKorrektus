@@ -25,7 +25,7 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
 
     public sealed record LayoutRequest(string[] Paragraphs);
 
-    public sealed record ViewRequest(string? View, bool? Reference, bool? Side, string? ReferenceFrom, int? Zoom = null, bool? ShowResolved = null);
+    public sealed record ViewRequest(string? View, bool? Reference, bool? Side, string? ReferenceFrom, int? Zoom = null, bool? ShowResolved = null, string? Markup = null);
 
     public sealed record StyleRequest(string? Category, string? Term, string? Decision, string? Note);
 
@@ -79,18 +79,19 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         {
             documentId = document.Id,
             view = views.Editor,
-            options = new { reference = views.Options.Reference, side = views.Options.Side, referenceFrom = ViewPreferences.CleanReferenceFrom(views.Options.ReferenceFrom), zoom = ViewPreferences.CleanZoom(views.Options.Zoom), showResolved = views.Options.ShowResolved },
+            options = new { reference = views.Options.Reference, side = views.Options.Side, referenceFrom = ViewPreferences.CleanReferenceFrom(views.Options.ReferenceFrom), zoom = ViewPreferences.CleanZoom(views.Options.Zoom), showResolved = views.Options.ShowResolved, markup = ViewPreferences.CleanMarkup(views.Options.Markup) },
             kind = document.Kind.ToString(),
             versionNo = version.VersionNo,
             versionName = VersionTitle,
             state = StateOf(version),
             paragraphs = DocumentService.ParagraphsOf(version),
+            normChars = config.Current.Company.NormPageCharacters,
             autosaveSeconds = AutosaveSeconds,
             autosaveMinChars = AutosaveMinChars,
             idleMinutes = IdleMinutes,
             // The names are the ones editor.js reads (camelCase): the serializer would keep the names of the properties.
             comments = comments.Select(c => new { id = c.Id, paragraphIndex = c.ParagraphIndex, quote = c.Quote, text = c.Text, author = c.AuthorName ?? "Lektorat", source = c.Source, isResolved = c.IsResolved, resolvedDate = Fmt.Moment(c.ResolvedDate), created = Fmt.Moment(c.CreateDate, c.WrittenDate) }),
-            styles = styles.Select(s => new { term = s.Term, category = UiKit.Labels.Of(s.Category), decision = s.Decision }),
+            styles = styles.Select(s => new { term = s.Term, category = UiKit.Labels.Of(s.Category), kind = s.Category.ToString(), decision = s.Decision }),
         });
 
         Head($"Editor: {document.Title}", null, ("Projekte", "/Projects"), (document.Project.Title, $"/Projects/Details?id={document.ProjectId}&tab=documents"), (document.Title, $"/Documents/Details?id={document.Id}"), ("Editor", null));
@@ -187,11 +188,12 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
     }
 
     /// <summary>
-    /// The earlier version beside the text ("Änderungsmodus"): the page of the version <c>from</c> is, to be written next to (and compared with) the text of the editor.
-    /// <c>from</c> is a rule that stays right as the work goes on ("previous": the version
-    /// before the newest, "round": where this round of the ping pong began, "original") or the number of a version.
+    /// What the editor compares its text with ("Änderungsmodus"): the text of the version <c>from</c> (to mark what changed in the text as it is written), and, unless
+    /// <c>withPage</c> is false, its page, to be shown beside the text. <c>from</c> is a rule that stays right as the work goes on ("previous": the version
+    /// before the newest, "round": where this round of the ping pong began, "original") or the number of a version. A document that has only its original is compared with
+    /// that: what is written before the first save is already a change.
     /// </summary>
-    public async Task<IActionResult> OnGetReferenceAsync(string? from)
+    public async Task<IActionResult> OnGetReferenceAsync(string? from, bool withPage = true)
     {
         var document = await db.Document.AsNoTracking().FirstOrDefaultAsync(d => d.Id == Id);
         if (document is null)
@@ -205,55 +207,83 @@ public sealed class EditorModel(KkDbContext db, DocumentService documents, Layou
         var roundStart = await documents.RoundStartAsync(document, to, HttpContext.RequestAborted);
         var choice = ViewPreferences.CleanReferenceFrom(from);
 
-        // a rule that says the same as another one is the other (the beginning of the first round is the original; of a round that has just begun, the version before)
-        var selected = choice == "round" ? (roundStart <= 1 ? "original" : roundStart >= to ? "previous" : "round") : choice;
-
-        // the rules first, then every version
-        var rules = new List<object> { new { value = "previous", text = to > 1 ? $"Die Fassung davor (Fassung {to - 1}: {names[to - 1].Title})" : "Die Fassung davor" } };
-        if (roundStart > 1 && roundStart < to)
-        {
-            rules.Add(new { value = "round", text = $"Anfang dieser Runde (Fassung {roundStart}: {names[roundStart].Title})" });
-        }
-
-        if (to > 2 || selected == "original")
-        {
-            rules.Add(new { value = "original", text = $"Das Original (Fassung 1: {names[1].Title})" });
-        }
-
-        var versions = rows.Where(r => r.VersionNo < to).OrderByDescending(r => r.VersionNo).Select(r => new { value = r.VersionNo.ToString(), text = names[r.VersionNo].Option(r.VersionNo) }).ToList();
-        if (to <= 1)
-        {
-            return new JsonResult(new { ok = true, empty = true, to, rules, versions, selected });
-        }
-
+        // "The version before" is the version before the pass that is being made: while a version is in work (or a customer's file is being looked through) it is the one
+        // below it; when the current version is closed, the next change begins a new pass, so what is changed in it is changed against this one. It does not move while one
+        // works: the first save of a new pass makes the closed version the one below it, which is the same version.
+        var origin = rows.First(r => r.VersionNo == to).Origin;
+        var previousNo = origin is VersionOrigin.Working or VersionOrigin.Upload ? Math.Max(1, to - 1) : to;
         var fromNo = choice switch
         {
             "round" => roundStart,
             "original" => 1,
-            "previous" => to - 1,
-            _ => int.TryParse(choice, out var number) ? number : to - 1,
+            "previous" => previousNo,
+            _ => int.TryParse(choice, out var number) ? number : previousNo,
         };
-        if (fromNo < 1 || fromNo >= to)
+        if (fromNo < 1 || fromNo > to)
         {
-            fromNo = to - 1;
+            fromNo = previousNo;
         }
 
-        // The page of that version as it was. What differs from the text as it is written now is found in the browser, while it is written (textdiff.js).
+        // a rule that says the same as another one is the other (the beginning of the first round is the original; of a round that has just begun, the version before)
+        var selected = choice;
+        if (choice == "round")
+        {
+            selected = roundStart <= 1 ? "original" : roundStart == previousNo ? "previous" : "round";
+        }
+
+        if (choice == "original" && previousNo == 1)
+        {
+            selected = "previous";   // there is only the one text to compare with
+        }
+
+        // the rules first, then the versions (the current one too, when it is closed: its saved text is what a pass that begins now changes)
+        var self = fromNo == to;
+        var rules = new List<object>
+        {
+            new
+            {
+                value = "previous",
+                text = previousNo == to ? $"Der gespeicherte Text (Fassung {to}: {names[to].Title})"
+                    : origin == VersionOrigin.Upload ? $"Was der Kunde geändert hat (gegenüber Fassung {previousNo}: {names[previousNo].Title})"
+                    : $"Die Fassung davor (Fassung {previousNo}: {names[previousNo].Title})",
+            },
+        };
+        if (roundStart > 1 && roundStart != previousNo && roundStart <= to)
+        {
+            rules.Add(new { value = "round", text = $"Anfang dieser Runde (Fassung {roundStart}: {names[roundStart].Title})" });
+        }
+
+        if (previousNo != 1 || selected == "original")
+        {
+            rules.Add(new { value = "original", text = $"Das Original (Fassung 1: {names[1].Title})" });
+        }
+
+        var versions = rows.Where(r => r.VersionNo < to || (r.VersionNo == to && r.Origin != VersionOrigin.Working)).OrderByDescending(r => r.VersionNo)
+            .Select(r => new { value = r.VersionNo.ToString(), text = r.VersionNo == to ? names[r.VersionNo].Option(r.VersionNo) + " (gespeichert)" : names[r.VersionNo].Option(r.VersionNo) }).ToList();
+
+        // The text of that version as it was, and its page when it is to be shown. What differs from the text as it is written now is found in the browser, while it is
+        // written (textdiff.js).
         var version = await documents.GetVersionAsync(document.Id, fromNo, HttpContext.RequestAborted);
         if (version is null)
         {
             return NotFound();
         }
 
+        var texts = DocumentService.ParagraphsOf(version);
+        if (!withPage)
+        {
+            return new JsonResult(new { ok = true, self, from = fromNo, to, rules, versions, selected, texts });
+        }
+
         var page = await layouts.ForVersionAsync(document, version, editable: false, HttpContext.RequestAborted);
-        return new JsonResult(new { ok = true, empty = false, from = fromNo, to, rules, versions, selected, html = page.Html, link = page.CssUrl, pageClass = page.Layout.PageClass, formatted = page.Formatted, paragraphs = DocumentService.ParagraphsOf(version).Length });
+        return new JsonResult(new { ok = true, self, from = fromNo, to, rules, versions, selected, texts, html = page.Html, link = page.CssUrl, pageClass = page.Layout.PageClass, formatted = page.Formatted });
     }
 
     /// <summary>The person changed the view of the text: it is kept with the account, so that the next browser opens the same way.</summary>
     public async Task<IActionResult> OnPostViewAsync([FromBody] ViewRequest request)
     {
         var saved = await ViewPreferences.SetEditorAsync(db, current.UserId, request.View, HttpContext.RequestAborted);
-        saved |= await ViewPreferences.SetOptionsAsync(db, current.UserId, request.Reference, request.Side, request.ReferenceFrom, request.Zoom, request.ShowResolved, HttpContext.RequestAborted);
+        saved |= await ViewPreferences.SetOptionsAsync(db, current.UserId, request.Reference, request.Side, request.ReferenceFrom, request.Zoom, request.ShowResolved, request.Markup, HttpContext.RequestAborted);
         return saved ? new JsonResult(new { ok = true }) : BadRequest();
     }
 

@@ -30,6 +30,12 @@
   var views = {};       // name -> view
   var view = null;      // the view that is shown
 
+  // What happens in the editor that other files (editor-page.js, editor-changes.js) want to know: "view" (another view is shown), "change" (the text changed), "saved"
+  // (a save went through: { result, kind }), "zoom" (the size of the writing changed), "ready" (the editor has started).
+  var listeners = {};
+  function on(name, handler) { (listeners[name] = listeners[name] || []).push(handler); }
+  function emit(name, arg) { (listeners[name] || []).forEach(function (handler) { handler(arg); }); }
+
   // ------------------------------------------------------------------------------------------------ helpers
   function el(tag, cls) { var e = document.createElement(tag); if (cls) { e.className = cls; } return e; }
   function toDisplay(text) { return text.split(LS).join('\n'); }
@@ -43,7 +49,14 @@
   }
   function icon(name) { return '<svg class="mat-icon" aria-hidden="true" focusable="false"><use href="#mat-i-' + name + '"></use></svg>'; }
   function toast(message, tone) { if (window.MatUi) { window.MatUi.toast(message, { tone: tone }); } }
-  function showWordCount(n) { wordsElement.textContent = n.toLocaleString('de-DE'); }
+  var normElement = document.getElementById('editor-norm');
+  /** The words, and (when the characters are given) the standard pages: the characters with spaces divided by the size of a standard page (Verwaltung → Firma). */
+  function showWordCount(n, characters) {
+    wordsElement.textContent = n.toLocaleString('de-DE');
+    if (normElement && typeof characters === 'number' && data.normChars > 0) {
+      normElement.textContent = (characters / data.normChars).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    }
+  }
 
   /** The text of the document as it is now: the paragraphs of the view that is shown. */
   function snapshot() { return view.texts(); }
@@ -108,7 +121,11 @@
     wordsOf.set(ta, n);
   }
 
-  function showWords() { showWordCount(totalWords); }
+  function showWords() {
+    var characters = 0;
+    paragraphs().forEach(function (p) { characters += textareaOf(p).value.length; });
+    showWordCount(totalWords, characters);
+  }
 
   function build(list) {
     var fragment = document.createDocumentFragment();
@@ -409,12 +426,42 @@
       ta.dispatchEvent(new Event('input', { bubbles: true }));
       checkpoint();
     },
+    /** The words from..to of a paragraph are replaced by a text (put in at that place when there are none). Whether it worked. */
+    replaceRange: function (i, from, to, value) {
+      var p = parasElement.children[i];
+      if (!p) { return false; }
+      var ta = textareaOf(p);
+      checkpoint();
+      ta.setRangeText(value, from, to, 'end');
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+      checkpoint();
+      return true;
+    },
+    /** Takes a paragraph away. Whether it worked (the last one stays). */
+    removeParagraph: function (i) {
+      var p = parasElement.children[i];
+      if (!p || parasElement.children.length < 2) { return false; }
+      checkpoint();
+      totalWords -= wordsOf.get(textareaOf(p)) || 0;
+      p.remove();
+      renumber();
+      showWords();
+      markDirty();
+      checkpoint();
+      return true;
+    },
     replaceAll: function (re, text) {
       checkpoint();
       var count = 0;
       paragraphs().forEach(function (p) {
         var ta = textareaOf(p);
-        var replaced = ta.value.replace(re, function () { count += 1; return text; });
+        // what goes in is a text, or a function of the hit (the groups of an expression); the groups are the arguments after the hit
+        var replaced = ta.value.replace(re, function () {
+          count += 1;
+          if (typeof text !== 'function') { return text; }
+          var args = Array.prototype.slice.call(arguments);
+          return text(args.slice(0, typeof args[args.length - 1] === 'object' ? -3 : -2));   // after the groups come the place, the text and (with named groups) an object
+        });
         if (replaced !== ta.value) {
           ta.value = replaced;
           recount(ta);
@@ -482,7 +529,7 @@
       rememberView(name);
       renderComments();
       updateUndoButtons();
-      syncReference();
+      emit('view', view);
       return true;
     }).catch(function (error) {
       toast(error && error.message ? error.message : 'Die Ansicht lässt sich nicht aufbauen.', 'error');
@@ -542,8 +589,7 @@
   function markDirty() {
     if (!dirty) { dirtySince = Date.now(); }
     dirty = true;
-    // a paragraph that gets longer pushes the ones after it down: the earlier version beside the text is lined up again (the page itself keeps its height)
-    if (refShown) { alignSoon(); }
+    emit('change');
     setStatus('dirty', dirtyText());
     if (autosaves) {
       clearTimeout(saveTimer);
@@ -567,6 +613,8 @@
       return;
     }
     heldBack = false;
+    // what was changed was changed back (Strg+Z, or taking changes back): the text is the saved text again, nothing is waiting to be saved
+    if (diff.removed === 0 && diff.added === 0) { dirty = false; dirtySince = 0; setStatus('saved', 'Gespeichert (der Text ist wieder der gespeicherte)'); return; }
     if (Math.max(diff.removed, diff.added) >= (data.autosaveMinChars || 0) || Date.now() - dirtySince >= PATIENCE_MS) { save('auto'); return; }
     clearTimeout(saveTimer);
     saveTimer = setTimeout(autoTick, 10000);
@@ -625,7 +673,7 @@
       setStatus(dirty ? 'dirty' : 'saved', dirty ? dirtyText() : (kind === 'auto' ? 'Automatisch gespeichert um ' : 'Gespeichert um ') + result.savedAt + ' (Fassung ' + result.versionNo + (word ? ', ' + word : '') + ')');
       if (kind === 'close') { toast('Fassung ' + result.versionNo + ' ist abgeschlossen. Die nächste Änderung beginnt Fassung ' + (result.versionNo + 1) + '.'); }
       else if (kind === 'manual') { toast('Gespeichert. Das bleibt Fassung ' + result.versionNo + (word ? ' (' + word + ')' : '') + '.'); }
-      if (refShown && (result.created || kind === 'close' || result.versionNo !== refVersion.to)) { clearTimeout(refTimer); refTimer = setTimeout(refLoad, 400); }
+      emit('saved', { result: result, kind: kind });
       var versionLabel = document.getElementById('editor-version');
       if (versionLabel) { versionLabel.textContent = 'Fassung ' + result.versionNo + (result.name ? ' · ' + result.name : '') + (word ? ' · ' + word : ''); }
       if (dirty) { markDirty(); }
@@ -702,8 +750,7 @@
     if (zoomOut) { zoomOut.disabled = !window.KkZoom.next(zoom, -1); }
     if (zoomIn) { zoomIn.disabled = !window.KkZoom.next(zoom, 1); }
     if (view && view.refit) { view.refit(); }
-    refFit();
-    scheduleRefresh();
+    emit('zoom');
   }
 
   function setZoom(next) {
@@ -733,7 +780,6 @@
     KeyX: function () { var b = document.getElementById('editor-export'); if (b) { b.click(); } },
     KeyV: function () { toggleMaximize(); },
     KeyB: function () { toggleFullscreen(); },
-    KeyR: function () { toggleReference(); },
     KeyS: function () { openStyle(); },
     KeyH: function () { openKeys(); },
     ArrowDown: function () { jumpComment(1); },
@@ -769,14 +815,32 @@
   var withInput = document.getElementById('replace-with');
   var caseInput = document.getElementById('replace-case');
   var wholeInput = document.getElementById('replace-whole');
+  var regexInput = document.getElementById('replace-regex');
   var replaceInfo = document.getElementById('replace-info');
 
+  /** What is looked for: the words as they are, or (with "Regulärer Ausdruck") a regular expression, as the wildcards of Word do it, only more. Null: nothing, or an expression that is not valid. */
   function pattern() {
     var term = findInput.value;
     if (!term) { return null; }
-    var escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    if (wholeInput.checked) { escaped = '(?<![\\p{L}\\p{N}])' + escaped + '(?![\\p{L}\\p{N}])'; }
-    return new RegExp(escaped, 'gu' + (caseInput.checked ? '' : 'i'));
+    var source = regexInput && regexInput.checked ? term : term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (wholeInput.checked) { source = '(?<![\\p{L}\\p{N}])(?:' + source + ')(?![\\p{L}\\p{N}])'; }
+    try {
+      return new RegExp(source, 'gu' + (caseInput.checked ? '' : 'i'));
+    } catch (e) {
+      replaceInfo.textContent = 'Der Ausdruck ist nicht gültig.';
+      return null;
+    }
+  }
+
+  /** The text that goes in for a hit: as typed, or with an expression the groups ($1 ... $9), the hit ($&) and a dollar sign ($$) put in. */
+  function replacementFor(match, template) {
+    if (!regexInput || !regexInput.checked) { return template; }
+    return template.replace(/\$(\$|&|\d{1,2})/g, function (all, token) {
+      if (token === '$') { return '$'; }
+      if (token === '&') { return match[0]; }
+      var n = parseInt(token, 10);
+      return n < match.length && match[n] !== undefined ? match[n] : '';
+    });
   }
 
   function countMatches() {
@@ -835,7 +899,7 @@
       var selected = view.textAt(position.index).slice(position.start, position.end);
       re.lastIndex = 0;
       var m = re.exec(selected);
-      if (m && m[0].length === selected.length) { view.replaceSelection(withInput.value); }
+      if (m && m[0].length === selected.length) { view.replaceSelection(replacementFor(m, withInput.value)); }
     }
     if (!findNext(true)) { replaceInfo.textContent = 'Keine weiteren Treffer'; }
   }
@@ -873,7 +937,7 @@
   function replaceAll() {
     var re = pattern();
     if (!re) { return; }
-    var count = view.replaceAll(re, withInput.value);
+    var count = view.replaceAll(re, function (match) { return replacementFor(match, withInput.value); });
     if (count > 0) { markDirty(); }
     replaceInfo.textContent = count + (count === 1 ? ' Ersetzung' : ' Ersetzungen');
   }
@@ -896,6 +960,7 @@
     findInput.addEventListener('input', countMatches);
     caseInput.addEventListener('change', countMatches);
     wholeInput.addEventListener('change', countMatches);
+    if (regexInput) { regexInput.addEventListener('change', countMatches); }
     document.getElementById('replace-next').addEventListener('click', function () { if (!findNext(true)) { replaceInfo.textContent = 'Keine Treffer'; } });
     document.getElementById('replace-one').addEventListener('click', replaceCurrent);
     document.getElementById('replace-all').addEventListener('click', replaceAll);
@@ -940,7 +1005,9 @@
     commentList.textContent = '';
     var open = data.comments.filter(function (c) { return !c.isResolved; });
     var done = data.comments.filter(function (c) { return c.isResolved; });
-    document.getElementById('comment-count').textContent = String(open.length);
+    var badge = document.getElementById('comment-count');
+    badge.textContent = String(open.length);
+    badge.hidden = open.length === 0;   // a badge on the icon says how many are open, and is not there when none is
     var marked = new Set();
     var markedDone = new Set();
     data.comments.forEach(function (c) {
@@ -1045,12 +1112,23 @@
     openComment(p.index, p.end > p.start ? text.slice(p.start, p.end) : text.slice(0, 60));
   }
 
+  /**
+   * Makes an element of the side panel visible by scrolling the panel only (scrollIntoView would also scroll the window, and the panel sideways); toTop puts it at the top.
+   */
+  function revealInSide(element, toTop) {
+    if (!side || !element) { return; }
+    var panel = side.getBoundingClientRect();
+    var box = element.getBoundingClientRect();
+    if (toTop || box.top < panel.top) { side.scrollTop += box.top - panel.top; }
+    else if (box.bottom > panel.bottom) { side.scrollTop += box.bottom - panel.bottom; }
+  }
+
   /** The comment of the list that is meant is marked, and the list shows it. */
   function flashComment(id) {
     Array.prototype.forEach.call(commentList.children, function (li) {
       var current = li.getAttribute('data-comment') === String(id);
       li.classList.toggle('is-current', current);
-      if (current) { li.scrollIntoView({ block: 'nearest' }); }
+      if (current) { revealInSide(li); }
     });
   }
 
@@ -1127,7 +1205,7 @@
       if (!term) { styleError.textContent = 'Bitte gib den Eintrag ein.'; styleTerm.focus(); return; }
       post('Style', { category: styleCategory.value, term: term, decision: styleDecision.value, note: null }).then(function (r) {
         var existing = data.styles.filter(function (s) { return s.term.toLowerCase() === r.term.toLowerCase(); })[0];
-        if (existing) { existing.category = r.category; existing.decision = r.decision; } else { data.styles.push({ term: r.term, category: r.category, decision: r.decision }); }
+        if (existing) { existing.category = r.category; existing.kind = styleCategory.value; existing.decision = r.decision; } else { data.styles.push({ term: r.term, category: r.category, kind: styleCategory.value, decision: r.decision }); }
         renderStyles();
         window.MatUi.dialog.close(styleDialog);
         showSide(true);
@@ -1200,165 +1278,6 @@
 
   try { if (window.localStorage.getItem(MAXIMIZE_KEY) === '1') { setMaximized(true); } } catch (e) { /* not remembered */ }
 
-  // ================================================================================================ the earlier version beside the text
-  // The "Änderungsmodus", read like the diff of a pull request: the page of an earlier version stands beside the text with what was taken away struck through, and the
-  // two are lined up paragraph by paragraph (the side that has less at a place gets room), so that they scroll as one and every paragraph has its counterpart across.
-  // It needs the page view (the text view has no pages to line up), is made from the saved text and drawn again after every save. Whether it is open is kept per account.
-  var refPane = document.getElementById('editor-reference');
-  var refBar = document.getElementById('editor-refbar');
-  var refBody = refPane ? refPane.querySelector('.kk-editor__reference-body') : null;
-  var refSelect = document.getElementById('reference-from');
-  var refNote = document.getElementById('reference-note');
-  var refToggle = document.getElementById('editor-reference-toggle');
-  var refWanted = !!(data.options && data.options.reference);   // what the person asked for; it is shown when the page view is
-  var refShown = false;
-  var refLink = null;
-  var refTimer = null;
-  var refFrom = cleanChoice(data.options && data.options.referenceFrom);   // "previous", "round", "original" or the number of a version (kept with the account)
-  var refTicket = 0;
-  var refVersion = { from: 0, to: 0 };
-  var refSide = window.KkSideBySide ? window.KkSideBySide.create({ editable: true }) : null;   // compares, marks and lines up (sidebyside.js, shared with the comparison page)
-  var refLoaded = false;     // the earlier page is drawn
-  var refFrame = 0;
-  var refTimerSoon = null;
-
-  function cleanChoice(value) { return value === 'round' || value === 'original' || (value && /^\d{1,6}$/.test(String(value))) ? String(value) : 'previous'; }
-
-  function refFit() {
-    var sheet = refBody ? refBody.querySelector('.kk-sheet') : null;
-    if (!sheet) { return; }
-    sheet.style.zoom = '';
-    var wanted = sheet.offsetWidth;
-    var available = refBody.clientWidth - 24;
-    var zoom = (wanted > available && available > 0 ? Math.max(0.3, available / wanted) : 1) * scale();   // the same size of the writing as the text beside it
-    sheet.style.zoom = Math.abs(zoom - 1) < 0.001 ? '' : String(zoom);
-  }
-
-  /**
-   * Everything that depends on the text as it is now, drawn anew: the text is compared with the earlier version (paragraph by paragraph, word by word), what was taken away
-   * is marked on the earlier page, what is new on the text, and the two are lined up so that the paragraphs that belong together stand across from each other. It is meant
-   * to run on every change: it costs a comparison and a few measurements.
-   */
-  function refreshReference() {
-    refFrame = 0;
-    if (!refShown || !view || view.name !== 'page' || !refLoaded || !refSide) { return; }
-    views.page.tools.renumber();
-    var els = [];
-    var texts = [];
-    for (var i = 0; i < view.count(); i += 1) { els.push(view.element(i)); texts.push(view.textAt(i)); }
-    refSide.refresh(els, texts);
-  }
-
-  function scheduleRefresh() {
-    if (!refFrame) { refFrame = requestAnimationFrame(refreshReference); }
-  }
-
-  /** The text changed (a letter, Enter, Backspace ...): drawn anew in a moment, so that typing is not held up. */
-  function alignSoon() {
-    clearTimeout(refTimerSoon);
-    refTimerSoon = setTimeout(scheduleRefresh, 100);
-  }
-
-  function refLoad() {
-    if (!refShown) { return; }
-    var ticket = refTicket + 1;
-    refTicket = ticket;
-    fetch(location.pathname + '?id=' + data.documentId + '&handler=Reference&from=' + encodeURIComponent(refFrom), { credentials: 'same-origin' })
-      .then(function (response) { if (!response.ok) { throw new Error('HTTP ' + response.status); } return response.json(); })
-      .then(function (r) {
-        if (ticket !== refTicket) { return; }
-        refSelect.textContent = '';
-        var fill = function (parent, list) {
-          list.forEach(function (o) {
-            var option = el('option');
-            option.value = o.value;
-            option.textContent = o.text;
-            if (o.value === r.selected) { option.selected = true; }
-            parent.appendChild(option);
-          });
-        };
-        fill(refSelect, r.rules);
-        if (r.versions.length > 0) {
-          var group = el('optgroup');
-          group.label = 'Eine bestimmte Fassung';
-          fill(group, r.versions);
-          refSelect.appendChild(group);
-        }
-        if (refSide) { refSide.setOld(null); }
-        refLoaded = false;
-        refBody.textContent = '';
-        if (r.empty) {
-          refNote.textContent = '';
-          var none = el('p', 'mat-muted kk-editor__reference-empty');
-          none.textContent = 'Es gibt noch keine frühere Fassung. Sobald der Text gespeichert ist und eine zweite Fassung besteht, steht sie hier.';
-          refBody.appendChild(none);
-          return;
-        }
-        refVersion = { from: r.from, to: r.to };
-        if (refLink) { refLink.remove(); }
-        refLink = el('link');
-        refLink.rel = 'stylesheet';
-        refLink.href = r.link;
-        document.head.appendChild(refLink);
-        var desk = el('div', 'kk-desk kk-desk--read');
-        var sheet = el('div', 'kk-sheet kk-sheet--read ' + r.pageClass);
-        sheet.innerHTML = r.html;
-        desk.appendChild(sheet);
-        refBody.appendChild(desk);
-        refFit();
-        // the ids of the paragraphs would be there twice on the page
-        Array.prototype.forEach.call(sheet.querySelectorAll('p.kk-lp[id]'), function (p) { p.removeAttribute('id'); });
-        if (refSide) { refSide.setOld(sheet); refLoaded = true; }
-        refNote.textContent = 'Fassung ' + r.from + ' neben deinem Text: rot ist, was dort weggefallen ist, grün, was bei dir neu ist. Es folgt jedem Tastendruck.';
-        // the stylesheet of the page has to be there before anything is measured
-        var ready = function () { scheduleRefresh(); };
-        if (refLink.sheet) { ready(); } else { refLink.addEventListener('load', ready); refLink.addEventListener('error', ready); }
-      })
-      .catch(function () { if (ticket === refTicket) { refNote.textContent = 'Die frühere Fassung lässt sich gerade nicht laden.'; } });
-  }
-
-  /** Shows or hides the earlier version as it should be now: it is shown when it is wanted and the page view is on. */
-  function syncReference() {
-    if (!refPane) { return; }
-    var show = refWanted && !!view && view.name === 'page';
-    if (refToggle) { refToggle.setAttribute('aria-pressed', refWanted ? 'true' : 'false'); }
-    if (show === refShown) { if (show) { scheduleRefresh(); } return; }
-    refShown = show;
-    refPane.hidden = !show;
-    refBar.hidden = !show;
-    host.classList.toggle('has-reference', show);
-    if (show) { refLoad(); } else if (refSide) { refSide.clear(); }
-  }
-
-  function toggleReference(on) {
-    if (!refPane) { return; }
-    refWanted = on === undefined ? !refWanted : on;
-    post('View', { reference: refWanted }).catch(function () { /* it is only not remembered */ });
-    if (refWanted && (!view || view.name !== 'page')) {
-      var button = host.querySelector('[data-view="page"]');
-      if (!button || button.disabled) { refWanted = false; syncReference(); toast('Die frühere Fassung braucht die Seitenansicht, und die gibt es für dieses Dokument nicht.'); return; }
-      setView('page').then(syncReference);
-      return;
-    }
-    syncReference();
-  }
-
-  if (refPane) {
-    refSelect.addEventListener('change', function () {
-      refFrom = cleanChoice(refSelect.value);
-      post('View', { referenceFrom: refFrom }).catch(function () { /* it is only not remembered */ });
-      refLoad();
-    });
-    document.getElementById('reference-close').addEventListener('click', function () { toggleReference(false); });
-    if (typeof ResizeObserver !== 'undefined') {
-      // Whatever changes the height of one column (a word that wraps, the zoom of the page, the window) is lined up again.
-      var resizes = new ResizeObserver(function () { refFit(); scheduleRefresh(); });
-      resizes.observe(refBody);
-      resizes.observe(parasElement);
-    }
-    window.addEventListener('resize', scheduleRefresh);
-  }
-
   var keysDialog = document.getElementById('editor-keys');
   function openKeys() { if (keysDialog) { window.MatUi.dialog.open(keysDialog); } }
 
@@ -1374,7 +1293,6 @@
   wire('editor-maximize-menu', toggleMaximize);
   wire('editor-fullscreen-menu', toggleFullscreen);
   wire('style-add', openStyle);
-  wire('editor-reference-toggle', function () { toggleReference(); });
   wire('editor-zoom-out', function () { stepZoom(-1); });
   wire('editor-zoom-in', function () { stepZoom(1); });
   wire('editor-zoom-value', function () { setZoom(100); });
@@ -1447,6 +1365,12 @@
     renderComments: renderComments,
     updateUndoButtons: updateUndoButtons,
     texts: snapshot,
+    on: on,
+    hotkeys: HOTKEYS,
+    view: function () { return view; },
+    setView: setView,
+    showSide: showSide,
+    revealInSide: revealInSide,
     registerView: function (page) {
       views[page.name] = page;
       var button = host.querySelector('[data-view="' + page.name + '"]');
@@ -1463,7 +1387,7 @@
     setView(first, data.paragraphs).then(function (ok) {
       return ok || first === 'text' ? ok : setView('text', data.paragraphs);
     }).then(function () {
-      syncReference();
+      emit('ready');
       var word = stateWord(data.state);
       setStatus('saved', 'Fassung ' + data.versionNo + (word ? ' (' + word + ')' : '') + ' geöffnet');
       showSession();

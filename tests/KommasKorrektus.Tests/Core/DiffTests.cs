@@ -65,12 +65,19 @@ public class DocumentDiffTests
         => string.Concat(segments.Select(s => s.Kind switch { EditKind.Insert => "[+" + s.Text + "+]", EditKind.Delete => "[-" + s.Text + "-]", _ => s.Text }));
 
     [Fact]
-    public void A_corrected_word_is_a_deletion_followed_by_an_insertion()
+    public void A_corrected_letter_is_a_letter_taken_away_and_one_put_in()
     {
         var diff = DocumentDiff.Compare(["Das ist ein Fehler im Satz."], ["Das ist ein Fahler im Satz."]);
         var p = Assert.Single(diff);
         Assert.Equal(ParagraphChange.Modified, p.Change);
-        Assert.Equal("Das ist ein [-Fehler-][+Fahler+] im Satz.", Marked(p.Segments));
+        Assert.Equal("Das ist ein F[-e-][+a+]hler im Satz.", Marked(p.Segments));
+    }
+
+    [Fact]
+    public void A_word_that_is_mostly_changed_is_changed_as_a_whole_and_a_comma_is_a_comma()
+    {
+        var diff = DocumentDiff.Compare(["Ich habe ein Buch gelesen dass er kam."], ["Ich hatte ein Roman gelesen, das er kam."]);
+        Assert.Equal("Ich ha[-b-][+tt+]e ein [-Buch-][+Roman+] gelesen[+,+] das[-s-] er kam.", Marked(Assert.Single(diff).Segments));
     }
 
     [Fact]
@@ -154,11 +161,26 @@ public class DocumentDiffTests
         var oldParagraphs = new[] { "Erster Absatz mit Text.", "Zweiter Absatz, der sich ändert.", "Dritter Absatz fällt weg.", "Vierter bleibt." };
         var newParagraphs = new[] { "Erster Absatz mit etwas Text.", "Zweiter Absatz, der sich wirklich ändert.", "Vierter bleibt.", "Ein ganz neuer Absatz." };
         var diff = DocumentDiff.Compare(oldParagraphs, newParagraphs);
-        var rebuiltNew = diff.Where(p => p.Change != ParagraphChange.Deleted).Select(p => string.Concat(p.Segments.Where(s => s.Kind != EditKind.Delete).Select(s => s.Text))).ToList();
-        var rebuiltOld = diff.Where(p => p.Change != ParagraphChange.Inserted).Select(p => string.Concat(p.Segments.Where(s => s.Kind != EditKind.Insert).Select(s => s.Text))).ToList();
-        Assert.Equal(newParagraphs, rebuiltNew);
-        Assert.Equal(oldParagraphs, rebuiltOld);
+        Assert.Equal(newParagraphs, Rebuilt(diff, old: false));
+        Assert.Equal(oldParagraphs, Rebuilt(diff, old: true));
     }
+
+    [Fact]
+    public void Both_texts_can_be_rebuilt_from_the_rows_when_paragraphs_are_split_joined_and_moved()
+    {
+        var oldParagraphs = new[] { "Eins und zwei.", "Drei.", "Vier, fünf und sechs.", string.Empty, "Sieben." };
+        var newParagraphs = new[] { "Eins", "und zwei. Drei!", "Sieben.", "Vier, fünf", string.Empty, "und sechs." };
+        var diff = DocumentDiff.Compare(oldParagraphs, newParagraphs);
+        Assert.Equal(newParagraphs, Rebuilt(diff, old: false));
+        Assert.Equal(oldParagraphs, Rebuilt(diff, old: true));
+    }
+
+    /// <summary>A paragraph is the rows that hold a part of it, in order (a split paragraph is two rows of the old one, joined ones two rows of the new one).</summary>
+    private static List<string> Rebuilt(IReadOnlyList<ParagraphDiff> diff, bool old)
+        => [.. diff.Where(p => (old ? p.OldIndex : p.NewIndex) is not null)
+            .GroupBy(p => (old ? p.OldIndex : p.NewIndex)!.Value)
+            .OrderBy(g => g.Key)
+            .Select(g => string.Concat(g.SelectMany(p => p.Segments).Where(s => s.Kind != (old ? EditKind.Insert : EditKind.Delete)).Select(s => s.Text)))];
 }
 
 public class TextMetricsTests

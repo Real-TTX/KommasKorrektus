@@ -44,11 +44,17 @@ documents in a volume or on a NAS (SMB).
 - **A version is a pass over the text, not a click**: every save (`Ctrl+S`, the button, the autosave) writes into the version
   being worked on, and *Durchgang abschließen* closes it; the next change begins the next version. Restoring an old version
   creates a new one
+- **Changes in the text, as in Word's review**: what differs from an earlier version is marked in the text while you write (new words green, a bar at the margin,
+  a red pin where words were taken away with a card that shows what stood there), listed in a panel, walked through with `Alt+N` / `Alt+P`, and each change
+  can be **taken back** with one click; *Alle* / *Einfach* / *Aus* (`Alt+M`), against the version before, the round, the original or any version
+- **A check for what a proofreader looks for by hand** (`Alt+T`): double spaces, spaces before punctuation, straight quotation marks to „German“ ones, `...` to `…`,
+  dashes, protected spaces, a word twice, and names that differ a letter from the style sheet; corrected one by one or a whole rule at once
+- Standard pages live in the editor, find and replace with **regular expressions**
 - **Comparison** at word level: side by side or as one text, only the changes (with a paragraph of context) or
   everything, jump from change to change (`n` / `p`)
 - The **page view** is in the comparison, the version view and for authors and clients as well: the changes inside the
   formatted text. A PDF can be shown next to the text
-- Export: **DOCX with tracked changes** (in the original file, formatting untouched), clean DOCX, PDF proof sheet
+- Export: **DOCX with tracked changes and your comments** (in the original file, formatting untouched; your remarks become Word comments on the words they are about), clean DOCX, PDF proof sheet
   (struck-through / underlined), PDF side by side, plain text
 
 **Time**
@@ -93,6 +99,7 @@ documents in a volume or on a NAS (SMB).
 | ![The editor](docs/images/editor.png) **Editor, text view**: paragraph by paragraph, saved as versions | ![The editor as a page](docs/images/editor-page.png) **Editor, page view**: the layout of the Word file, written in directly |
 | ![Comparison side by side](docs/images/compare-side.png) **Comparison**: old and new next to each other | ![The changes on the page](docs/images/compare-page.png) **Comparison as a page**: the changes in the formatted text |
 | ![The earlier version beside the text](docs/images/editor-earlier.png) **Editor, earlier version beside the text**: compared live while you write, what is gone in red, what is new in green | ![Two pages next to each other](docs/images/compare-pages.png) **Comparison, two pages**: the old page and the new page, paragraph beside paragraph |
+| ![Changes in the text](docs/images/editor-changes.png) **Editor, changes in the text**: what changed since the version before, with a pin where words were taken away, the list, and a click to take each one back | ![The check](docs/images/editor-check.png) **Editor, the check**: typography and the names of the style sheet, marked in the text and corrected with one click |
 | ![The rounds of a document](docs/images/document-details.png) **The ping pong with the customer**: *Original*, *Änderung 1 ... 4*, *Datei vom Kunden v2*, *Änderung 1* ... | ![A file of the customer](docs/images/document-new-version.png) **A file of the customer** becomes the next version, to compare with any other |
 | ![The search bar](docs/images/editor-find.png) **Editor, search bar**: find and replace above the text | ![Released to an account](docs/images/share-account.png) **Released to one account**: sign-in instead of a public link, found under *Mit mir geteilt* |
 | ![Invoice with live preview](docs/images/invoice-edit.png) **Invoice**: live PDF preview next to the form | ![Invoice details](docs/images/invoice-details.png) **Issued**: frozen, with payments and e-invoice |
@@ -219,7 +226,9 @@ src/KommasKorrektus/        the web application
 tests/                      unit and integration tests
 ```
 
-The interface is built on the MatDesign toolkit (copied into `wwwroot/ui`, purple accent). Lists share one toolbar,
+The interface is built on the MatDesign toolkit MatUi (copied into `wwwroot/ui`, purple accent). The toolkit has a version of its own
+(`wwwroot/ui/CHANGELOG.md` says what each version changed, `matui.manifest.json` has the hash of every file); `scripts/sync-matui.ps1` copies a new one
+from a MatDesign archive and `scripts/check-matui.ps1` asks MatDesign whether there is news. Lists share one toolbar,
 table and pager; forms share the field controls; there are no inline scripts or styles (a strict CSP is set).
 
 ## Good to know

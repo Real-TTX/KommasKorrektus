@@ -16,6 +16,7 @@
 
   var LS = core.LS;
   var NL = String.fromCharCode(10);
+  var BREAK = String.fromCharCode(0x2029);   // a paragraph break in the text of a change (textdiff.js)
   var parasElement = core.parasElement;
   var wrap = null;        // the desk the page lies on
   var sheet = null;       // the page: one editable field
@@ -28,6 +29,7 @@
   var housekeeping = null;
   var toolsFrame = 0;
   var marks = null;       // the layer of the comment marks in the margin of the page
+  var ghosts = null;      // the layer of the marks of what was taken away since the earlier version (editor-changes.js draws on it)
   var marked = new Set(); // the paragraphs with an open comment
   var markedDone = new Set(); // the paragraphs with a comment that is ticked off, when those are shown
   var marksFrame = 0;
@@ -128,12 +130,14 @@
 
   function recountAll() {
     var words = 0;
+    var characters = 0;
     list().forEach(function (p) {
       var text = textOf(p);
       words += core.countWords(text);
+      characters += text.length;
       p.classList.toggle('is-changed', !core.base.has(text));
     });
-    core.showWordCount(words);
+    core.showWordCount(words, characters);
   }
 
   function scheduleHousekeeping() {
@@ -210,6 +214,7 @@
     renumber();
     core.renderComments();
     scheduleHousekeeping();
+    onSelection();   // the number beside the paragraph with the cursor moves in this frame (the browser tells of the new selection only after it)
   }
 
   /** A text from the clipboard is put in as text: lines become paragraphs (as in the text view), and nothing of the formatting it came with. */
@@ -289,12 +294,47 @@
   }
 
   // ------------------------------------------------------------------------------------------------ the view
+  /** The width the page can have in its desk. */
+  function availableWidth() { return wrap ? wrap.clientWidth - 16 : 0; }
+
   function fit() {
     if (!sheet) { return; }
-    var available = wrap.clientWidth - 16;
+    // the earlier version beside the page is fitted to the same width, so that both are the same size (editor-changes.js sets the limit)
+    var available = core.fitLimit ? Math.min(availableWidth(), core.fitLimit) : availableWidth();
     // 100 % is the page fitted to the width of the window; the size of the writing the person chose is on top of that (a bigger one may be wider than the window: it scrolls)
     var zoom = (available < width ? Math.max(0.3, available / width) : 1) * (core.scale ? core.scale() : 1);
     sheet.style.zoom = Math.abs(zoom - 1) < 0.001 ? '' : String(zoom);
+  }
+
+  /**
+   * Where a stretch of a paragraph is on the screen, relative to the desk the page lies on (the layers of marks are drawn there): { left, top, width, height } of its first
+   * line, or of the paragraph when the stretch has no box of its own (a place between two words, an empty paragraph).
+   */
+  function rectOf(index, from, to) {
+    var p = list()[index];
+    if (!p || !wrap) { return null; }
+    var a = locate(p, from);
+    var b = to === from ? a : locate(p, to);
+    var range = document.createRange();
+    range.setStart(a.node, a.offset);
+    range.setEnd(b.node, b.offset);
+    var rects = range.getClientRects();
+    var r = rects.length > 0 ? rects[0] : range.getBoundingClientRect();
+    if (!r || (r.width === 0 && r.height === 0)) { r = p.getBoundingClientRect(); }
+    var desk = wrap.getBoundingClientRect();
+    return { left: r.left - desk.left + wrap.scrollLeft, top: r.top - desk.top, width: r.width, height: r.height };
+  }
+
+  /** Types a text (a line break inside a paragraph is a line break, not a new paragraph) where the cursor is; nothing at all takes the marked words away. */
+  function typeText(value) {
+    if (!value) { return document.execCommand('delete'); }
+    var parts = value.split(NL);
+    var done = true;
+    parts.forEach(function (part, k) {
+      if (k > 0) { done = document.execCommand('insertLineBreak') && done; }
+      if (part) { done = document.execCommand('insertText', false, part) && done; }
+    });
+    return done;
   }
 
   function activePosition() {
@@ -378,9 +418,11 @@
       tools.appendChild(toolsNumber);
       tools.appendChild(button);
       marks = el('div', 'kk-pmarks');
+      ghosts = el('div', 'kk-pghosts');
       wrap.appendChild(sheet);
       wrap.appendChild(tools);
       wrap.appendChild(marks);
+      wrap.appendChild(ghosts);
       parasElement.appendChild(wrap);
 
       width = result.width;
@@ -398,7 +440,15 @@
       document.execCommand('defaultParagraphSeparator', false, 'p');
 
       if (typeof ResizeObserver !== 'undefined') {
-        observer = new ResizeObserver(function () { fit(); scheduleMarks(); });
+        // the marks follow at once, in the frame the size changed in (a frame later they would be seen jumping after the text); they lie on a layer of their own, so moving
+        // them changes no size that is observed here
+        observer = new ResizeObserver(function () {
+          fit();
+          if (marksFrame) { cancelAnimationFrame(marksFrame); }
+          placeMarks();
+          if (toolsFrame) { cancelAnimationFrame(toolsFrame); }
+          placeTools();
+        });
         observer.observe(wrap);
         // the text grows and shrinks while somebody writes: the marks follow their paragraphs
         observer.observe(sheet);
@@ -426,8 +476,28 @@
       wrap = null;
       tools = null;
       marks = null;
+      ghosts = null;
       cache = null;
     },
+
+    /** The layer on the desk for marks of what was taken away, and where a stretch of text is on it (see rectOf). */
+    layer: function () { return ghosts; },
+    desk: function () { return wrap; },
+    sheet: function () { return sheet; },
+    rectOf: rectOf,
+    /** The stretch from..to of a paragraph as a range of the page (for marking it with a highlight). */
+    rangeOf: function (i, from, to) {
+      var p = list()[i];
+      if (!p) { return null; }
+      var a = locate(p, from);
+      var b = to === from ? a : locate(p, to);
+      var range = document.createRange();
+      range.setStart(a.node, a.offset);
+      range.setEnd(b.node, b.offset);
+      return range;
+    },
+    availableWidth: availableWidth,
+    pageWidth: function () { return width; },
 
     texts: function () { return list().map(textOf); },
     count: function () { return list().length; },
@@ -470,6 +540,103 @@
       if (text) { document.execCommand('insertText', false, text); } else { document.execCommand('delete'); }
     },
 
+    // ---- taking a change back (editor-changes.js): every one is a step of the browser's own undo
+
+    /** The words from..to of a paragraph are replaced by a text (put in at that place when there are none): the old words of a change put back. Whether it worked. */
+    replaceRange: function (i, from, to, value) {
+      var p = list()[i];
+      if (!p) { return false; }
+      sheet.focus({ preventScroll: true });
+      setRange(p, from, to);
+      return typeText(value);
+    },
+
+    /**
+     * A stretch of the text that may go over paragraph breaks (from paragraph p1 at c1 to paragraph p2 at c2) replaced by a text in which U+2029 is a paragraph break: a
+     * paragraph that was split joined again, two that were joined split again, and the words with them. The browser's own steps (delete, insertParagraph, insertText), so that
+     * Ctrl+Z puts it forward again. The very end (after the break of the last paragraph) is the end of the last paragraph. Whether it worked.
+     */
+    replaceSpan: function (p1, c1, p2, c2, value) {
+      var all = list();
+      if (all.length === 0) { return false; }
+      var text = value;
+      var last = all.length - 1;
+      if (p1 > last) {
+        // put in after the last break: before it instead (the break moves to the front of the text)
+        p1 = last;
+        c1 = textOf(all[last]).length;
+        if (text.charAt(text.length - 1) === BREAK) { text = BREAK + text.slice(0, -1); }
+      }
+      if (p2 > last) {
+        p2 = last;
+        c2 = textOf(all[last]).length;
+        if (text.charAt(text.length - 1) === BREAK) { text = text.slice(0, -1); }
+      }
+      sheet.focus({ preventScroll: true });
+      var a = locate(all[p1], c1);
+      var b = locate(all[p2], c2);
+      var range = document.createRange();
+      range.setStart(a.node, a.offset);
+      range.setEnd(b.node, b.offset);
+      var selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      var done = true;
+      if (!range.collapsed) { done = document.execCommand('delete'); }
+      text.split(BREAK).forEach(function (part, k) {
+        if (k > 0) { done = document.execCommand('insertParagraph') && done; }
+        if (part) { done = typeText(part) && done; }
+      });
+      return done;
+    },
+
+    /**
+     * Takes a paragraph away: the break before it and its words (the first paragraph: its words and the break after it). It is a deletion across two paragraphs, so a paragraph
+     * in a table cell, whose neighbour is not in the same cell, stays (the page refuses that). Whether it worked.
+     */
+    removeParagraph: function (i) {
+      var all = list();
+      var p = all[i];
+      if (!p) { return false; }
+      sheet.focus({ preventScroll: true });
+      var range = document.createRange();
+      if (i > 0) {
+        var before = locate(all[i - 1], textOf(all[i - 1]).length);
+        var end = locate(p, textOf(p).length);
+        range.setStart(before.node, before.offset);
+        range.setEnd(end.node, end.offset);
+      } else if (all.length > 1) {
+        var start = locate(p, 0);
+        var next = locate(all[1], 0);
+        range.setStart(start.node, start.offset);
+        range.setEnd(next.node, next.offset);
+      } else {
+        setRange(p, 0, textOf(p).length);
+        return document.execCommand('delete');
+      }
+      var selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      return document.execCommand('delete');
+    },
+
+    /** A new paragraph with these words after paragraph i (-1: at the very beginning), looking as the export makes it. Whether it worked. */
+    insertParagraphAfter: function (i, value) {
+      var all = list();
+      sheet.focus({ preventScroll: true });
+      if (i < 0) {
+        setRange(all[0], 0, 0);
+        if (!document.execCommand('insertParagraph')) { return false; }
+        setRange(list()[0], 0, 0);
+      } else {
+        var p = all[Math.min(i, all.length - 1)];
+        setRange(p, textOf(p).length, textOf(p).length);
+        if (!document.execCommand('insertParagraph')) { return false; }
+      }
+      // an empty paragraph is the paragraph and nothing more (typeText of nothing would take the marked words away: it would delete the paragraph that was just made)
+      return value ? typeText(value) : true;
+    },
+
     /** Every match in every paragraph, from the end so that places that were found stay where they are; each replacement is a step the browser can undo. */
     replaceAll: function (re, text) {
       var count = 0;
@@ -481,12 +648,14 @@
         re.lastIndex = 0;
         var m;
         while ((m = re.exec(content)) !== null) {
-          found.push([m.index, m[0].length]);
+          found.push([m.index, m[0].length, m]);
           if (m[0].length === 0) { re.lastIndex += 1; }
         }
         for (var k = found.length - 1; k >= 0; k -= 1) {
           setRange(all[i], found[k][0], found[k][0] + found[k][1]);
-          var done = text ? document.execCommand('insertText', false, text) : document.execCommand('delete');
+          // what goes in is a text, or a function of the hit (the groups of an expression)
+          var value = typeof text === 'function' ? text(found[k][2]) : text;
+          var done = value ? document.execCommand('insertText', false, value) : document.execCommand('delete');
           if (done) { count += 1; }
         }
       }

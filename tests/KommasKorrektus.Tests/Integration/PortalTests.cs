@@ -44,7 +44,7 @@ public sealed class PortalTests : IClassFixture<AppFixture>
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/Portal/Project?id={projectB.Id}")).StatusCode);
 
         var documentPage = await AppFixture.TextAsync(client, $"/Portal/Document?id={documentA.Id}&mode=changes");
-        Assert.Contains("<ins>hatte</ins>", documentPage);
+        Assert.Contains("ha<ins>t</ins>te", documentPage);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/Portal/Document?id={documentB.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync($"/Portal/Download?id={documentA.Id}&format=DocxTracked")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync($"/Portal/Download?id={documentB.Id}&format=DocxTracked")).StatusCode);

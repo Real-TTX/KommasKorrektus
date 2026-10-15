@@ -23,7 +23,7 @@ public sealed class ExportModel(KkDbContext db, DocumentService documents, ICurr
 
         try
         {
-            var result = await documents.ExportAsync(document, from, to, format, current.Name ?? "KommasKorrektus", HttpContext.RequestAborted);
+            var result = await documents.ExportAsync(document, from, to, format, current.Name ?? "KommasKorrektus", HttpContext.RequestAborted, withComments: true);
             await log.LogAsync("Dokument exportiert", "Document", document.Id, $"{format}, Fassung {from} → {to}");
             return File(result.Bytes, result.ContentType, result.FileName);
         }

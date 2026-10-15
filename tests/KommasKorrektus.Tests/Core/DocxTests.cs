@@ -7,7 +7,10 @@ using KommasKorrektus.Core.Writing;
 
 namespace KommasKorrektus.Tests.Core;
 
-/// <summary>What Word would show after "accept all changes" and after "reject all changes", worked out from the XML.</summary>
+/// <summary>
+/// What Word would show after "accept all changes" and after "reject all changes", worked out from the XML. A paragraph mark that goes (a deleted one when accepting, an inserted
+/// one when rejecting) joins its paragraph with the next one, as in Word.
+/// </summary>
 internal static class RevisionView
 {
     public static List<string> Accepted(byte[] docx) => Read(docx, accept: true);
@@ -19,16 +22,14 @@ internal static class RevisionView
         using var stream = new MemoryStream(docx);
         using var doc = WordprocessingDocument.Open(stream, false);
         var result = new List<string>();
+        var carried = new System.Text.StringBuilder();   // the text of paragraphs whose mark went: it begins the next paragraph
         foreach (var p in doc.MainDocumentPart!.Document!.Body!.Descendants<Paragraph>())
         {
             var markInserted = p.ParagraphProperties?.ParagraphMarkRunProperties?.GetFirstChild<Inserted>() is not null;
             var markDeleted = p.ParagraphProperties?.ParagraphMarkRunProperties?.GetFirstChild<Deleted>() is not null;
-            if ((accept && markDeleted) || (!accept && markInserted))
-            {
-                continue;
-            }
+            var markGoes = (accept && markDeleted) || (!accept && markInserted);
 
-            var text = new System.Text.StringBuilder();
+            var text = carried;
             foreach (var element in p.Descendants())
             {
                 var insideInsertion = element.Ancestors<InsertedRun>().Any();
@@ -47,7 +48,19 @@ internal static class RevisionView
                 }
             }
 
+            if (markGoes)
+            {
+                continue;
+            }
+
             result.Add(text.ToString());
+            carried.Clear();
+        }
+
+        // the mark of the last paragraph cannot go in Word: what was carried stays with the paragraph before
+        if (carried.Length > 0)
+        {
+            if (result.Count > 0) { result[^1] += carried.ToString(); } else { result.Add(carried.ToString()); }
         }
 
         return result;

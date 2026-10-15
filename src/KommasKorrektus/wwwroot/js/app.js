@@ -16,6 +16,21 @@
   window.KK.applyAccents = applyAccents;
 })();
 
+// A tooltip (data-tip) is above its button; the toolkit has no answer for a button at the very top of the window (the bar of a maximized editor), where it would be cut off.
+// So it is looked at when the pointer or the focus arrives: no room above (the height of a tooltip and its gap), and it opens below.
+(function () {
+  'use strict';
+  var ROOM = 40;
+  function place(event) {
+    var target = event.target;
+    var tip = target && target.closest ? target.closest('[data-tip]') : null;
+    if (!tip) { return; }
+    if (tip.getBoundingClientRect().top < ROOM) { tip.setAttribute('data-tip-below', ''); } else { tip.removeAttribute('data-tip-below'); }
+  }
+  document.addEventListener('mouseover', place);
+  document.addEventListener('focusin', place);
+})();
+
 // A control that applies at once: <input data-submit-on-change> sends its form when it changes.
 document.addEventListener('change', function (event) {
   var target = event.target;
